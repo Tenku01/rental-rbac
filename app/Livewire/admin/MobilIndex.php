@@ -46,7 +46,7 @@ class MobilIndex extends Component
             'merek' => 'required|string',
             'warna' => 'required|string',
             'transmisi' => 'required|in:manual,otomatis',
-            'kursi' => 'required|in:5,7,9',
+            'kursi' => 'required|in:5,7,9,14,19',
             'harga' => 'required|numeric|min:0',
             'status' => 'required|in:tersedia,disewa,pemeliharaan,dibersihkan',
             'foto' => $this->isEditMode ? 'nullable|image|max:2048' : 'required|image|max:2048',

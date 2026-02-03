@@ -233,8 +233,10 @@
                                 <select wire:model="kursi" class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring focus:ring-blue-200 transition duration-200 bg-white">
                                     <option value="">-- Pilih --</option>
                                     <option value="5">5 Kursi (City Car/Sedan)</option>
-                                    <option value="7">7 Kursi (MPV/SUV)</option>
-                                    <option value="9">9 Kursi (Minibus)</option>
+                                    <option value="7">7 Kursi (MPV)</option>
+                                    <option value="9">9 Kursi (SUV)</option>
+                                    <option value="14">14 Kursi (Travel)</option>
+                                    <option value="19">19 Kursi (Minibus)</option>
                                 </select>
                                 @error('kursi') <span class="text-red-500 text-xs mt-1 block">{{ $message }}</span> @enderror
                             </div>

@@ -64,11 +64,11 @@ new class extends Component
 
 <section>
     <header>
-        <h2 class="text-lg font-medium text-cyan-700 dark:text-cyan-300">
+        <h2 class="text-lg font-medium text-cyan-700 dark:text-cyan-800">
             {{ __('Informasi Profil') }}
         </h2>
 
-        <p class="mt-1 text-sm text-gray-700 dark:text-gray-300">
+        <p class="mt-1 text-sm text-cyan-700 dark:text-cyan-500">
             {{ __('Perbarui informasi akun Anda, termasuk nama dan alamat email.') }}
         </p>
     </header>
@@ -87,10 +87,10 @@ new class extends Component
 
             @if (auth()->user() instanceof \Illuminate\Contracts\Auth\MustVerifyEmail && ! auth()->user()->hasVerifiedEmail())
                 <div>
-                    <p class="text-sm mt-2 text-gray-800">
+                    <p class="text-sm mt-2 text-cyan-800">
                         {{ __('Email Anda belum terverifikasi.') }}
 
-                        <button wire:click.prevent="sendVerification" class="underline text-sm text-gray-600 hover:text-gray-900 rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                        <button wire:click.prevent="sendVerification" class="underline text-sm text-cyan-600 hover:text-cyan-900 rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
                             {{ __('Klik di sini untuk mengirim ulang email verifikasi.') }}
                         </button>
                     </p>

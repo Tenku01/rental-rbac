@@ -15,74 +15,88 @@ use Carbon\Carbon;
 use Midtrans\Snap;
 use Midtrans\Config;
 use App\Jobs\AssignDriver; 
+use midtrans\Transaction;
+use midtrans\Notification;
 
 class PeminjamanController extends Controller
 {
     public function checkDriver(Request $request)
     {
+        // Log input untuk debugging
+        Log::info('checkDriver called', [
+            'tanggal_sewa' => $request->input('tanggal_sewa'),
+            'tanggal_kembali' => $request->input('tanggal_kembali'),
+            'all_inputs' => $request->all(),
+        ]);
+        
         // 1. Validasi Input
-        if (!$request->has('tanggal_sewa') || !$request->has('tanggal_kembali')) {
+        if (!$request->filled('tanggal_sewa') || !$request->filled('tanggal_kembali')) {
             return response()->json([
-                'available' => false, 
-                'message' => 'Tanggal input tidak ditemukan'
+                'available' => false,
+                'message' => 'Tanggal input tidak lengkap',
+                'debug' => [
+                    'tanggal_sewa' => $request->input('tanggal_sewa'),
+                    'tanggal_kembali' => $request->input('tanggal_kembali'),
+                ]
             ]);
         }
 
         try {
-            // PERBAIKAN: Gunakan Carbon::parse agar lebih fleksibel (bisa baca Y-m-d atau d-m-Y)
-            // Ini mencegah error jika format dari frontend berbeda sedikit
-            $start = Carbon::parse($request->tanggal_sewa)->format('Y-m-d');
-            $end   = Carbon::parse($request->tanggal_kembali)->format('Y-m-d');
+            // Konversi input ke format Y-m-d
+            $start = Carbon::createFromFormat('d-m-Y', $request->tanggal_sewa)->format('Y-m-d');
+            $end   = Carbon::createFromFormat('d-m-Y', $request->tanggal_kembali)->format('Y-m-d');
         } catch (\Exception $e) {
             return response()->json([
-                'available' => false, 
+                'available' => false,
                 'message' => 'Format tanggal invalid: ' . $e->getMessage()
             ], 400);
         }
 
-        // 2. Cari ID Sopir yang SIBUK (BENTROK)
-        $bookedQuery = Peminjaman::whereNotNull('sopir_id')
-            ->whereIn('status', ['menunggu pembayaran', 'pembayaran dp', 'sudah dibayar lunas', 'berlangsung'])
-            ->where(function ($query) use ($start, $end) {
-                $query->where('tanggal_sewa', '<=', $end)
-                      ->where('tanggal_kembali', '>=', $start);
-            });
-            
-        $bookedSopirIds = $bookedQuery->pluck('sopir_id')->toArray();
+        // 2. Cari ID sopir yang bentrok (sudah ada peminjaman di rentang tanggal)
+        $bookedSopirIds = Peminjaman::whereNotNull('sopir_id')
+            ->whereIn('status', ['menunggu pembayaran','pembayaran dp','sudah dibayar lunas','berlangsung'])
+            ->where(function($q) use ($start, $end) {
+                $q->where('tanggal_sewa', '<=', $end)
+                ->where('tanggal_kembali', '>=', $start);
+            })
+            ->pluck('sopir_id')
+            ->toArray();
 
-        // 3. Query Sopir Tersedia
-        $sopirQuery = Sopir::query();
+        // 3. Ambil sopir yang tersedia (status 'tersedia' atau 'bekerja') dan tidak bentrok
+        $availableSopirs = Sopir::whereIn('status', ['tersedia', 'bekerja'])
+            ->when(!empty($bookedSopirIds), function($q) use ($bookedSopirIds) {
+                $q->whereNotIn('id', $bookedSopirIds);
+            })
+            ->get(['id','nama','status']);
 
-        // Filter Status: Ambil yang 'tersedia' atau 'bekerja'
-        $sopirQuery->whereIn('status', ['tersedia', 'bekerja']);
+        // 4. Debug: Ambil semua sopir untuk cek status
+        $allSopirs = Sopir::get(['id', 'nama', 'status']);
+        $sopirByStatus = $allSopirs->groupBy('status');
 
-        // Filter Bentrok: Exclude sopir yang ID-nya ada di bookedSopirIds
-        if (!empty($bookedSopirIds)) {
-            $sopirQuery->whereNotIn('id', $bookedSopirIds);
-        }
-
-        $availableSopirCount = $sopirQuery->count();
-        
-        // Cek Total Sopir Keseluruhan di Database (tanpa filter) untuk debug
-        $totalSopirDatabase = Sopir::count();
-
-        // 4. Return JSON dengan Info DEBUG
-        return response()->json([
-            'available'     => $availableSopirCount > 0,
-            'sisa_sopir'    => $availableSopirCount,
-            'message'       => $availableSopirCount > 0 ? 'Sopir tersedia' : 'Sopir penuh',
-            
-            // --- INFO DEBUG (Akan muncul di Inspect Element > Network) ---
-            'debug' => [
+        // 5. Return JSON
+        $response = [
+            'available'   => $availableSopirs->count() > 0,
+            'sisa_sopir'  => $availableSopirs->count(),
+            'sopirs'      => $availableSopirs->pluck('nama'),
+            'debug'       => [
                 'input_tanggal_sewa' => $request->tanggal_sewa,
-                'parsed_start'       => $start,
-                'parsed_end'         => $end,
-                'ids_sopir_sibuk'    => $bookedSopirIds,
-                'total_sopir_di_db'  => $totalSopirDatabase, // Harus > 0 (di SQL anda ada 2)
-                'logic_status'       => "Mencari status IN ('tersedia', 'bekerja')",
+                'input_tanggal_kembali' => $request->tanggal_kembali,
+                'parsed_start' => $start,
+                'parsed_end' => $end,
+                'ids_sopir_bentrok' => $bookedSopirIds,
+                'total_sopir_db' => Sopir::count(),
+                'all_sopirs' => $allSopirs,
+                'sopir_by_status' => $sopirByStatus,
+                'searched_status' => ['tersedia', 'bekerja'],
+                'available_sopirs' => $availableSopirs,
             ]
-        ]);
+        ];
+        
+        Log::info('checkDriver response', $response);
+        
+        return response()->json($response);
     }
+
 
 
     public function show($id)
@@ -194,9 +208,9 @@ class PeminjamanController extends Controller
                 ->with('warning', '⚠ Identitas belum dilengkapi. Silakan unggah identitas Anda terlebih dahulu sebelum melakukan peminjaman.');
         }
 
-        // Catatan: $isDriverAvailable di sini hanya cek status statis 'tersedia' sebagai inisial.
-        // Pengecekan real-time berdasarkan tanggal dilakukan via AJAX ke checkDriverAvailability.
-        $isDriverAvailable = Sopir::where('status', 'tersedia')->exists();
+        // Catatan: $isDriverAvailable di sini hanya cek status statis 'tersedia' atau 'bekerja' sebagai inisial.
+        // Pengecekan real-time berdasarkan tanggal dilakukan via AJAX ke checkDriver.
+        $isDriverAvailable = Sopir::whereIn('status', ['tersedia', 'bekerja'])->exists();
 
         $bookedDates = [];
         foreach ($mobil->peminjaman as $p) {
@@ -244,15 +258,9 @@ public function store(Request $request)
                 ->pluck('sopir_id')
                 ->toArray();
 
-            // 2. Pilih Sopir Hybrid
-            $sopir = Sopir::where(function($query) use ($sopirBentrokIds) {
-                    $query->where('status', 'tersedia')
-                          ->orWhere(function($subQuery) use ($sopirBentrokIds) {
-                              $subQuery->whereIn('status', ['bekerja', 'disewa'])
-                                       ->whereNotIn('id', $sopirBentrokIds);
-                          });
-                })
-                ->where('status', '!=', 'tidak aktif')
+            // 2. Pilih Sopir yang tersedia (tersedia atau bekerja) dan tidak bentrok dengan jadwal
+            $sopir = Sopir::whereIn('status', ['tersedia', 'bekerja'])
+                ->whereNotIn('id', $sopirBentrokIds)
                 ->inRandomOrder()
                 ->first();
 

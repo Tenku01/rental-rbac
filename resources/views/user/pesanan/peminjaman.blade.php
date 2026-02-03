@@ -4,10 +4,11 @@
             {{ __('Form Peminjaman Mobil') }}
         </h2>
     </x-slot>
-
+ {{-- <script type="text/javascript" src="https://app.sandbox.midtrans.com/snap/snap.js"
+        data-client-key="{{ config('services.midtrans.client_key') }}"></script> --}}
     <!-- Dependencies -->
-    <script type="text/javascript" src="https://app.sandbox.midtrans.com/snap/snap.js"
-        data-client-key="{{ config('services.midtrans.client_key') }}"></script>
+<script type="text/javascript" src="https://app.midtrans.com/snap/snap.js"
+    data-client-key="{{ config('services.midtrans.client_key') }}"></script>
     <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script src="https://code.jquery.com/ui/1.13.2/jquery-ui.min.js"></script>
@@ -15,7 +16,7 @@
 
     <div class="py-12">
         <div class="max-w-4xl mx-auto sm:px-6 lg:px-8">
-            <div class="bg-white p-8 sm:p-10 shadow-2xl rounded-3xl overflow-hidden transition duration-500 hover:shadow-cyan-400/50 text-gray-900"
+            <div id="booking-root" class="bg-white p-8 sm:p-10 shadow-2xl rounded-3xl overflow-hidden transition duration-500 hover:shadow-cyan-400/50 text-gray-900"
                 x-data="{
                     tanggalSewa: '',
                     jamSewa: '{{ now()->format('H:i') }}',
@@ -73,8 +74,21 @@
                     checkDriver() {
                         this.sopirAvailable = true; 
                         
-                        if (!this.tanggalSewa || !this.tanggalKembali) {
+                        // Jika belum ada tanggalSewa, jangan check
+                        if (!this.tanggalSewa) {
                             return;
+                        }
+
+                        // Jika tanggalKembali belum ada, gunakan tanggalSewa + 1 hari untuk preview
+                        let tanggalKembaliForCheck = this.tanggalKembali;
+                        if (!tanggalKembaliForCheck) {
+                            const parts = this.tanggalSewa.split('-');
+                            const date = new Date(parts[2], parts[1] - 1, parts[0]);
+                            date.setDate(date.getDate() + 1);
+                            tanggalKembaliForCheck = 
+                                String(date.getDate()).padStart(2, '0') + '-' +
+                                String(date.getMonth() + 1).padStart(2, '0') + '-' +
+                                date.getFullYear();
                         }
                 
                         this.isCheckingDriver = true;
@@ -82,15 +96,19 @@
                         const postData = {
                             _token: '{{ csrf_token() }}',
                             tanggal_sewa: this.tanggalSewa,
-                            tanggal_kembali: this.tanggalKembali
+                            tanggal_kembali: tanggalKembaliForCheck
                         };
+                        
+                        console.log('  Checking Driver:', postData);
                 
                         axios.post('{{ route('check.driver') }}', postData)
                             .then(response => {
-                                console.log('Driver Check Response:', response.data);
+                                console.log('  Driver Check Response:', response.data);
                                 
                                 this.sopirAvailable = response.data.available;
                                 this.sisaSopir = response.data.sisa || response.data.sisa_sopir || 0;
+                                
+                                console.log('   sopirAvailable:', this.sopirAvailable, 'sisaSopir:', this.sisaSopir);
                 
                                 // 🔥 LOGIKA BARU: Jika Tidak Available / 0
                                 if (!this.sopirAvailable || this.sisaSopir === 0) {
@@ -229,12 +247,12 @@
                                         Mengecek...
                                     </span>
                                 </template>
-                                <template x-if="!isCheckingDriver && sopirAvailable">
-                                    <span class="px-3 py-1 rounded-full text-xs font-bold bg-green-100 text-green-700 border border-green-200 flex items-center gap-1">
-                                        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
-                                        <span x-text="sisaSopir"></span> Tersedia
+                                    <span 
+                                    x-show="!isCheckingDriver && sopirAvailable"
+                                    class="px-3 py-1 rounded-full text-xs font-bold bg-green-100 text-green-700 border border-green-200 flex items-center gap-1"
+                                    >
+                                        <span x-text="sisaSopir" x-cloak></span> Tersedia
                                     </span>
-                                </template>
                                 <template x-if="!isCheckingDriver && !sopirAvailable">
                                     <span class="px-3 py-1 rounded-full text-xs font-bold bg-red-100 text-red-700 border border-red-200 flex items-center gap-1">
                                         <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
@@ -423,6 +441,122 @@
         // Kita butuh array string simple untuk jQuery UI Datepicker
         const disabledDates = bookedDates.map(d => d);
 
+        // 🔥 HELPER: Get Alpine Component Instance (with methods)
+        function getAlpineComponent() {
+            const alpineEl = document.querySelector('[x-data]');
+            if (!alpineEl) {
+                console.error('❌ Alpine element tidak ditemukan');
+                return null;
+            }
+            
+            // Alpine component instance contains both $data and methods
+            if (alpineEl.__x) {
+                console.log('  Alpine component accessed via __x');
+                return alpineEl.__x;
+            }
+            
+            console.error('❌ Tidak bisa akses Alpine component');
+            return null;
+        }
+        
+        // 🔥 HELPER: Get Alpine Data Only
+        function getAlpineData() {
+            const component = getAlpineComponent();
+            if (component && component.$data) {
+                console.log('  Alpine data accessed via component.$data');
+                return component.$data;
+            }
+            
+            // Fallback untuk _x_dataStack
+            const alpineEl = document.querySelector('[x-data]');
+            if (alpineEl && alpineEl._x_dataStack && alpineEl._x_dataStack[0]) {
+                console.log('  Alpine data accessed via _x_dataStack');
+                return alpineEl._x_dataStack[0];
+            }
+            
+            console.error('❌ Tidak bisa akses Alpine data');
+            return null;
+        }
+
+        // 🔥 SIMPLE HELPER: direct access to Alpine booking data via root id
+        function alpineBooking() {
+            const el = document.getElementById('booking-root');
+            if (!el) return null;
+            if (el._x_dataStack && el._x_dataStack[0]) return el._x_dataStack[0];
+            return null;
+        }
+        
+        // 🔥 HELPER: Check Driver - Standalone AJAX call (tidak bergantung Alpine methods)
+        function checkDriverViaAjax(tanggalSewa, tanggalKembali) {
+            if (!tanggalSewa) return;
+            
+            // Auto-generate tanggal kembali jika belum ada
+            let tanggalKembaliForCheck = tanggalKembali;
+            if (!tanggalKembaliForCheck) {
+                const parts = tanggalSewa.split('-');
+                const date = new Date(parts[2], parts[1] - 1, parts[0]);
+                date.setDate(date.getDate() + 1);
+                tanggalKembaliForCheck = 
+                    String(date.getDate()).padStart(2, '0') + '-' +
+                    String(date.getMonth() + 1).padStart(2, '0') + '-' +
+                    date.getFullYear();
+            }
+            
+            const alpineData = getAlpineData();
+            if (alpineData) {
+                alpineData.isCheckingDriver = true; // Set loading state
+                console.log('⏳ isCheckingDriver set to true');
+            }
+            
+            const postData = {
+                _token: '{{ csrf_token() }}',
+                tanggal_sewa: tanggalSewa,
+                tanggal_kembali: tanggalKembaliForCheck
+            };
+            
+            console.log('  AJAX Checking Driver:', postData);
+            
+            axios.post('{{ route('check.driver') }}', postData)
+                .then(response => {
+                    console.log('  Driver Check Response:', response.data);
+                    
+                    // Update Alpine data - Use wrapper to ensure reactivity
+                    const alpineData = getAlpineData();
+                    if (alpineData) {
+                        // Update values in one go to trigger reactivity
+                        alpineData.sisaSopir = response.data.sisa || response.data.sisa_sopir || 0;
+                        alpineData.sopirAvailable = response.data.available;
+                        alpineData.isCheckingDriver = false; // 🔥 SET FALSE TO SHOW RESULT
+                        
+                        console.log('     All states updated:');
+                        console.log('   sisaSopir:', alpineData.sisaSopir);
+                        console.log('   sopirAvailable:', alpineData.sopirAvailable);
+                        console.log('   isCheckingDriver:', alpineData.isCheckingDriver);
+                        
+                        // Double-check display values
+                        const spanSisa = document.querySelector('[x-text="sisaSopir"]');
+                        if (spanSisa) {
+                            console.log('   DOM text content:', spanSisa.textContent);
+                        }
+                        
+                        // Jika tidak tersedia, auto-switch ke lepas kunci
+                        if (!alpineData.sopirAvailable || alpineData.sisaSopir === 0) {
+                            alpineData.sopirAvailable = false;
+                            alpineData.addOnSopir = 0;
+                            console.log('   ⚠️ Sopir not available - switched to Lepas Kunci');
+                        }
+                    }
+                })
+                .catch(error => {
+                    console.error('❌ Driver Check Error:', error);
+                    const alpineData = getAlpineData();
+                    if (alpineData) {
+                        alpineData.sopirAvailable = false;
+                        alpineData.isCheckingDriver = false;
+                    }
+                });
+        }
+
         function showToast(message) {
             const container = document.getElementById('toast-container');
             const toast = document.createElement('div');
@@ -445,23 +579,27 @@
                 return [isAvailable, isAvailable ? "" : "disabled-date"];
             },
             onSelect: function(selectedDate) {
+                console.log('  tanggal_sewa SELECTED:', selectedDate);
+
                 // Set minimal tanggal kembali = besoknya
                 var parts = selectedDate.split("-");
                 var minReturn = new Date(parts[2], parts[1] - 1, parts[0]);
                 minReturn.setDate(minReturn.getDate() + 1);
-                
+
                 $('#tanggal_kembali').datepicker("option", "minDate", minReturn).val("");
 
                 // Trigger event input manual agar Alpine.js mendeteksi perubahan
                 this.dispatchEvent(new Event('input'));
                 updateJamSewa();
 
-                // 🔥 UPDATE STATE ALPINE & TRIGGER CEK SOPIR
-                const alpineEl = document.querySelector('[x-data]');
-                if (alpineEl && alpineEl.__x) {
-                    alpineEl.__x.$data.tanggalSewa = selectedDate;
-                    alpineEl.__x.$data.tanggalKembali = ''; 
-                    // Kita belum bisa cek sopir karena tanggal kembali belum diisi
+                // 🔥 UPDATE STATE ALPINE secara eksplisit via helper
+                const alpine = alpineBooking();
+                if (alpine) {
+                    console.log('  Setting Alpine data - tanggalSewa:', selectedDate);
+                    alpine.tanggalSewa = selectedDate;
+                    alpine.tanggalKembali = '';
+                } else {
+                    console.error('❌ Tidak bisa update Alpine data (tanggal_sewa)');
                 }
             }
         });
@@ -475,7 +613,11 @@
                 return [isAvailable, isAvailable ? "" : "disabled-date"];
             },
             onSelect: function(selectedDate) {
+                console.log('  tanggal_kembali SELECTED:', selectedDate);
+
                 var sewa = $('#tanggal_sewa').val();
+                console.log('  tanggal_sewa value:', sewa);
+
                 if (sewa) {
                     var partsSewa = sewa.split("-");
                     var sewaDate = new Date(partsSewa[2], partsSewa[1] - 1, partsSewa[0]);
@@ -510,12 +652,23 @@
                     } else {
                         updateDeadlineInfo();
 
-                        // 🔥 TRIGGER CEK SOPIR ALPINE
-                        // Saat tanggal kembali dipilih dan valid, baru kita cek sopir
-                        const alpineEl = document.querySelector('[x-data]');
-                        if (alpineEl && alpineEl.__x) {
-                            alpineEl.__x.$data.tanggalKembali = selectedDate;
-                            alpineEl.__x.$data.checkDriver();
+                        // 🔥 TRIGGER CEK SOPIR - gunakan helper alpineBooking untuk sinkronisasi
+                        const alpine = alpineBooking();
+                        if (alpine) {
+                            console.log('  Setting Alpine data - tanggalKembali:', selectedDate);
+                            alpine.tanggalKembali = selectedDate;
+
+                            // Delay kecil supaya Alpine dapat settle dan method tersedia
+                            setTimeout(() => {
+                                if (typeof alpine.checkDriver === 'function') {
+                                    alpine.checkDriver();
+                                } else {
+                                    // fallback ke AJAX jika method tidak ada
+                                    checkDriverViaAjax(alpine.tanggalSewa, selectedDate);
+                                }
+                            }, 100);
+                        } else {
+                            console.error('❌ Tidak bisa akses Alpine data');
                         }
                     }
                 }
@@ -572,9 +725,9 @@
 
         $('#jam_sewa').on('change', function() {
             updateDeadlineInfo();
-            const alpineEl = document.querySelector('[x-data]');
-            if (alpineEl && alpineEl.__x) {
-                alpineEl.__x.$data.jamSewa = this.value; 
+            const alpineData = getAlpineData();
+            if (alpineData) {
+                alpineData.jamSewa = this.value; 
             }
         });
 
