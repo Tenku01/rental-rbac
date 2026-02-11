@@ -11,14 +11,14 @@ return Application::configure(basePath: dirname(__DIR__))
         commands: __DIR__.'/../routes/console.php',
         health: '/up',
     )
-  ->withMiddleware(function (Middleware $middleware) {
-    $middleware->alias([
-        'staff' => \App\Http\Middleware\StaffMiddleware::class,
-        'resepsionis' => \App\Http\Middleware\ResepsionisMiddleware::class,
-        'sopir' => \App\Http\Middleware\SopirMiddleware::class,
-        'admin' => \App\Http\Middleware\IsAdmin::class,
-    ]);
-})
+    ->withMiddleware(function (Middleware $middleware) {
+        // Mendaftarkan Alias Middleware untuk Spatie Laravel Permission
+        $middleware->alias([
+            'role'       => \Spatie\Permission\Middleware\RoleMiddleware::class,
+            'permission' => \Spatie\Permission\Middleware\PermissionMiddleware::class,
+            'role_or_permission' => \Spatie\Permission\Middleware\RoleOrPermissionMiddleware::class,
+        ]);
+    })
     ->withExceptions(function (Exceptions $exceptions) {
         //
     })->create();

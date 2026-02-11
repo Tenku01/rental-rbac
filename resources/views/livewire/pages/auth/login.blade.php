@@ -4,10 +4,14 @@ use App\Livewire\Forms\LoginForm;
 use Illuminate\Support\Facades\Session;
 use Livewire\Attributes\Layout;
 use Livewire\Volt\Component;
-use Illuminate\Support\Facades\Auth; // Pastikan import Auth ada
+use Illuminate\Support\Facades\Auth;
 
 new #[Layout('layouts.guest')] class extends Component
 {
+    /**
+     * Properti Form Object. 
+     * Livewire 3 akan menginisialisasi ini secara otomatis.
+     */
     public LoginForm $form;
 
     /**
@@ -16,10 +20,6 @@ new #[Layout('layouts.guest')] class extends Component
     public function login(): void
     {
         $this->validate();
-
-        // -----------------------------------------------------------
-        // BAGIAN KODE PEMBLOKIR "ADMIN" SUDAH SAYA HAPUS DI SINI
-        // -----------------------------------------------------------
 
         try {
             $this->form->authenticate();
@@ -30,21 +30,22 @@ new #[Layout('layouts.guest')] class extends Component
 
         Session::regenerate();
 
-        // Ambil data user yang baru saja login
+        /** @var \App\Models\User $user */
         $user = Auth::user();
-        $roleId = $user->role_id; // Mengambil role_id langsung dari database
 
-        logger()->info('USER_LOGIN', ['id' => $user->id, 'role' => $roleId]);
-
-        // Redirect berdasarkan Role ID (Sesuai Database Anda)
-        // Role 1 = Admin, 2 = Pelanggan, 3 = Resepsionis, 4 = Sopir, 5 = Staff
-        match ($roleId) {
-            1 => $this->redirect('/admin/dashboard', navigate: true), // Redirect Admin
-            2 => $this->redirect('/dashboard', navigate: true), // Redirect Pelanggan
-            4 => $this->redirect('/sopir/dashboard', navigate: true),
-            5 => $this->redirect('/staff/dashboard', navigate: true),
-            3 => $this->redirect('/resepsionis/dashboard', navigate: true),
-        };
+        // LOGIKA REDIRECT UNIVERSAL
+        // Karena semua role (Admin, Sopir, Staff, Resepsionis) sekarang menggunakan 
+        // HomeIndex yang sama, kita arahkan ke rute home yang sesuai.
+        
+        if ($user->hasRole('pelanggan')) {
+            // Jika Anda punya halaman khusus pelanggan (misal landing page setelah login)
+            // bisa diarahkan ke sini, tapi default /dashboard juga sudah benar.
+            $this->redirectIntended(default: '/dashboard', navigate: true);
+        } else {
+            // Untuk semua Management (Admin, Staff, Sopir, Resepsionis)
+            // Diarahkan ke /home sesuai permintaan Anda.
+            $this->redirect('/home', navigate: true);
+        }
     }
 };
 ?>

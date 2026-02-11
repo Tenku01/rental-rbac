@@ -5,24 +5,16 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
-use Illuminate\Support\Facades\Hash;
-
-use App\Models\Role;
-use App\Models\Pelanggan;
-use App\Models\Sopir; // Pastikan ini diimpor
-use App\Models\Resepsionis;
-use App\Models\Staff;
-use App\Models\Peminjaman;
+use Spatie\Permission\Traits\HasRoles;
 
 class User extends Authenticatable
 {
-    use HasFactory, Notifiable;
+    use HasFactory, Notifiable, HasRoles;
 
     protected $fillable = [
         'name',
         'email',
         'password',
-        'role_id',
     ];
 
     protected $hidden = [
@@ -34,108 +26,80 @@ class User extends Authenticatable
         'email_verified_at' => 'datetime',
         'password' => 'hashed',
     ];
-    
-    // 🔹 Relasi hasOne ke Staff
-    public function staff()
-    {
-        return $this->hasOne(Staff::class, 'user_id');
-    }
+protected $guard_name = 'web';
+    /*
+    |--------------------------------------------------------------------------
+    | Relasi ke Tabel Profil
+    |--------------------------------------------------------------------------
+    */
 
-    // 🔹 PENTING: Relasi hasOne ke Sopir
-    // Ini memungkinkan pemanggilan: Auth::user()->sopir
-    public function sopir()
-    {
-        return $this->hasOne(Sopir::class, 'user_id');
-    }
+    public function staff() { return $this->hasOne(Staff::class, 'user_id'); }
+    public function sopir() { return $this->hasOne(Sopir::class, 'user_id'); }
+    public function pelanggan() { return $this->hasOne(Pelanggan::class, 'user_id'); }
+    public function resepsionis() { return $this->hasOne(Resepsionis::class, 'user_id'); }
+    public function peminjamans() { return $this->hasMany(Peminjaman::class); }
 
-    public function pelanggan()
-{
-    return $this->hasOne(Pelanggan::class, 'user_id');
-}
+    /*
+    |--------------------------------------------------------------------------
+    | Booted Logic (Otomatisasi Pembuatan Profil)
+    |--------------------------------------------------------------------------
+    */
 
-public function resepsionis()
-{
-    return $this->hasOne(Resepsionis::class, 'user_id');
-}
-
-    // 🔹 Relasi lainnya
-    public function role()
-    {
-        return $this->belongsTo(Role::class, 'role_id');
-    }
-      public function hasRole($roleName)
-    {
-        return $this->role && $this->role->role_name === $roleName;
-    }
-
-    public function peminjamans()
-    {
-        return $this->hasMany(Peminjaman::class);
-    }
-
-    // 🔹 Mutator password
-    // public function setPasswordAttribute($value)
-    // {
-    //     if ($value) {
-    //         $this->attributes['password'] = Hash::make($value);
-    //     }
-    // }
-
-    // 🔹 Hook otomatis untuk create/update role table
     protected static function booted()
     {
-        // Saat user baru dibuat
+        /**
+         * Triggered saat User::create() atau $user->save() pertama kali.
+         * Penting: Pastikan assignRole() dipanggil SEGERA setelah User::create() 
+         * di Controller agar logika ini berjalan.
+         */
         static::created(function ($user) {
-            switch ($user->role_id) {
-                case 2: // Pelanggan
-                    Pelanggan::firstOrCreate(
-                        ['user_id' => $user->id],
-                        ['nama' => $user->name, 'status' => 'aktif']
-                    );
-                    break;
-                case 3: // Resepsionis
-                    Resepsionis::firstOrCreate(
-                        ['user_id' => $user->id],
-                        ['nama' => $user->name, 'status' => 'tidak aktif']
-                    );
-                    break;
-                case 4: // Sopir
-                    // Catatan: Pastikan nilai status 'Tidak Tersedia' sesuai dengan enum DB: 'tidak tersedia'
-                    Sopir::firstOrCreate(
-                        ['user_id' => $user->id],
-                        ['nama' => $user->name, 'status' => 'tidak tersedia']
-                    );
-                    break;
-                case 5: // Staff
-                    Staff::firstOrCreate(
-                        ['user_id' => $user->id],
-                        ['nama' => $user->name, 'status' => 'tidak aktif']
-                    );
-                    break;
+            // Jika user mendaftar sendiri via Breeze (tanpa role), default jadi pelanggan
+            if ($user->roles()->count() === 0) {
+                $user->assignRole('pelanggan');
             }
         });
 
-        // Saat user diupdate
-        static::updated(function ($user) {
-            if ($user->wasChanged('role_id')) {
-                // Hapus data lama di tabel role
-                Pelanggan::where('user_id', $user->id)->delete();
-                Resepsionis::where('user_id', $user->id)->delete();
-                Sopir::where('user_id', $user->id)->delete();
-                Staff::where('user_id', $user->id)->delete();
+        /**
+         * Triggered saat role diberikan kepada user (via assignRole).
+         * Ini akan otomatis membuat data di tabel detail (pelanggan/sopir/staff/resepsionis).
+         */
+        static::saved(function ($user) {
+            // Logika pembuatan profil detail berdasarkan Role Spatie
+            if ($user->hasRole('pelanggan')) {
+                Pelanggan::firstOrCreate(['user_id' => $user->id], [
+                    'nama' => $user->name,
+                ]);
+            } 
+            
+            if ($user->hasRole('resepsionis')) {
+                Resepsionis::firstOrCreate(['user_id' => $user->id], [
+                    'nama' => $user->name,
+                    'status' => 'tidak aktif'
+                ]);
+            }
 
-                // Buat record baru sesuai role baru
-                $user->refresh(); // pastikan data fresh
-                static::created($user); // panggil kembali hook create
+            if ($user->hasRole('sopir')) {
+                Sopir::firstOrCreate(['user_id' => $user->id], [
+                    'nama' => $user->name,
+                    'status' => 'tidak tersedia'
+                ]);
+            }
+
+            if ($user->hasRole('staff')) {
+                Staff::firstOrCreate(['user_id' => $user->id], [
+                    'nama' => $user->name,
+                    'status' => 'tidak aktif'
+                ]);
             }
         });
 
-        // Saat user dihapus
+        // Hapus detail saat user dihapus
         static::deleted(function ($user) {
-            Pelanggan::where('user_id', $user->id)->delete();
-            Resepsionis::where('user_id', $user->id)->delete();
-            Sopir::where('user_id', $user->id)->delete();
-            Staff::where('user_id', $user->id)->delete();
+            $user->pelanggan()?->delete();
+            $user->resepsionis()?->delete();
+            $user->sopir()?->delete();
+            $user->staff()?->delete();
         });
     }
+    
 }

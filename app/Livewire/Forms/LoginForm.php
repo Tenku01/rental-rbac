@@ -23,28 +23,26 @@ class LoginForm extends Form
 
     /**
      * Attempt to authenticate the request's credentials.
-     *
-     * @throws \Illuminate\Validation\ValidationException
+     * * Mengubah return type menjadi void karena kita tidak lagi membutuhkan 
+     * return role_id di sini (sudah ditangani di komponen Login).
      */
-   public function authenticate(): int
-{
-    $this->ensureIsNotRateLimited();
+    public function authenticate(): void
+    {
+        $this->ensureIsNotRateLimited();
 
-    if (!Auth::attempt($this->only(['email', 'password']), $this->remember)) {
-        RateLimiter::hit($this->throttleKey());
+        if (!Auth::attempt($this->only(['email', 'password']), $this->remember)) {
+            RateLimiter::hit($this->throttleKey());
 
-        throw ValidationException::withMessages([
-            'form.email' => trans('auth.failed'),
-        ]);
+            throw ValidationException::withMessages([
+                'form.email' => trans('auth.failed'),
+            ]);
+        }
+
+        RateLimiter::clear($this->throttleKey());
+        
+        // Regenerasi session dilakukan di sini
+        session()->regenerate();
     }
-
-    RateLimiter::clear($this->throttleKey());
-    session()->regenerate();
-
-    return Auth::user()->role_id;
-}
-
-
 
     /**
      * Ensure the authentication request is not rate limited.

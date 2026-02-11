@@ -12,14 +12,14 @@ use App\Models\UserIdentification;
 use App\Models\Fine; // Import Model Fine (Denda)
 use Barryvdh\DomPDF\Facade\Pdf; 
 
-class HomeIndex extends Component
+class Homeindex extends Component
 {
     public $showExportModal = false;
     public $dateStart, $dateEnd, $filterStatusExport = ''; 
 
     #[Layout('layouts.admin')] 
     public function render()
-    {
+    { 
         // 1. DATA KARTU STATISTIK (Sama seperti sebelumnya)
         $totalPendapatan = PaymentTransaction::where('status', 'settlement')->sum('amount');
         $totalMobil = Mobil::count();
