@@ -4,17 +4,22 @@ namespace App\Livewire\Menu\Master;
 
 use Livewire\Component;
 use Livewire\WithPagination;
+use Livewire\WithFileUploads;
 use Livewire\Attributes\Layout;
 use App\Models\User;
+use App\Models\UserIdentification;
 use Spatie\Permission\Models\Role;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rules;
+use Illuminate\Auth\Events\Registered; // Import untuk notifikasi email verifikasi
 
 class UserIndex extends Component
 {
     use WithPagination;
+    use WithFileUploads;
 
     // State Filter & Search
     public $search = '';
@@ -25,7 +30,7 @@ class UserIndex extends Component
     public $modalTitle = '';
     public $editingUserId = null;
     
-    // Form fields
+    // Form fields - User Core
     public $name = '';
     public $email = '';
     public $password = '';
@@ -33,13 +38,24 @@ class UserIndex extends Component
     public $selectedRole = ''; 
     public $status = 'aktif';
 
+    // Form fields - Detail Profil & Identitas
+    public $alamat = '';
+    public $no_telepon = '';
+    public $no_sim_sopir = ''; 
+    
+    // File Uploads
+    public $ktp_file;
+    public $sim_file;
+
     protected $paginationTheme = 'tailwind';
 
-    /**
-     * Sinkronisasi data saat pencarian atau filter berubah
-     */
     public function updatedSearch() { $this->resetPage(); }
     public function updatedFilterRole() { $this->resetPage(); }
+
+    public function updatedSelectedRole()
+    {
+        $this->resetValidation();
+    }
 
     protected function rules()
     {
@@ -56,6 +72,23 @@ class UserIndex extends Component
             $rules['password'] = 'nullable|confirmed|min:8';
         }
 
+        if ($this->selectedRole === 'pelanggan') {
+            $rules['alamat'] = 'required|string|max:255';
+            $rules['no_telepon'] = 'required|numeric';
+            
+            if (!$this->editingUserId) {
+                $rules['ktp_file'] = 'required|image|max:2048';
+                $rules['sim_file'] = 'required|image|max:2048';
+            } else {
+                $rules['ktp_file'] = 'nullable|image|max:2048';
+                $rules['sim_file'] = 'nullable|image|max:2048';
+            }
+        }
+
+        if ($this->selectedRole === 'sopir') {
+            $rules['no_sim_sopir'] = 'required|string|max:50';
+        }
+
         return $rules;
     }
 
@@ -68,7 +101,7 @@ class UserIndex extends Component
             ->when($this->search, function($q) {
                 $q->where(function($sq) {
                     $sq->where('name', 'like', '%'.$this->search.'%')
-                       ->orWhere('email', 'like', '%'.$this->search.'%');
+                        ->orWhere('email', 'like', '%'.$this->search.'%');
                 });
             })
             ->when($this->filterRole, function($q) {
@@ -77,12 +110,15 @@ class UserIndex extends Component
             ->orderBy('created_at', 'desc')
             ->paginate(10);
 
-        // Ambil semua role kecuali pelanggan untuk pilihan di filter/form
-        $roles = Role::where('name', '!=', 'pelanggan')->orderBy('name', 'asc')->get();
+        $roles = Role::orderBy('name', 'asc')->get();
+
+        $existingAdmin = User::role('admin')->first();
+        $existingAdminId = $existingAdmin ? $existingAdmin->id : null;
 
         return view('livewire.menu.master.user-index', [
             'users' => $users,
-            'roles' => $roles
+            'roles' => $roles,
+            'existingAdminId' => $existingAdminId 
         ]);
     }
 
@@ -90,7 +126,7 @@ class UserIndex extends Component
     {
         abort_if(Gate::denies('create-users'), 403);
         $this->resetForm();
-        $this->modalTitle = 'Registrasi Personel Baru';
+        $this->modalTitle = 'Registrasi Personel / Pengguna Baru';
         $this->showModal = true;
     }
 
@@ -98,7 +134,7 @@ class UserIndex extends Component
     {
         abort_if(Gate::denies('update-users'), 403);
         
-        $user = User::findOrFail($id);
+        $user = User::with(['pelanggan', 'sopir'])->findOrFail($id);
         
         $this->editingUserId = $user->id;
         $this->name = $user->name;
@@ -106,13 +142,31 @@ class UserIndex extends Component
         $this->status = $user->status;
         $this->selectedRole = $user->getRoleNames()->first();
         
-        $this->modalTitle = 'Ubah Informasi Personel';
+        if ($this->selectedRole === 'pelanggan' && $user->pelanggan) {
+            $this->alamat = $user->pelanggan->alamat;
+            $this->no_telepon = $user->pelanggan->no_telepon;
+        } elseif ($this->selectedRole === 'sopir' && $user->sopir) {
+            $this->no_sim_sopir = $user->sopir->no_sim;
+        }
+        
+        $this->modalTitle = 'Ubah Informasi Pengguna';
         $this->showModal = true;
     }
 
     public function save()
     {
         $this->validate();
+
+        if ($this->selectedRole === 'admin') {
+            $adminQuery = User::role('admin');
+            if ($this->editingUserId) {
+                $adminQuery->where('id', '!=', $this->editingUserId);
+            }
+            if ($adminQuery->exists()) {
+                $this->addError('selectedRole', 'Sistem dibatasi hanya boleh memiliki 1 akun Administrator Utama.');
+                return; 
+            }
+        }
 
         $data = [
             'name' => $this->name,
@@ -133,12 +187,63 @@ class UserIndex extends Component
             }
             
             $user->update($data);
-            $user->syncRoles($this->selectedRole);
-            $message = 'Informasi personel berhasil diperbarui.';
+            $user->syncRoles([$this->selectedRole]); // Sync memastikan role lama dibuang
+            $user->touch(); 
+            
+            $message = 'Informasi pengguna berhasil diperbarui.';
         } else {
+            // --- LOGIKA CREATE ---
+            if ($this->selectedRole !== 'pelanggan') {
+                $data['email_verified_at'] = now();
+            }
+
             $user = User::create($data);
-            $user->assignRole($this->selectedRole);
-            $message = 'Personel baru berhasil didaftarkan.';
+
+            /**
+             * PERBAIKAN:
+             * 1. Jalankan event Registered dahulu (yang mungkin memberikan role default 'pelanggan').
+             * 2. Gunakan syncRoles untuk memaksa HANYA role yang dipilih admin yang aktif.
+             */
+            event(new Registered($user));
+            $user->syncRoles([$this->selectedRole]); 
+            
+            $user->touch(); 
+            
+            $message = 'Pengguna baru berhasil didaftarkan.';
+        }
+
+        // --- Update Detail Profil ---
+        if ($this->selectedRole === 'pelanggan') {
+            $user->pelanggan()->update([
+                'alamat' => $this->alamat,
+                'no_telepon' => $this->no_telepon
+            ]);
+
+            if ($this->ktp_file || $this->sim_file) {
+                $identity = UserIdentification::firstOrNew(['user_id' => $user->id]);
+                
+                if ($this->ktp_file) {
+                    if ($identity->ktp && Storage::disk('public')->exists($identity->ktp)) {
+                        Storage::disk('public')->delete($identity->ktp);
+                    }
+                    $identity->ktp = $this->ktp_file->store('ktp', 'public');
+                }
+
+                if ($this->sim_file) {
+                    if ($identity->sim && Storage::disk('public')->exists($identity->sim)) {
+                        Storage::disk('public')->delete($identity->sim);
+                    }
+                    $identity->sim = $this->sim_file->store('sim', 'public');
+                }
+
+                $identity->status_approval = 'menunggu'; 
+                $identity->save();
+            }
+
+        } elseif ($this->selectedRole === 'sopir') {
+            $user->sopir()->update([
+                'no_sim' => $this->no_sim_sopir
+            ]);
         }
 
         $this->closeModal();
@@ -150,9 +255,20 @@ class UserIndex extends Component
         abort_if(Gate::denies('delete-users'), 403);
         $user = User::findOrFail($id);
 
+        if ($user->hasRole('admin')) {
+            $this->dispatch('notify', message: 'Demi keamanan, Akun Administrator Utama tidak dapat dihapus!', type: 'error');
+            return;
+        }
+
         if ($user->id === Auth::id()) {
             $this->dispatch('notify', message: 'Akun aktif tidak bisa dihapus!', type: 'error');
             return;
+        }
+
+        $identity = UserIdentification::where('user_id', $user->id)->first();
+        if ($identity) {
+            if ($identity->ktp) Storage::disk('public')->delete($identity->ktp);
+            if ($identity->sim) Storage::disk('public')->delete($identity->sim);
         }
 
         $user->delete();
@@ -163,6 +279,12 @@ class UserIndex extends Component
     {
         abort_if(Gate::denies('update-users'), 403);
         $user = User::findOrFail($id);
+        
+        if ($user->hasRole('admin')) {
+            $this->dispatch('notify', message: 'Status Administrator Utama tidak dapat diubah!', type: 'error');
+            return;
+        }
+
         if ($user->id === Auth::id()) return;
 
         $user->status = ($user->status === 'aktif') ? 'nonaktif' : 'aktif';
@@ -179,7 +301,11 @@ class UserIndex extends Component
 
     private function resetForm()
     {
-        $this->reset(['editingUserId', 'name', 'email', 'password', 'password_confirmation', 'selectedRole', 'status']);
+        $this->reset([
+            'editingUserId', 'name', 'email', 'password', 'password_confirmation', 
+            'selectedRole', 'status', 'alamat', 'no_telepon', 'no_sim_sopir', 
+            'ktp_file', 'sim_file'
+        ]);
         $this->status = 'aktif';
         $this->resetErrorBag();
     }

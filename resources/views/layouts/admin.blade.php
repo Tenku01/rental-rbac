@@ -28,9 +28,7 @@
 
 <div x-data="{ sidebarOpen: true }" class="min-h-screen flex">
 
-    {{-- SIDEBAR --}}
-    <!-- Pastikan file components.admin-sidebar ada. Jika belum, gunakan kode sidebar manual sebelumnya -->
-    @include('components.admin-sidebar')
+   <livewire:sidebar.sidebar />
 
     {{-- MAIN AREA --}}
     <div class="flex-1 flex flex-col overflow-hidden">
@@ -40,7 +38,7 @@
         @include('components.admin-headbar')
 
         {{-- MAIN CONTENT --}}
-        <main class="flex-1 overflow-x-hidden overflow-y-auto bg-gray-100 p-4 sm:p-6">
+        <main wire:transition class="flex-1 overflow-x-hidden overflow-y-auto bg-gray-100 p-4 sm:p-6">
            {{ $slot }}  
         </main>
 

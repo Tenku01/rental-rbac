@@ -35,13 +35,17 @@ use App\Livewire\Menu\Master\{
     MobilIndex,
     SopirIndex,
     StaffIndex,
-    ResepsionisIndex
+    ResepsionisIndex,
+    PelangganIndex
   
 };
 use App\Livewire\Menu\Transaksi\{
     PeminjamanIndex,
     PengembalianIndex,
-    PembatalanPesananIndex
+    PembatalanPesananIndex,
+    TransactionIndex,
+    FineIndex,
+    PembayaranIndex
 };
 use App\Livewire\Menu\Operasional\{
     DriverLogbookIndex,
@@ -49,6 +53,9 @@ use App\Livewire\Menu\Operasional\{
     VehicleDamageIndex,
     VerifikasiUserIndex
 };
+use App\Livewire\Sopir\Dashboard as SopirDashboard;
+use App\Livewire\Sopir\TugasAktif;
+use App\Livewire\Staff\Dashboard as StaffDashboard;
 
 // Landing page
 Route::get('/', [LandingController::class, 'index'])->name('landing');
@@ -57,12 +64,22 @@ Route::get('/', [LandingController::class, 'index'])->name('landing');
 require __DIR__ . '/auth.php';
 
 // Hanya untuk user yang login
-Route::middleware(['auth'])->group(function () {
+Route::middleware(['auth','verified'])->group(function () {
 
     // Dashboard user
     Route::get('/dashboard', function () {
         return view('user.dashboard');
     })->name('dashboard');
+     // --- PANEL KHUSUS SOPIR ---
+    Route::middleware('role:sopir')->group(function () {
+        Route::get('/sopir/dashboard', SopirDashboard::class)->name('sopir.dashboard');
+        // Route baru untuk SPA Logbook & Tugas Aktif Sopir
+        Route::get('/sopir/tugas-aktif', TugasAktif::class)->name('sopir.activeTasks');
+    });
+
+Route::middleware('role:staff')->group(function () {
+        Route::get('/staff/dashboard', StaffDashboard::class)->name('staff.dashboard');
+    });
 
     // Mobil (User)
     Route::get('/mobils', [MobilControllerUser::class, 'mobil'])->name('mobils.index');
@@ -142,9 +159,10 @@ Route::middleware(['auth'])->group(function () {
 
     // Dashboard Admin & Manajemen Akses
     Route::get('/home', HomeIndex::class)->name('home');
-
+});
      // --- GROUP MASTER DATA ---
     Route::middleware('permission:read-users')->get('/management/users', UserIndex::class)->name('users');
+        Route::middleware('permission:read-pelanggan')->get('/management/pelanggan', PelangganIndex::class)->name('pelanggan');
     Route::middleware('permission:read-roles')->get('/management/roles', RoleIndex::class)->name('roles');
     Route::middleware('permission:read-mobils')->get('/management/mobil', MobilIndex::class)->name('mobil');
     Route::middleware('permission:read-sopirs')->get('/management/sopir', SopirIndex::class)->name('sopir');
@@ -156,13 +174,15 @@ Route::middleware(['auth'])->group(function () {
     Route::middleware('permission:read-peminjaman')->get('/transaksi/peminjaman', PeminjamanIndex::class)->name('peminjaman');
     Route::middleware('permission:read-pengembalian')->get('/transaksi/pengembalian', PengembalianIndex::class)->name('pengembalian');
     Route::middleware('permission:read-pembatalan_pesanan')->get('/transaksi/pembatalan', PembatalanPesananIndex::class)->name('pembatalan');
+    Route::middleware('permission:read-payment_transactions')->get('/transaksi/payments', PembayaranIndex::class)->name('pembayaran');
 
     // --- GROUP OPERASIONAL ---
     Route::middleware('permission:read-driver_logbooks')->get('/operasional/logbook', DriverLogbookIndex::class)->name('logbook');
     Route::middleware('permission:read-vehicle_inspections')->get('/operasional/inspeksi', VehicleInspectionIndex::class)->name('inspeksi');
     Route::middleware('permission:read-vehicle_damage_reports')->get('/operasional/laporan-kerusakan', VehicleDamageIndex::class)->name('damage-report');
+    Route::middleware('permission:read-fines')->get('/operasional/denda', FineIndex::class)->name('fines');
 
-});
+
 
 
    

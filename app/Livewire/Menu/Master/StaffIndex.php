@@ -9,23 +9,36 @@ use App\Models\Staff;
 use App\Models\User;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rule;
+use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\DB;
 
 class StaffIndex extends Component
 {
     use WithPagination;
 
-    // Properti Input
-    public $nama, $email, $password, $status;
-    public $staffId, $userId;
+    // --- Filters & Search ---
+    public $search = '';
+    public $filterStatus = ''; // aktif, tidak aktif
 
-    // State UI
+    // --- Modal States ---
     public $showModal = false;
     public $isEditMode = false;
-    public $search = '';
+    public $modalTitle = '';
+
+    // --- Form Fields ---
+    public $staffId;
+    public $userId;
+    public $nama;
+    public $email;
+    public $password;
+    public $password_confirmation;
+    public $status = 'aktif';
 
     protected $paginationTheme = 'tailwind';
 
-    // Rules Validasi
+    public function updatedSearch() { $this->resetPage(); }
+    public function updatedFilterStatus() { $this->resetPage(); }
+
     protected function rules()
     {
         $rules = [
@@ -33,13 +46,12 @@ class StaffIndex extends Component
             'status' => 'required|in:aktif,tidak aktif',
         ];
 
-        // Validasi Email Unik (Kecuali punya sendiri saat edit)
         if ($this->isEditMode) {
-            $rules['email'] = ['required', 'email', Rule::unique('users')->ignore($this->userId)];
-            $rules['password'] = 'nullable|min:6'; // Password opsional saat edit
+            $rules['email'] = ['required', 'email', Rule::unique('users', 'email')->ignore($this->userId)];
+            $rules['password'] = 'nullable|confirmed|min:8';
         } else {
             $rules['email'] = 'required|email|unique:users,email';
-            $rules['password'] = 'required|min:6';
+            $rules['password'] = 'required|confirmed|min:8';
         }
 
         return $rules;
@@ -48,54 +60,82 @@ class StaffIndex extends Component
     #[Layout('layouts.admin')]
     public function render()
     {
+        abort_if(Gate::denies('read-staff'), 403, 'Akses ditolak.');
+
         $staffs = Staff::with('user')
-            ->where('nama', 'like', '%' . $this->search . '%')
+            ->when($this->search, function($q) {
+                $q->where('nama', 'like', '%' . $this->search . '%')
+                  ->orWhereHas('user', fn($sq) => $sq->where('email', 'like', '%' . $this->search . '%'));
+            })
+            ->when($this->filterStatus, fn($q) => $q->where('status', $this->filterStatus))
             ->orderBy('nama', 'asc')
             ->paginate(10);
 
-        return view('livewire.admin.staff-index', [
+        return view('livewire.menu.master.staff-index', [
             'staffs' => $staffs
         ]);
     }
 
-    // --- CRUD ACTIONS ---
+    // =========================================================================
+    // CRUD: CREATE
+    // =========================================================================
 
     public function create()
     {
+        abort_if(Gate::denies('create-staff'), 403);
         $this->resetInput();
         $this->isEditMode = false;
+        $this->modalTitle = 'Tambah Staff Baru';
         $this->showModal = true;
     }
 
     public function store()
     {
+        abort_if(Gate::denies('create-staff'), 403);
         $this->validate();
 
-        // 1. Buat Akun User Dulu
-        $user = User::create([
-            'name' => $this->nama,
-            'email' => $this->email,
-            'password' => Hash::make($this->password),
-            'role_id' => 5, // Role ID 5 = Staff
-            'status' => 'aktif'
-        ]);
+        DB::beginTransaction();
+        try {
+            // 1. Buat User
+            $user = User::create([
+                'name' => $this->nama,
+                'email' => $this->email,
+                'password' => Hash::make($this->password),
+                'status' => 'aktif'
+            ]);
 
-        // 2. Buat Data Staff
-        Staff::create([
-            'user_id' => $user->id,
-            'nama' => $this->nama,
-            'status' => $this->status
-        ]);
+            $user->assignRole('staff');
 
-        $this->showModal = false;
-        $this->resetInput();
-        session()->flash('message', 'Staff baru berhasil ditambahkan.');
+            // 2. Buat Profil Staff
+            // Menggunakan updateOrCreate untuk menangani jika observer sudah membuat record duluan
+            Staff::updateOrCreate(
+                ['user_id' => $user->id],
+                [
+                    'nama' => $this->nama,
+                    'status' => $this->status
+                ]
+            );
+
+            DB::commit();
+            $this->closeModal();
+            $this->dispatch('notify', message: 'Staff berhasil ditambahkan.', type: 'success');
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            $this->dispatch('notify', message: 'Gagal: ' . $e->getMessage(), type: 'error');
+        }
     }
+
+    // =========================================================================
+    // CRUD: UPDATE
+    // =========================================================================
 
     public function edit($id)
     {
+        abort_if(Gate::denies('update-staff'), 403);
+        
         $staff = Staff::with('user')->findOrFail($id);
-
+        
         $this->staffId = $staff->id;
         $this->userId = $staff->user_id;
         $this->nama = $staff->nama;
@@ -103,58 +143,80 @@ class StaffIndex extends Component
         $this->status = $staff->status;
         
         $this->isEditMode = true;
+        $this->modalTitle = 'Edit Data Staff';
         $this->showModal = true;
     }
 
     public function update()
     {
+        abort_if(Gate::denies('update-staff'), 403);
         $this->validate();
 
-        $staff = Staff::findOrFail($this->staffId);
-        $user = User::findOrFail($this->userId);
+        DB::beginTransaction();
+        try {
+            $staff = Staff::findOrFail($this->staffId);
+            $user = User::findOrFail($this->userId);
 
-        // 1. Update Data User (Login)
-        $userData = [
-            'name' => $this->nama,
-            'email' => $this->email,
-        ];
-        // Hanya update password jika diisi
-        if ($this->password) {
-            $userData['password'] = Hash::make($this->password);
+            // Update User
+            $userData = ['name' => $this->nama, 'email' => $this->email];
+            if ($this->password) {
+                $userData['password'] = Hash::make($this->password);
+            }
+            $user->update($userData);
+
+            // Update Staff
+            $staff->update([
+                'nama' => $this->nama, 
+                'status' => $this->status
+            ]);
+
+            DB::commit();
+            $this->closeModal();
+            $this->dispatch('notify', message: 'Data staff diperbarui.', type: 'success');
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            $this->dispatch('notify', message: 'Gagal: ' . $e->getMessage(), type: 'error');
         }
-        $user->update($userData);
-
-        // 2. Update Data Staff (Profile)
-        $staff->update([
-            'nama' => $this->nama,
-            'status' => $this->status
-        ]);
-
-        $this->showModal = false;
-        session()->flash('message', 'Data staff berhasil diperbarui.');
     }
+
+    // =========================================================================
+    // CRUD: DELETE & TOGGLE
+    // =========================================================================
 
     public function delete($id)
     {
+        abort_if(Gate::denies('delete-staff'), 403);
+        
         $staff = Staff::findOrFail($id);
         
-        // Hapus usernya, otomatis staff terhapus karena ON DELETE CASCADE di database
         if ($staff->user) {
             $staff->user->delete();
         } else {
             $staff->delete();
         }
 
-        session()->flash('message', 'Staff berhasil dihapus.');
+        $this->dispatch('notify', message: 'Data staff & akun dihapus.', type: 'warning');
+    }
+
+    public function toggleStatus($id)
+    {
+        abort_if(Gate::denies('update-staff'), 403);
+        $staff = Staff::findOrFail($id);
+        $staff->status = ($staff->status === 'aktif') ? 'tidak aktif' : 'aktif';
+        $staff->save();
+        $this->dispatch('notify', message: 'Status staff diubah.', type: 'success');
+    }
+
+    public function closeModal()
+    {
+        $this->showModal = false;
+        $this->resetInput();
     }
 
     private function resetInput()
     {
-        $this->nama = '';
-        $this->email = '';
-        $this->password = '';
-        $this->status = 'aktif';
-        $this->staffId = null;
-        $this->userId = null;
+        $this->reset(['nama', 'email', 'password', 'password_confirmation', 'status', 'staffId', 'userId', 'isEditMode', 'modalTitle']);
+        $this->resetErrorBag();
     }
 }

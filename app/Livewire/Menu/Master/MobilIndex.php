@@ -68,7 +68,7 @@ class MobilIndex extends Component
             ->orderBy('created_at', 'desc')
             ->paginate(10);
 
-        return view('livewire.admin.mobil-index', [
+        return view('livewire.menu.master.mobil-index', [
             'mobils' => $mobils
         ]); 
     }

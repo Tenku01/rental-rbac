@@ -19,6 +19,7 @@
         @switch(Route::currentRouteName())
             @case('home')           Dashboard Utama @break
             @case('users')          Manajemen Pengguna @break
+            @case('pelanggan')     Manajemen Pelanggan @break
             @case('roles')          Pengaturan Hak Akses @break
             @case('mobil')          Manajemen Armada @break
             @case('sopir')          Data Driver @break
@@ -27,6 +28,7 @@
             @case('verifikasi')     Verifikasi Identitas Pelanggan @break
             @case('peminjaman')     Transaksi Peminjaman @break
             @case('pengembalian')   Proses Pengembalian @break
+            @case('pembayaran')   Data Transaksi Pembayaran @break
             @case('pembatalan')     Persetujuan Pembatalan @break
             @case('logbook')        Log Aktivitas Driver @break
             @case('inspeksi')       Pengecekan Kendaraan @break

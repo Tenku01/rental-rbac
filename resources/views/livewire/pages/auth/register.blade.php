@@ -18,7 +18,7 @@ new #[Layout('layouts.guest')] class extends Component
     /**
      * Handle an incoming registration request.
      */
-   public function register(): void
+    public function register(): void
     {
         $validated = $this->validate([
             'name' => ['required', 'string', 'max:255'],
@@ -26,20 +26,39 @@ new #[Layout('layouts.guest')] class extends Component
             'password' => ['required', 'string', 'confirmed', Rules\Password::defaults()],
         ]);
 
-        $validated['password'] = Hash::make($validated['password']);
+        // Buat data user dasar
+        $userData = [
+            'name' => $validated['name'],
+            'email' => $validated['email'],
+            'password' => Hash::make($validated['password']),
+            'status' => 'aktif', // Default status
+            // Jika ingin otomatis verifikasi email (langsung login tanpa cek inbox), uncomment baris ini:
+            // 'email_verified_at' => now(), 
+        ];
 
-        // Set default values for role and status
-        $validated['role_id'] = 2;  // Role default
-        $validated['status'] = 'aktif';    // Status default
+        // Create user
+        $user = User::create($userData);
 
-        // Create the user and trigger the Registered event
-        event(new Registered($user = User::create($validated)));
+        // 1. Assign Role Spatie 'pelanggan'
+        // Pastikan Spatie Permission sudah terinstall & trait HasRoles ada di model User
+        $user->assignRole('pelanggan');
 
-        // Log the user in
-        Auth::login($user);
+        // 2. Trigger UserObserver (untuk membuat data di tabel 'pelanggans')
+        // Ini krusial karena assignRole tidak memicu event 'saved' Eloquent
+        $user->touch();
 
-        // Redirect to dashboard
-        $this->redirect(route('dashboard', absolute: false), navigate: true);
+        // Kirim email verifikasi (jika email_verified_at kosong)
+        event(new Registered($user));
+
+        // --- OPSI LOGIN ---
+        
+        // A. Login Otomatis (Default Laravel)
+        // Auth::login($user);
+        // $this->redirect(route('dashboard', absolute: false), navigate: true);
+
+        // B. Redirect ke Login dengan Pesan (Wajib Verifikasi Email)
+        session()->flash('status', 'Registrasi berhasil! Silakan cek email Anda untuk verifikasi sebelum login.');
+        $this->redirect(route('login'), navigate: true);
     }
 }; ?>
 
@@ -79,8 +98,8 @@ new #[Layout('layouts.guest')] class extends Component
         </div>
 
         <div class="flex items-center justify-end mt-4">
-            <a class="underline text-sm text-gray-600 dark:text-gray-400 hover:text-cyan-900 dark:hover:text-cyan-700 rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-cyan-500 dark:focus:ring-offset-cyan-800" href="{{ route('login') }}" wire:navigate>
-                {{ __('Sudah Punya Akun? Login') }}
+            <a class="underline text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 dark:focus:ring-offset-gray-800" href="{{ route('login') }}" wire:navigate>
+                {{ __('Already registered?') }}
             </a>
 
             <x-primary-button class="ms-4">

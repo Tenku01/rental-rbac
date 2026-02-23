@@ -129,8 +129,9 @@
                 </table>
             </div>
             
+            <!-- Implementasi Custom Pagination Disini -->
             <div class="mt-6">
-                {{ $mobils->links() }}
+                {{ $mobils->links('components.pagination-info') }}
             </div>
         </div>
     </div>

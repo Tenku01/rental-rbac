@@ -46,6 +46,7 @@ new #[Layout('layouts.guest')] class extends Component
             // Diarahkan ke /home sesuai permintaan Anda.
             $this->redirect('/home', navigate: true);
         }
+        
     }
 };
 ?>

@@ -11,59 +11,64 @@ use App\Models\Staff;
 class UserObserver
 {
     /**
-     * Handle the User "created" event.
+     * Handle the User "saved" event.
+     * Menggunakan 'saved' agar menangkap kejadian 'created' DAN 'updated'
+     * serta saat $user->touch() dipanggil setelah assignRole.
      */
-    public function created(User $user): void
+    public function saved(User $user): void
     {
-        switch ($user->role_id) {
-            case 2: // Pelanggan
-                Pelanggan::firstOrCreate(
+        // Cek Role Spatie (Mengambil role pertama yang aktif)
+        $role = $user->getRoleNames()->first();
+
+        // Jika belum ada role (misal baru create user mentahan), skip dulu
+        if (!$role) return;
+
+        // --- SINKRONISASI DATA ---
+        // Jika nama di User berubah atau role baru diset, update data di tabel profil
+        
+        switch ($role) {
+            case 'pelanggan':
+                Pelanggan::updateOrCreate(
                     ['user_id' => $user->id],
                     ['nama' => $user->name, 'status' => 'aktif']
                 );
+                // Hapus profil lain jika user pindah role (Cleanup)
+                $this->cleanupProfiles($user, 'pelanggan');
                 break;
 
-            case 3: // Resepsionis
-                Resepsionis::firstOrCreate(
+            case 'resepsionis':
+                Resepsionis::updateOrCreate(
                     ['user_id' => $user->id],
-                    ['nama' => $user->name, 'status' => 'tidak aktif']
+                    ['nama' => $user->name, 'status' => 'aktif'] // Default aktif
                 );
+                $this->cleanupProfiles($user, 'resepsionis');
                 break;
 
-            case 4: // Sopir
-                Sopir::firstOrCreate(
+            case 'sopir':
+                Sopir::updateOrCreate(
                     ['user_id' => $user->id],
-                    ['nama' => $user->name, 'status' => 'Tidak Tersedia']
+                    [
+                        'nama' => $user->name, 
+                        // Jangan override status jika sudah ada (agar tidak mereset status 'Bekerja')
+                        // 'status' => 'Tersedia' 
+                    ]
                 );
+                // Set default status hanya jika record baru dibuat
+                $sopir = Sopir::where('user_id', $user->id)->first();
+                if ($sopir->wasRecentlyCreated) {
+                    $sopir->update(['status' => 'Tersedia']);
+                }
+                
+                $this->cleanupProfiles($user, 'sopir');
                 break;
 
-            case 5: // Staff
-                Staff::firstOrCreate(
+            case 'staff':
+                Staff::updateOrCreate(
                     ['user_id' => $user->id],
-                    ['nama' => $user->name, 'status' => 'tidak aktif']
+                    ['nama' => $user->name, 'status' => 'aktif']
                 );
+                $this->cleanupProfiles($user, 'staff');
                 break;
-
-            default:
-                // role_id 1 (admin) atau role lain tidak di-handle
-                break;
-        }
-    }
-
-    /**
-     * Handle the User "updated" event.
-     */
-    public function updated(User $user): void
-    {
-        if ($user->wasChanged('role_id')) {
-            // Hapus data lama
-            Pelanggan::where('user_id', $user->id)->delete();
-            Sopir::where('user_id', $user->id)->delete();
-            Resepsionis::where('user_id', $user->id)->delete();
-            Staff::where('user_id', $user->id)->delete();
-
-            // Buat data baru sesuai role baru
-            $this->created($user);
         }
     }
 
@@ -72,9 +77,22 @@ class UserObserver
      */
     public function deleted(User $user): void
     {
+        // Hapus semua data profil terkait
         Pelanggan::where('user_id', $user->id)->delete();
         Sopir::where('user_id', $user->id)->delete();
         Resepsionis::where('user_id', $user->id)->delete();
         Staff::where('user_id', $user->id)->delete();
+    }
+
+    /**
+     * Helper untuk menghapus profil yang tidak sesuai dengan role saat ini.
+     * Mencegah data sampah (misal: User 'Sopir' tapi masih punya data di tabel 'Staff')
+     */
+    private function cleanupProfiles(User $user, string $currentRole): void
+    {
+        if ($currentRole !== 'pelanggan') Pelanggan::where('user_id', $user->id)->delete();
+        if ($currentRole !== 'resepsionis') Resepsionis::where('user_id', $user->id)->delete();
+        if ($currentRole !== 'sopir') Sopir::where('user_id', $user->id)->delete();
+        if ($currentRole !== 'staff') Staff::where('user_id', $user->id)->delete();
     }
 }

@@ -5,14 +5,14 @@ namespace App\Livewire\Menu\Master;
 use Livewire\Component;
 use Livewire\WithPagination;
 use Livewire\Attributes\Layout;
-use App\Models\Resepsionis;
+use App\Models\Pelanggan;
 use App\Models\User;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rule;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\DB;
 
-class ResepsionisIndex extends Component
+class PelangganIndex extends Component
 {
     use WithPagination;
 
@@ -26,12 +26,14 @@ class ResepsionisIndex extends Component
     public $modalTitle = '';
 
     // --- Form Fields ---
-    public $resepsionisId;
-    public $userId; // ID User terkait
+    public $pelangganId;
+    public $userId;
     public $nama;
     public $email;
     public $password;
     public $password_confirmation;
+    public $no_telepon;
+    public $alamat;
     public $status = 'aktif';
 
     protected $paginationTheme = 'tailwind';
@@ -43,16 +45,17 @@ class ResepsionisIndex extends Component
     {
         $rules = [
             'nama' => 'required|string|max:255',
+            'no_telepon' => 'required|numeric|digits_between:10,15',
+            'alamat' => 'required|string|max:500',
             'status' => 'required|in:aktif,tidak aktif',
         ];
 
-        // Validasi Email User (Unique, ignore self on update)
         if ($this->isEditMode) {
             $rules['email'] = ['required', 'email', Rule::unique('users', 'email')->ignore($this->userId)];
-            $rules['password'] = 'nullable|confirmed|min:8'; // Password opsional saat edit
+            $rules['password'] = 'nullable|confirmed|min:8';
         } else {
             $rules['email'] = 'required|email|unique:users,email';
-            $rules['password'] = 'required|confirmed|min:8'; // Password wajib saat create
+            $rules['password'] = 'required|confirmed|min:8';
         }
 
         return $rules;
@@ -61,20 +64,20 @@ class ResepsionisIndex extends Component
     #[Layout('layouts.admin')]
     public function render()
     {
-        // RBAC: Hanya user dengan izin 'read-resepsionis' yang bisa melihat
-        abort_if(Gate::denies('read-resepsionis'), 403, 'Akses ditolak.');
+        abort_if(Gate::denies('read-pelanggan'), 403, 'Akses ditolak.');
 
-        $resepsionis = Resepsionis::with('user')
+        $pelanggans = Pelanggan::with('user')
             ->when($this->search, function($q) {
                 $q->where('nama', 'like', '%' . $this->search . '%')
+                  ->orWhere('no_telepon', 'like', '%' . $this->search . '%')
                   ->orWhereHas('user', fn($sq) => $sq->where('email', 'like', '%' . $this->search . '%'));
             })
             ->when($this->filterStatus, fn($q) => $q->where('status', $this->filterStatus))
             ->orderBy('nama', 'asc')
             ->paginate(10);
 
-        return view('livewire.menu.master.resepsionis-index', [
-            'resepsionis' => $resepsionis
+        return view('livewire.menu.master.pelanggan-index', [
+            'pelanggans' => $pelanggans
         ]);
     }
 
@@ -84,55 +87,46 @@ class ResepsionisIndex extends Component
 
     public function create()
     {
-        abort_if(Gate::denies('create-resepsionis'), 403);
+        abort_if(Gate::denies('create-pelanggan'), 403);
         $this->resetInput();
         $this->isEditMode = false;
-        $this->modalTitle = 'Tambah Resepsionis Baru';
+        $this->modalTitle = 'Tambah Pelanggan Baru';
         $this->showModal = true;
     }
 
     public function store()
     {
-        abort_if(Gate::denies('create-resepsionis'), 403);
+        abort_if(Gate::denies('create-pelanggan'), 403);
         $this->validate();
 
         DB::beginTransaction();
         try {
-            // 1. Buat User Baru
+            // 1. Buat User
             $user = User::create([
                 'name' => $this->nama,
                 'email' => $this->email,
                 'password' => Hash::make($this->password),
-                // role_id dihapus karena pake Spatie, status user default aktif
-                'status' => 'aktif' 
+                'status' => 'aktif'
             ]);
 
-            // Assign Role Spatie
-            $user->assignRole('resepsionis');
+            // Assign Role (UserObserver akan membuat record Pelanggan dasar)
+            $user->assignRole('pelanggan');
 
-            // 2. Buat Data Resepsionis (Trigger Observer biasanya handle ini, tapi kita explicit disini untuk custom status)
-            // Cek apakah observer sudah membuat? Jika ya, update. Jika tidak, create.
-            // Sesuai observer Anda, saat user 'resepsionis' dibuat, data resepsionis otomatis dibuat.
-            // Jadi kita update saja data yang sudah dibuat oleh observer.
-            
-            $resep = Resepsionis::where('user_id', $user->id)->first();
-            if ($resep) {
-                $resep->update([
-                    'nama' => $this->nama, // Redundan tapi memastikan sinkron
-                    'status' => $this->status
-                ]);
-            } else {
-                // Fallback jika observer gagal/dimatikan
-                Resepsionis::create([
-                    'user_id' => $user->id,
+            // 2. Update Detail Pelanggan (Telepon & Alamat)
+            // Menggunakan updateOrCreate agar aman jika observer sudah membuat recordnya
+            Pelanggan::updateOrCreate(
+                ['user_id' => $user->id],
+                [
                     'nama' => $this->nama,
+                    'no_telepon' => $this->no_telepon,
+                    'alamat' => $this->alamat,
                     'status' => $this->status
-                ]);
-            }
+                ]
+            );
 
             DB::commit();
             $this->closeModal();
-            $this->dispatch('notify', message: 'Resepsionis berhasil ditambahkan.', type: 'success');
+            $this->dispatch('notify', message: 'Pelanggan berhasil didaftarkan.', type: 'success');
 
         } catch (\Exception $e) {
             DB::rollBack();
@@ -146,52 +140,51 @@ class ResepsionisIndex extends Component
 
     public function edit($id)
     {
-        abort_if(Gate::denies('update-resepsionis'), 403);
+        abort_if(Gate::denies('update-pelanggan'), 403);
         
-        $resep = Resepsionis::with('user')->findOrFail($id);
+        $pelanggan = Pelanggan::with('user')->findOrFail($id);
         
-        $this->resepsionisId = $resep->id;
-        $this->userId = $resep->user_id;
-        $this->nama = $resep->nama;
-        $this->email = $resep->user->email ?? '';
-        $this->status = $resep->status;
+        $this->pelangganId = $pelanggan->id;
+        $this->userId = $pelanggan->user_id;
+        $this->nama = $pelanggan->nama;
+        $this->email = $pelanggan->user->email ?? '';
+        $this->no_telepon = $pelanggan->no_telepon;
+        $this->alamat = $pelanggan->alamat;
+        $this->status = $pelanggan->status;
         
         $this->isEditMode = true;
-        $this->modalTitle = 'Edit Data Resepsionis';
+        $this->modalTitle = 'Edit Data Pelanggan';
         $this->showModal = true;
     }
 
     public function update()
     {
-        abort_if(Gate::denies('update-resepsionis'), 403);
+        abort_if(Gate::denies('update-pelanggan'), 403);
         $this->validate();
 
         DB::beginTransaction();
         try {
-            $resep = Resepsionis::findOrFail($this->resepsionisId);
+            $pelanggan = Pelanggan::findOrFail($this->pelangganId);
             $user = User::findOrFail($this->userId);
 
-            // Update User Data
-            $userData = [
-                'name' => $this->nama, 
-                'email' => $this->email
-            ];
-            
+            // Update User
+            $userData = ['name' => $this->nama, 'email' => $this->email];
             if ($this->password) {
                 $userData['password'] = Hash::make($this->password);
             }
-            
             $user->update($userData);
 
-            // Update Resepsionis Data
-            $resep->update([
+            // Update Pelanggan
+            $pelanggan->update([
                 'nama' => $this->nama, 
+                'no_telepon' => $this->no_telepon,
+                'alamat' => $this->alamat,
                 'status' => $this->status
             ]);
 
             DB::commit();
             $this->closeModal();
-            $this->dispatch('notify', message: 'Data resepsionis diperbarui.', type: 'success');
+            $this->dispatch('notify', message: 'Data pelanggan diperbarui.', type: 'success');
 
         } catch (\Exception $e) {
             DB::rollBack();
@@ -205,27 +198,26 @@ class ResepsionisIndex extends Component
 
     public function delete($id)
     {
-        abort_if(Gate::denies('delete-resepsionis'), 403);
+        abort_if(Gate::denies('delete-pelanggan'), 403);
         
-        $resep = Resepsionis::findOrFail($id);
+        $pelanggan = Pelanggan::findOrFail($id);
         
-        // Hapus User (Otomatis hapus resepsionis karena Cascade Delete di DB)
-        if ($resep->user) {
-            $resep->user->delete();
+        if ($pelanggan->user) {
+            $pelanggan->user->delete(); // Ini akan trigger observer deleted
         } else {
-            $resep->delete(); // Fallback jika user sudah terhapus duluan
+            $pelanggan->delete();
         }
 
-        $this->dispatch('notify', message: 'Data resepsionis & akun dihapus.', type: 'warning');
+        $this->dispatch('notify', message: 'Data pelanggan & akun dihapus.', type: 'warning');
     }
 
     public function toggleStatus($id)
     {
-        abort_if(Gate::denies('update-resepsionis'), 403);
-        $resep = Resepsionis::findOrFail($id);
-        $resep->status = ($resep->status === 'aktif') ? 'tidak aktif' : 'aktif';
-        $resep->save();
-        $this->dispatch('notify', message: 'Status diubah menjadi ' . $resep->status, type: 'success');
+        abort_if(Gate::denies('update-pelanggan'), 403);
+        $pelanggan = Pelanggan::findOrFail($id);
+        $pelanggan->status = ($pelanggan->status === 'aktif') ? 'tidak aktif' : 'aktif';
+        $pelanggan->save();
+        $this->dispatch('notify', message: 'Status pelanggan diubah.', type: 'success');
     }
 
     public function closeModal()
@@ -236,7 +228,7 @@ class ResepsionisIndex extends Component
 
     private function resetInput()
     {
-        $this->reset(['nama', 'email', 'password', 'password_confirmation', 'status', 'resepsionisId', 'userId', 'isEditMode', 'modalTitle']);
+        $this->reset(['nama', 'email', 'password', 'password_confirmation', 'no_telepon', 'alamat', 'status', 'pelangganId', 'userId', 'isEditMode', 'modalTitle']);
         $this->resetErrorBag();
     }
 }
