@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Test Browser Push Notification</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 50px;
+            text-align: center;
+        }
+        button {
+            padding: 10px 20px;
+            font-size: 18px;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+
+<h1>Test Browser Push Notification</h1>
+
+<button id="notifyBtn">Kirim Notifikasi</button>
+
+<script>
+    // Cek apakah browser mendukung Notification API
+    if (!("Notification" in window)) {
+        alert("Browser ini tidak mendukung notifikasi.");
+    }
+
+    // Tombol trigger notifikasi
+    const btn = document.getElementById('notifyBtn');
+
+    btn.addEventListener('click', async () => {
+        // Minta izin jika belum diberikan
+        if (Notification.permission === "default") {
+            await Notification.requestPermission();
+        }
+
+        // Jika izin diberikan
+        if (Notification.permission === "granted") {
+            new Notification("Pesan Baru!", {
+                body: "Ini adalah contoh notifikasi browser sederhana.",
+                icon: "https://cdn-icons-png.flaticon.com/512/633/633759.png" // opsional
+            });
+        } else {
+            alert("Izin notifikasi tidak diberikan.");
+        }
+    });
+</script>
+
+</body>
+</html>

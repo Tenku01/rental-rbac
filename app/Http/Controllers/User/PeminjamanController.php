@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers\User;
 
+use App\Models\Message;
+use App\Events\MessageSent;
 use App\Http\Controllers\Controller;
 use App\Models\Mobil;
 use App\Models\Peminjaman;
@@ -480,4 +482,30 @@ public function store(Request $request)
             ], 500);
         }
     }
+
+   public function kirimPesan(Request $request)
+    {
+        // 1. Validasi input dari frontend
+        $request->validate([
+            'peminjaman_id' => 'required',
+            'message' => 'required|string'
+        ]);
+
+        // 2. Simpan pesan ke database
+        $message = Message::create([
+            'peminjaman_id' => $request->peminjaman_id,
+            'sender_id' => Auth::id(), // Menggunakan Auth::id() sesuai permintaan Anda
+            'message' => $request->message,
+        ]);
+
+        // 3. Triger event Reverb agar langsung dikirim ke Sopir secara real-time
+        broadcast(new MessageSent($message));
+
+        // 4. Kembalikan respon sukses ke frontend (Axios)
+        return response()->json([
+            'status' => 'Pesan terkirim', 
+            'data' => $message
+        ]);
+    }
+
 }

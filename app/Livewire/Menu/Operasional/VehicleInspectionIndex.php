@@ -52,7 +52,7 @@ class VehicleInspectionIndex extends Component
     #[Layout('layouts.admin')]
     public function render()
     {
-        abort_if(Gate::denies('read-inspection'), 403);
+        abort_if(Gate::denies('read-vehicle_inspections'), 403);
 
         $pendingReturns = Pengembalian::with(['peminjaman.user', 'peminjaman.mobil'])
             ->where('status', 'menunggu pengecekan')
@@ -78,7 +78,7 @@ class VehicleInspectionIndex extends Component
 
     public function createInspection($returnId)
     {
-        abort_if(Gate::denies('create-inspection'), 403);
+        abort_if(Gate::denies('create-vehicle_inspections'), 403);
         $this->resetForm();
         
         $return = Pengembalian::with(['peminjaman.user', 'peminjaman.mobil'])->findOrFail($returnId);
@@ -103,7 +103,7 @@ class VehicleInspectionIndex extends Component
 
     public function store()
     {
-        abort_if(Gate::denies('create-inspection'), 403);
+        abort_if(Gate::denies('create-vehicle_inspections'), 403);
 
         $this->validate([
             'pengembalian_id' => 'required',

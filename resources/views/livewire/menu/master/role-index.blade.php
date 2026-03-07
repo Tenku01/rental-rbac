@@ -122,7 +122,7 @@ HARUS berada di dalam satu div utama ini agar Livewire berjalan normal.
                                     <div class="flex justify-between items-center mb-6">
                                         <h4 class="text-[11px] font-black text-cyan-700 uppercase tracking-[0.25em] flex items-center gap-3 italic">
                                             <span class="w-3 h-3 bg-cyan-600 rounded-full ring-4 ring-cyan-100"></span>
-                                            Modul: {{ strtoupper($group) }}
+                                            Data: {{ strtoupper($group) }}
                                         </h4>
                                         
                                         <label class="flex items-center gap-2 cursor-pointer group/all">

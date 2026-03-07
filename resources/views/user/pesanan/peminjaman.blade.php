@@ -7,8 +7,8 @@
  <script type="text/javascript" src="https://app.sandbox.midtrans.com/snap/snap.js"
         data-client-key="{{ config('services.midtrans.client_key') }}"></script>
     <!-- Dependencies -->
-{{-- <script type="text/javascript" src="https://app.midtrans.com/snap/snap.js" --}}
-    data-client-key="{{ config('services.midtrans.client_key') }}"></script>
+{{-- <script type="text/javascript" src="https://app.midtrans.com/snap/snap.js"
+    data-client-key="{{ config('services.midtrans.client_key') }}"></script> --}}
     <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script src="https://code.jquery.com/ui/1.13.2/jquery-ui.min.js"></script>

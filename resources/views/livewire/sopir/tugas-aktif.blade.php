@@ -66,8 +66,15 @@
                     @foreach($tasks as $task)
                         @php
                             $sudahCatat = $task->logbooks->count() > 0;
+                            
+                            // Hitung jumlah pesan masuk yang belum dibaca khusus untuk tugas ini
+                            $unreadChat = \App\Models\Message::where('peminjaman_id', $task->id)
+                                ->where('sender_id', '!=', Auth::id())
+                                ->where('is_read', false)
+                                ->count();
                         @endphp
-                        <button wire:click="openLogbookForm({{ $task->id }})" class="w-full text-left group hover:bg-cyan-50/30 transition-all duration-200">
+                        
+                        <div class="w-full text-left group hover:bg-cyan-50/30 transition-all duration-200">
                             <div class="p-8 flex flex-col md:flex-row md:items-center justify-between gap-6">
                                 
                                 <div class="flex items-center gap-5">
@@ -94,24 +101,40 @@
                                     </div>
                                 </div>
 
-                                <div class="flex items-center gap-4">
+                                <div class="flex flex-wrap items-center gap-3">
                                     @if($sudahCatat)
-                                        <span class="px-4 py-2 bg-emerald-50 text-emerald-600 rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center">
+                                        <span class="px-4 h-10 bg-emerald-50 text-emerald-600 rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center">
                                             <span class="w-2 h-2 rounded-full bg-emerald-500 mr-2"></span> Updated
                                         </span>
                                     @else
-                                        <span class="px-4 py-2 bg-amber-50 text-amber-600 rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center">
+                                        <span class="px-4 h-10 bg-amber-50 text-amber-600 rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center">
                                             <span class="w-2 h-2 rounded-full bg-amber-500 mr-2 animate-pulse"></span> Draft
                                         </span>
                                     @endif
 
-                                    <div class="h-10 px-6 bg-cyan-600 text-white rounded-xl text-[11px] font-black uppercase tracking-widest flex items-center shadow-lg shadow-cyan-100 group-hover:bg-cyan-700 transition-colors">
+                                    <!-- 🔹 Tombol Pintasan ke Live Chat -->
+                                    <a href="{{ route('sopir.chat', $task->id) }}" class="relative h-10 px-5 bg-white border border-blue-200 text-blue-600 rounded-xl text-[11px] font-black uppercase tracking-widest flex items-center shadow-sm hover:bg-blue-50 transition-colors">
+                                        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"></path></svg>
+                                        Chat
+                                        
+                                        {{-- Indikator Badge Pesan Belum Dibaca --}}
+                                        @if($unreadChat > 0)
+                                            <span class="absolute -top-1.5 -right-1.5 flex h-5 w-5 items-center justify-center">
+                                                <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                                                <span class="relative flex rounded-full h-5 w-5 bg-red-500 border-2 border-white items-center justify-center text-[9px] font-bold text-white shadow-sm">
+                                                    {{ $unreadChat }}
+                                                </span>
+                                            </span>
+                                        @endif
+                                    </a>
+
+                                    <button wire:click="openLogbookForm({{ $task->id }})" class="h-10 px-6 bg-cyan-600 text-white rounded-xl text-[11px] font-black uppercase tracking-widest flex items-center shadow-lg shadow-cyan-100 hover:bg-cyan-700 transition-colors">
                                         Isi Logbook
-                                    </div>
+                                    </button>
                                 </div>
 
                             </div>
-                        </button>
+                        </div>
                     @endforeach
                 </div>
             @endif
@@ -263,7 +286,7 @@
                                                                 {{ str_replace('_', ' ', $log->status_log) }}
                                                             </h3>
                                                             <p class="text-[10px] font-bold text-gray-400 mt-0.5 uppercase tracking-widest">
-                                                                @php $waktu = \Carbon\Carbon::parse($log->waktu_log ?? $log->created_at); @endphp
+                                                                @php $waktu = \Carbon\Carbon::parse($log->waktu_log ?? $log->created_at ?? now()); @endphp
                                                                 {{ $waktu->format('d M Y - H:i') }} ({{ $waktu->diffForHumans() }})
                                                             </p>
                                                         </div>

@@ -36,7 +36,7 @@
 
         {{-- HEADER --}}
         <!-- Pastikan file components.admin-headbar ada -->
-        @include('components.admin-headbar')
+       <livewire:sopir.headbar-sopir />
 
         {{-- MAIN CONTENT --}}
         <main wire:transition class="flex-1 overflow-x-hidden overflow-y-auto bg-gray-100 p-4 sm:p-6">

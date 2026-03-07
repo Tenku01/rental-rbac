@@ -42,7 +42,7 @@ class RoleIndex extends Component
         // 3. Mengelompokkan permission berdasarkan kategori untuk hierarki visual di UI
         $groupedPermissions = $permissions->groupBy(function($perm) {
             $parts = explode('-', $perm->name);
-            return $parts[1] ?? 'lainnya';
+            return $parts[1] ?? 'lainnya (Menu Sidebar)';
         });
 
         return view('livewire.menu.master.role-index', [

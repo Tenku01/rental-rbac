@@ -55,6 +55,7 @@ use App\Livewire\Menu\Operasional\{
 };
 use App\Livewire\Sopir\Dashboard as SopirDashboard;
 use App\Livewire\Sopir\TugasAktif;
+use App\Livewire\Sopir\ChatPeminjaman;
 use App\Livewire\Staff\Dashboard as StaffDashboard;
 
 // Landing page
@@ -75,6 +76,7 @@ Route::middleware(['auth','verified'])->group(function () {
         Route::get('/sopir/dashboard', SopirDashboard::class)->name('sopir.dashboard');
         // Route baru untuk SPA Logbook & Tugas Aktif Sopir
         Route::get('/sopir/tugas-aktif', TugasAktif::class)->name('sopir.activeTasks');
+        Route::get('/sopir/chat/{peminjaman_id}', ChatPeminjaman::class)->name('sopir.chat');
     });
 
 Route::middleware('role:staff')->group(function () {
@@ -142,6 +144,8 @@ Route::middleware('role:staff')->group(function () {
     // Memilih Metode Pembayaran Manual/Tunai (Step 7, Aksi Tunai/Transfer)
     Route::post('/pengembalian/{kode_pengembalian}/select-manual-payment', [PengembalianController::class, 'selectManualPaymentMethod'])
         ->name('pengembalian.selectManualPaymentMethod');
+
+        Route::post('/chat/kirim', [PeminjamanController::class, 'kirimPesan'])->name('chat.kirim');
 
     // // Route dari definisi lama Anda (jika masih diperlukan)
     // Route::post('/peminjaman/{peminjaman}/cancel', [PembatalanPesananController::class, 'store'])

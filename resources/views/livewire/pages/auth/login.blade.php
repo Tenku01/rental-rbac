@@ -34,18 +34,16 @@ new #[Layout('layouts.guest')] class extends Component
         $user = Auth::user();
 
         // LOGIKA REDIRECT UNIVERSAL
-        // Karena semua role (Admin, Sopir, Staff, Resepsionis) sekarang menggunakan 
-        // HomeIndex yang sama, kita arahkan ke rute home yang sesuai.
-        
-        if ($user->hasRole('pelanggan')) {
-            // Jika Anda punya halaman khusus pelanggan (misal landing page setelah login)
-            // bisa diarahkan ke sini, tapi default /dashboard juga sudah benar.
-            $this->redirectIntended(default: '/dashboard', navigate: true);
-        } else {
-            // Untuk semua Management (Admin, Staff, Sopir, Resepsionis)
-            // Diarahkan ke /home sesuai permintaan Anda.
-            $this->redirect('/home', navigate: true);
-        }
+        if ($user->hasRole('admin')) {
+        $this->redirectIntended(default: route('home', absolute: false), navigate: true);
+    } elseif ($user->hasRole('staff')) {
+        $this->redirectIntended(default: route('staff.dashboard', absolute: false), navigate: true);
+    } elseif ($user->hasRole('sopir')) {
+        $this->redirectIntended(default: route('sopir.dashboard', absolute: false), navigate: true);
+    } else {
+        // Default untuk Pelanggan
+        $this->redirectIntended(default: route('dashboard', absolute: false), navigate: true);
+    }
         
     }
 };

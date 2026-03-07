@@ -36,7 +36,7 @@ class VehicleDamageIndex extends Component
     public function render()
     {
         // RBAC: Read Permission
-        abort_if(Gate::denies('read-damage'), 403, 'Akses ditolak.');
+        abort_if(Gate::denies('read-vehicle_damage_reports'), 403, 'Akses ditolak.');
 
         $reports = VehicleDamageReport::with(['mobil', 'pengembalian'])
             ->when($this->search, function($q) {
@@ -64,7 +64,7 @@ class VehicleDamageIndex extends Component
 
     public function edit($kode)
     {
-        abort_if(Gate::denies('update-damage'), 403);
+        abort_if(Gate::denies('update-vehicle_damage_reports'), 403);
         $report = VehicleDamageReport::where('kode_laporan', $kode)->firstOrFail();
         
         $this->editingKode = $kode;
@@ -76,7 +76,7 @@ class VehicleDamageIndex extends Component
 
     public function update()
     {
-        abort_if(Gate::denies('update-damage'), 403);
+        abort_if(Gate::denies('update-vehicle_damage_reports'), 403);
 
         $this->validate([
             'damage_description' => 'required|string',
@@ -101,7 +101,7 @@ class VehicleDamageIndex extends Component
 
     public function delete($kode)
     {
-        abort_if(Gate::denies('delete-damage'), 403);
+        abort_if(Gate::denies('delete-vehicle_damage_reports'), 403);
         VehicleDamageReport::where('kode_laporan', $kode)->delete();
         $this->dispatch('notify', message: 'Laporan kerusakan dihapus.', type: 'warning');
     }

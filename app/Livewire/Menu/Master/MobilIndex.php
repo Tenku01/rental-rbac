@@ -7,7 +7,8 @@ use Livewire\WithFileUploads;
 use App\Models\Mobil;
 use Illuminate\Support\Facades\Storage;
 use Livewire\Attributes\Layout;
-use Illuminate\Validation\Rule; // Tambahkan ini untuk validasi unique
+use Illuminate\Validation\Rule;
+use Illuminate\Support\Facades\Gate;
 
 class MobilIndex extends Component
 {
@@ -15,30 +16,26 @@ class MobilIndex extends Component
     use WithFileUploads;
 
     // --- Properties ---
-    // Saya ganti $mobil_id menjadi $id_asli untuk menyimpan referensi saat edit
-    // Tambahkan $plat_nomor untuk input user
     public $plat_nomor, $tipe, $merek, $warna, $transmisi, $kursi, $harga, $foto, $status;
-    public $id_asli; // Untuk menyimpan ID lama saat proses edit
+    public $id_asli;
     public $foto_lama;
 
     public $isEditMode = false;
     public $showModal = false;
     public $search = '';
 
+    // --- Properti Khusus Modal Ubah Status (Untuk Staff) ---
+    public $showStatusModal = false;
+    public $status_edit = '';
+
     // --- Validation Rules ---
     protected function rules()
     {
         return [
-            // Validasi Plat Nomor (ID)
             'plat_nomor' => [
                 'required',
                 'string',
-                // Cek unique ke tabel mobils kolom id. 
-                // Jika edit mode, abaikan ID yang sedang diedit.
                 Rule::unique('mobils', 'id')->ignore($this->id_asli, 'id'),
-                // REGEX PLAT NOMOR INDONESIA
-                // Format: Huruf(1-2) Spasi Angka(1-4) Spasi Huruf(1-3)
-                // Contoh: B 1234 TJE, AB 1234 XY
                 'regex:/^[A-Z]{1,2}\s[0-9]{1,4}\s[A-Z]{1,3}$/'
             ],
             'tipe' => 'required|string',
@@ -52,7 +49,6 @@ class MobilIndex extends Component
         ];
     }
 
-    // Custom Error Messages agar lebih ramah
     protected $messages = [
         'plat_nomor.regex' => 'Format Plat Nomor salah! Gunakan HURUF KAPITAL dan SPASI. Contoh: B 1234 XYZ',
         'plat_nomor.unique' => 'Plat Nomor ini sudah terdaftar.',
@@ -61,8 +57,11 @@ class MobilIndex extends Component
     #[Layout('layouts.admin')]
     public function render()
     {
+        // Minimal harus punya akses read-mobils
+        abort_if(Gate::denies('read-mobils'), 403);
+
         $mobils = Mobil::query()
-            ->where('id', 'like', '%' . $this->search . '%') // Cari berdasarkan Plat Nomor
+            ->where('id', 'like', '%' . $this->search . '%')
             ->orWhere('merek', 'like', '%' . $this->search . '%')
             ->orWhere('tipe', 'like', '%' . $this->search . '%')
             ->orderBy('created_at', 'desc')
@@ -73,6 +72,10 @@ class MobilIndex extends Component
         ]); 
     }
 
+    // =========================================================
+    // CRUD FULL (KHUSUS ADMIN)
+    // =========================================================
+
     public function create()
     {
         $this->resetInputFields();
@@ -82,9 +85,9 @@ class MobilIndex extends Component
 
     public function store()
     {
-        // Paksa Plat Nomor jadi Huruf Besar sebelum validasi
-        $this->plat_nomor = strtoupper($this->plat_nomor);
+        abort_if(Gate::denies('create-mobils'), 403); // RBAC Protect
 
+        $this->plat_nomor = strtoupper($this->plat_nomor);
         $this->validate();
 
         $fotoPath = null;
@@ -93,7 +96,7 @@ class MobilIndex extends Component
         }
 
         Mobil::create([
-            'id' => $this->plat_nomor, // Simpan Plat Nomor ke kolom ID
+            'id' => $this->plat_nomor,
             'tipe' => $this->tipe,
             'merek' => $this->merek,
             'warna' => $this->warna,
@@ -113,8 +116,8 @@ class MobilIndex extends Component
     {
         $mobil = Mobil::findOrFail($id);
         
-        $this->id_asli = $id; // Simpan ID asli (Plat Nomor lama)
-        $this->plat_nomor = $mobil->id; // Tampilkan Plat Nomor di input
+        $this->id_asli = $id;
+        $this->plat_nomor = $mobil->id;
         $this->tipe = $mobil->tipe;
         $this->merek = $mobil->merek;
         $this->warna = $mobil->warna;
@@ -130,9 +133,9 @@ class MobilIndex extends Component
 
     public function update()
     {
-        // Paksa Plat Nomor jadi Huruf Besar
+        abort_if(Gate::denies('update-mobils'), 403); // RBAC Protect
+
         $this->plat_nomor = strtoupper($this->plat_nomor);
-        
         $this->validate();
 
         $mobil = Mobil::findOrFail($this->id_asli);
@@ -146,7 +149,7 @@ class MobilIndex extends Component
         }
 
         $mobil->update([
-            'id' => $this->plat_nomor, // Update Plat Nomor jika diubah
+            'id' => $this->plat_nomor,
             'tipe' => $this->tipe,
             'merek' => $this->merek,
             'warna' => $this->warna,
@@ -164,6 +167,8 @@ class MobilIndex extends Component
 
     public function delete($id)
     {
+        abort_if(Gate::denies('delete-mobils'), 403); // RBAC Protect
+
         try {
             $mobil = Mobil::findOrFail($id);
             
@@ -184,12 +189,45 @@ class MobilIndex extends Component
         }
     }
 
+    // =========================================================
+    // QUICK EDIT STATUS (BISA DIAKSES STAFF & ADMIN)
+    // =========================================================
+
+    public function openStatusModal($id)
+    {
+        $mobil = Mobil::findOrFail($id);
+        $this->id_asli = $mobil->id;
+        $this->status_edit = $mobil->status;
+        $this->showStatusModal = true;
+    }
+
+    public function updateStatusOnly()
+    {
+        // Karena Staff sudah bisa masuk halaman ini (Gate read-mobils lolos),
+        // Kita izinkan perubahan status operasional saja.
+        $this->validate([
+            'status_edit' => 'required|in:tersedia,pemeliharaan,dibersihkan',
+        ]);
+
+        $mobil = Mobil::findOrFail($this->id_asli);
+        $mobil->update(['status' => $this->status_edit]);
+
+        $this->showStatusModal = false;
+        $this->resetInputFields();
+        session()->flash('message', 'Status armada ' . $mobil->id . ' berhasil diubah menjadi ' . strtoupper($this->status_edit));
+    }
+
+    // =========================================================
+    // UTILITIES
+    // =========================================================
+
     private function resetInputFields()
     {
-        $this->plat_nomor = ''; // Reset plat nomor
+        $this->plat_nomor = '';
         $this->tipe = ''; $this->merek = ''; $this->warna = '';
         $this->transmisi = ''; $this->kursi = ''; $this->harga = '';
         $this->foto = null; $this->status = 'tersedia';
         $this->id_asli = null; $this->foto_lama = null;
+        $this->status_edit = '';
     }
 }

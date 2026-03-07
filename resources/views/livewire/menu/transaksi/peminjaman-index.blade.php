@@ -1,8 +1,8 @@
 <div class="p-8 space-y-10 bg-[#f9fafb] min-h-screen font-inter">
 <style>
-@import url('https://www.google.com/search?q=https://fonts.googleapis.com/css2%3Ffamily%3DInter:wght%40300%3B400%3B500%3B600%3B700%3B800%3B900%26display%3Dswap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
 .font-inter { font-family: 'Inter', sans-serif; }
-.custom-scrollbar::-webkit-scrollbar { width: 4px; }
+.custom-scrollbar::-webkit-scrollbar { width: 4px; height: 4px; }
 .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
 .custom-scrollbar::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 20px; }
 .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #0891b2; }
@@ -21,11 +21,12 @@
             <svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"></path></svg>
         </div>
         <div>
-            <h1 class="text-3xl font-extrabold text-gray-900 tracking-tight leading-none uppercase ">Data Peminjaman</h1>
+            <h1 class="text-3xl font-extrabold text-gray-900 tracking-tight leading-none uppercase">Data Peminjaman</h1>
             <p class="text-sm text-gray-500 font-medium mt-2">Monitoring transaksi sewa, pembayaran, dan penjadwalan operasional.</p>
         </div>
     </div>
 
+    {{-- BUTTON CREATE KHUSUS ADMIN --}}
     @can('create-peminjaman')
     <button wire:click="openCreateModal" class="bg-cyan-600 hover:bg-cyan-700 text-white font-black py-4 px-8 rounded-2xl shadow-xl shadow-cyan-100 flex items-center transition-all transform hover:scale-105 uppercase tracking-[0.2em] text-[11px] leading-none">
         <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4"></path></svg>
@@ -34,18 +35,35 @@
     @endcan
 </div>
 
-{{-- 2. CONTROL BAR --}}
+{{-- 2. TABS MENU (BARU) --}}
+<div class="flex gap-4 mb-2 overflow-x-auto custom-scrollbar pb-2">
+    <button wire:click="setTab('biasa')" class="px-6 py-4 rounded-[1.5rem] font-black uppercase tracking-widest text-xs transition-all flex items-center gap-3 whitespace-nowrap {{ $activeTab === 'biasa' ? 'bg-gray-900 text-white shadow-xl' : 'bg-white text-gray-400 hover:bg-gray-50 border border-gray-100' }}">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M4 6h16M4 10h16M4 14h16M4 18h16"></path></svg>
+        Data Transaksi Umum
+    </button>
+    
+    <button wire:click="setTab('pengecekan')" class="px-6 py-4 rounded-[1.5rem] font-black uppercase tracking-widest text-xs transition-all flex items-center gap-3 whitespace-nowrap {{ $activeTab === 'pengecekan' ? 'bg-amber-500 text-white shadow-xl shadow-amber-200' : 'bg-white text-gray-400 hover:bg-amber-50 border border-gray-100' }}">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+        Tugas Pengecekan Mobil
+    </button>
+</div>
+
+{{-- 3. CONTROL BAR --}}
 <div class="bg-white p-2 rounded-[2rem] shadow-sm border border-gray-100 flex flex-col lg:flex-row items-center justify-between gap-4">
     <div class="flex p-1 space-x-1 bg-gray-50 rounded-3xl w-full lg:w-auto overflow-x-auto custom-scrollbar">
-        @foreach(['' => 'Semua', 'menunggu pembayaran' => 'Menunggu', 'pembayaran dp' => 'DP', 'sudah dibayar lunas' => 'Lunas', 'berlangsung' => 'Jalan', 'selesai' => 'Selesai'] as $key => $label)
-        <button wire:click="$set('filterStatus', '{{ $key }}')"
-            class="px-5 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all shadow-sm whitespace-nowrap
-            {{ $filterStatus === $key 
-                ? 'bg-white text-cyan-600 shadow-md ring-1 ring-black/5' 
-                : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100' }}">
-            {{ $label }}
-        </button>
-        @endforeach
+        @if($activeTab === 'biasa')
+            @foreach(['' => 'Semua', 'menunggu pembayaran' => 'Menunggu', 'berlangsung' => 'Jalan', 'selesai' => 'Selesai'] as $key => $label)
+            <button wire:click="$set('filterStatus', '{{ $key }}')"
+                class="px-5 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all shadow-sm whitespace-nowrap
+                {{ $filterStatus === $key ? 'bg-white text-cyan-600 shadow-md ring-1 ring-black/5' : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100' }}">
+                {{ $label }}
+            </button>
+            @endforeach
+        @else
+            <button class="px-5 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all shadow-sm whitespace-nowrap bg-white text-amber-600 shadow-md ring-1 ring-black/5">
+                Menunggu Inspeksi
+            </button>
+        @endif
     </div>
 
     <div class="relative w-full lg:w-80 pr-2">
@@ -58,7 +76,7 @@
     </div>
 </div>
 
-{{-- 3. TABLE DATA --}}
+{{-- 4. TABLE DATA --}}
 <div class="bg-white rounded-[2rem] shadow-sm border border-gray-100 overflow-hidden mt-6">
     <div class="overflow-x-auto custom-scrollbar">
         <table class="w-full text-left">
@@ -74,7 +92,7 @@
             </thead>
             <tbody class="divide-y divide-gray-50">
                 @forelse($peminjaman as $item)
-                <tr class="hover:bg-cyan-50/20 transition-colors group">
+                <tr class="hover:bg-gray-50/50 transition-colors group">
                     <td class="px-8 py-6">
                         <div class="font-black text-gray-900 text-sm">#{{ $item->id }}</div>
                         <div class="text-[9px] font-black uppercase px-2 py-0.5 rounded bg-gray-100 text-gray-500 inline-block mt-1">{{ $item->metode_pembayaran }}</div>
@@ -120,23 +138,38 @@
                             {{ $st }}
                         </span>
                     </td>
+                    
+                    {{-- AKSI / TOMBOL (Dilindungi RBAC) --}}
                     <td class="px-8 py-6 text-right">
                         <div class="flex justify-end gap-2">
-                            @if($item->sisa_bayar > 0 && $item->status != 'dibatalkan')
-                                <button wire:click="openPaymentModal({{ $item->id }})" class="p-2.5 text-emerald-600 bg-emerald-50 hover:bg-emerald-600 hover:text-white rounded-xl transition-all border border-emerald-100 shadow-sm" title="Catat Pelunasan">
-                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>
+                            @if($activeTab === 'pengecekan')
+                                {{-- Tombol Khusus Tab Pengecekan (Dapat dilihat Staff dan Admin) --}}
+                                <button wire:click="openCheckModal({{ $item->id }})" class="p-2.5 text-amber-600 bg-amber-50 hover:bg-amber-600 hover:text-white rounded-xl transition-all border border-amber-100 shadow-sm flex items-center gap-2 px-4" title="Cek Kendaraan & Serahkan">
+                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"></path></svg>
+                                    <span class="text-[10px] font-black uppercase tracking-widest">Inspeksi</span>
                                 </button>
-                            @endif
+                            @else
+                                {{-- Tombol Data Umum (HANYA UNTUK ADMIN - Yang punya hak update) --}}
+                                @can('update-peminjaman')
+                                    @if($item->sisa_bayar > 0 && $item->status != 'dibatalkan')
+                                        <button wire:click="openPaymentModal({{ $item->id }})" class="p-2.5 text-emerald-600 bg-emerald-50 hover:bg-emerald-600 hover:text-white rounded-xl transition-all border border-emerald-100 shadow-sm" title="Catat Pelunasan">
+                                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>
+                                        </button>
+                                    @endif
 
-                            <button wire:click="showDetail({{ $item->id }})" class="p-2.5 text-cyan-600 bg-cyan-50 hover:bg-cyan-600 hover:text-white rounded-xl transition-all border border-cyan-100 shadow-sm" title="Kelola Status">
-                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path></svg>
-                            </button>
+                                    <button wire:click="showDetail({{ $item->id }})" class="p-2.5 text-cyan-600 bg-cyan-50 hover:bg-cyan-600 hover:text-white rounded-xl transition-all border border-cyan-100 shadow-sm" title="Kelola Status">
+                                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path></svg>
+                                    </button>
+                                @endcan
+                            @endif
                         </div>
                     </td>
                 </tr>
                 @empty
                 <tr>
-                    <td colspan="6" class="px-8 py-24 text-center text-gray-400 text-sm font-medium italic">Belum ada data transaksi peminjaman.</td>
+                    <td colspan="6" class="px-8 py-24 text-center text-gray-400 text-sm font-medium italic">
+                        {{ $activeTab === 'pengecekan' ? 'Tidak ada mobil yang menunggu inspeksi saat ini.' : 'Belum ada data transaksi peminjaman.' }}
+                    </td>
                 </tr>
                 @endforelse
             </tbody>
@@ -147,7 +180,7 @@
     </div>
 </div>
 
-{{-- 4. MODAL CREATE MANUAL (SYNCED LOGIC) --}}
+{{-- 5. MODAL CREATE MANUAL (HANYA ADMIN) --}}
 @if($showCreateModal)
 <div class="fixed inset-0 z-50 overflow-y-auto" role="dialog" aria-modal="true">
     <div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
@@ -168,7 +201,6 @@
 
                 <div class="p-10 max-h-[75vh] overflow-y-auto custom-scrollbar">
                     <div class="grid grid-cols-1 lg:grid-cols-3 gap-10">
-                        
                         {{-- KOLOM 1: PELANGGAN & ARMADA --}}
                         <div class="space-y-8">
                             <h4 class="text-xs font-black text-gray-400 uppercase tracking-widest border-b pb-3">1. Subjek & Objek</h4>
@@ -218,7 +250,6 @@
                                 </div>
                             </div>
 
-                            {{-- RETURN NOTICE ALERT (LOGIKA SYNC) --}}
                             @if($return_notice)
                             <div class="bg-amber-50 border border-amber-100 p-4 rounded-2xl flex gap-4 items-start animate-fade-in-down shadow-sm">
                                 <div class="h-8 w-8 bg-amber-500 rounded-full flex items-center justify-center text-white shrink-0 shadow-lg shadow-amber-200">
@@ -228,7 +259,6 @@
                             </div>
                             @endif
 
-                            {{-- SOPIR FILTERING --}}
                             <div class="pt-4 border-t border-dashed">
                                 <label class="flex items-center gap-3 cursor-pointer group mb-4">
                                     <div class="relative inline-block w-12 h-6 transition duration-200 ease-in-out">
@@ -275,7 +305,7 @@
                                     <div class="absolute inset-y-0 left-0 pl-5 flex items-center pointer-events-none text-gray-400 font-black">Rp</div>
                                     <input wire:model="bayar_awal" type="number" class="w-full h-16 pl-12 rounded-2xl border-gray-100 bg-gray-50 px-5 focus:border-cyan-500 font-black text-xl text-gray-800 transition-all shadow-inner" placeholder="0">
                                 </div>
-                                <p class="text-[9px] text-gray-400 mt-2 italic font-medium leading-relaxed">System akan otomatis menentukan status DP atau LUNAS berdasarkan nominal input.</p>
+                                <p class="text-[9px] text-gray-400 mt-2 italic font-medium leading-relaxed">System otomatis menentukan status DP atau LUNAS.</p>
                             </div>
 
                             <div class="group">
@@ -301,7 +331,7 @@
 </div>
 @endif
 
-{{-- 5. MODAL DETAIL & STATUS MANAGEMENT --}}
+{{-- 6. MODAL DETAIL & STATUS (HANYA ADMIN) --}}
 @if($showDetailModal)
 <div class="fixed inset-0 z-50 overflow-y-auto" role="dialog" aria-modal="true">
     <div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
@@ -389,7 +419,7 @@
 </div>
 @endif
 
-{{-- 6. MODAL PELUNASAN MANUAL --}}
+{{-- 7. MODAL PELUNASAN MANUAL (HANYA ADMIN) --}}
 @if($showPaymentModal)
 <div class="fixed inset-0 z-50 overflow-y-auto" role="dialog" aria-modal="true">
     <div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
@@ -432,6 +462,54 @@
                 <div class="bg-gray-50/80 px-10 py-8 flex flex-row-reverse gap-4 border-t border-gray-100 rounded-b-[2.5rem]">
                     <button type="submit" class="inline-flex justify-center rounded-2xl px-12 py-4 bg-emerald-600 text-xs font-black text-white hover:bg-emerald-700 shadow-xl shadow-emerald-100 transition-all uppercase tracking-[0.2em] leading-none">
                         Proses Setoran
+                    </button>
+                    <button type="button" wire:click="closeModal" class="inline-flex justify-center rounded-2xl px-8 py-4 bg-white text-xs font-black text-gray-400 hover:bg-gray-100 border border-gray-200 transition-all uppercase tracking-[0.2em] leading-none">
+                        Batal
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+@endif
+
+{{-- 8. MODAL PENGECEKAN KENDARAAN (KHUSUS TAB PENGECEKAN - BISA STAFF) --}}
+@if($showCheckModal)
+<div class="fixed inset-0 z-50 overflow-y-auto" role="dialog" aria-modal="true">
+    <div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+        <div class="fixed inset-0 bg-gray-900/40 backdrop-blur-md transition-opacity" wire:click="closeModal"></div>
+        <span class="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
+
+        <div class="inline-block align-bottom bg-white rounded-[2.5rem] text-left overflow-hidden shadow-2xl transform transition-all sm:my-8 sm:align-middle sm:max-w-xl w-full border border-gray-100">
+            <form wire:submit.prevent="storeCheck">
+                <div class="px-8 py-6 border-b border-gray-100 bg-amber-500 flex justify-between items-center">
+                    <div>
+                        <h3 class="text-xl font-black text-white uppercase tracking-tight">Inspeksi Kendaraan</h3>
+                        <p class="text-[10px] text-amber-100 font-bold uppercase tracking-[0.25em] mt-1 leading-none">Pencatatan Kondisi Pra-Serah Terima</p>
+                    </div>
+                    <button type="button" wire:click="closeModal" class="h-10 w-10 flex items-center justify-center text-white/70 hover:bg-white/20 hover:text-white rounded-2xl transition-all">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"></path></svg>
+                    </button>
+                </div>
+
+                <div class="p-10 space-y-6">
+                    <div class="bg-amber-50 border border-amber-100 p-4 rounded-2xl flex gap-4 items-start shadow-sm">
+                        <div class="h-8 w-8 bg-amber-500 rounded-full flex items-center justify-center text-white shrink-0 shadow-lg shadow-amber-200">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                        </div>
+                        <p class="text-[10px] font-black text-amber-700 leading-relaxed uppercase">Catat setiap goresan, kondisi bahan bakar, atau kerusakan minor sebelum kunci diserahkan ke pelanggan.</p>
+                    </div>
+
+                    <div class="group">
+                        <label class="block text-[11px] font-black text-gray-400 uppercase tracking-widest mb-3">Deskripsi Kondisi Mobil</label>
+                        <textarea wire:model="kondisi_mobil_input" rows="5" class="w-full rounded-2xl border-gray-100 bg-gray-50 p-5 focus:border-amber-500 focus:ring-4 focus:ring-amber-500/10 font-bold text-gray-700 transition-all custom-scrollbar" placeholder="Contoh: Bensin 3/4, ada goresan tipis di bumper depan kiri, ban serep lengkap..."></textarea>
+                        @error('kondisi_mobil_input') <span class="text-rose-500 text-[10px] font-black mt-2 block">{{ $message }}</span> @enderror
+                    </div>
+                </div>
+
+                <div class="bg-gray-50/80 px-10 py-8 flex flex-row-reverse gap-4 border-t border-gray-100 rounded-b-[2.5rem]">
+                    <button type="submit" class="inline-flex justify-center rounded-2xl px-12 py-4 bg-amber-500 text-xs font-black text-white hover:bg-amber-600 shadow-xl shadow-amber-100 transition-all uppercase tracking-[0.2em] leading-none">
+                        Simpan & Serahkan
                     </button>
                     <button type="button" wire:click="closeModal" class="inline-flex justify-center rounded-2xl px-8 py-4 bg-white text-xs font-black text-gray-400 hover:bg-gray-100 border border-gray-200 transition-all uppercase tracking-[0.2em] leading-none">
                         Batal

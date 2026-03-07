@@ -6,10 +6,10 @@ use Livewire\Component;
 use Livewire\WithFileUploads;
 use Livewire\Attributes\Layout;
 use App\Models\Peminjaman;
-use App\Models\DriverLogbook; // Pastikan model ini sesuai dengan nama model logbook Anda
+use App\Models\DriverLogbook; 
 use App\Models\Sopir;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Gate; // Import Gate untuk RBAC Spatie
+use Illuminate\Support\Facades\Gate; 
 use Carbon\Carbon;
 
 class TugasAktif extends Component
@@ -34,7 +34,7 @@ class TugasAktif extends Component
         $this->sopir = Sopir::where('user_id', Auth::id())->first();
     }
 
-    #[Layout('layouts.sopir')] // Tetap gunakan layout yang sudah ada sidebar barunya
+    #[Layout('layouts.sopir')]
     public function render()
     {
         // RBAC: Read Permission
@@ -48,14 +48,14 @@ class TugasAktif extends Component
         ];
 
         if ($this->sopir && $this->viewMode === 'index') {
-            // Ambil tugas yang sedang aktif
             $tasks = Peminjaman::with(['mobil', 'user.pelanggan', 'logbooks' => function($q) {
-                // Ambil logbook hari ini untuk dicek statusnya
-                $q->whereDate('created_at', Carbon::today());
+                // PERBAIKAN: Gunakan waktu_log, bukan created_at
+                $q->whereDate('waktu_log', Carbon::today());
             }])
             ->where('sopir_id', $this->sopir->id)
             ->whereIn('status', ['disetujui', 'pembayaran dp', 'sudah dibayar lunas', 'berlangsung'])
-            ->orderBy('created_at', 'desc')
+            // created_at di bawah ini milik tabel Peminjaman (jadi tidak apa-apa)
+            ->orderBy('created_at', 'desc') 
             ->get();
 
             $stats['total'] = $tasks->count();
@@ -69,12 +69,9 @@ class TugasAktif extends Component
         ]);
     }
 
-    /**
-     * Berpindah ke Mode Form Logbook
-     */
     public function openLogbookForm($peminjamanId)
     {
-        // RBAC: Read Permission (Melihat detail form logbook)
+        // RBAC: Read Permission
         abort_if(Gate::denies('read-driver_logbooks'), 403, 'Akses ditolak.');
 
         $this->selectedTask = Peminjaman::with(['mobil', 'user.pelanggan'])->findOrFail($peminjamanId);
@@ -84,9 +81,6 @@ class TugasAktif extends Component
         $this->viewMode = 'form';
     }
 
-    /**
-     * Kembali ke Daftar Tugas
-     */
     public function backToIndex()
     {
         $this->viewMode = 'index';
@@ -94,30 +88,25 @@ class TugasAktif extends Component
         $this->logHistory = [];
     }
 
-    /**
-     * Memuat riwayat log khusus tugas yang dipilih
-     */
     public function loadLogHistory()
     {
         if ($this->selectedTask) {
             $this->logHistory = DriverLogbook::where('peminjaman_id', $this->selectedTask->id)
-                ->orderBy('created_at', 'desc')
+                // PERBAIKAN: Gunakan waktu_log, bukan created_at
+                ->orderBy('waktu_log', 'desc')
                 ->get();
         }
     }
 
-    /**
-     * Menyimpan Data Logbook
-     */
     public function saveLog()
     {
-        // RBAC: Create/Update Permission (Membuat catatan logbook)
+        // RBAC: Create/Update Permission
         abort_if(Gate::denies('create-driver_logbooks'), 403, 'Akses ditolak.');
 
         $this->validate([
             'status_log' => 'required|string',
             'deskripsi_aktivitas' => 'required|string|min:10|max:500',
-            'foto_bukti' => 'nullable|image|max:2048', // max 2MB
+            'foto_bukti' => 'nullable|image|max:2048', 
         ]);
 
         $path = null;
@@ -125,33 +114,29 @@ class TugasAktif extends Component
             $path = $this->foto_bukti->store('logbook_photos', 'public');
         }
 
-        // Simpan logbook
         DriverLogbook::create([
             'peminjaman_id' => $this->selectedTask->id,
             'status_log' => $this->status_log,
             'deskripsi_aktivitas' => $this->deskripsi_aktivitas,
             'foto_bukti' => $path,
-            // Sesuaikan nama field datetime Anda, default biasanya created_at. Jika pakai waktu_log:
+            'tanggal_aktivitas' => Carbon::today(), // Sesuaikan agar tanggal terisi
             'waktu_log' => now(), 
         ]);
 
-        // LOGIKA PENYELESAIAN TUGAS
         if ($this->status_log === 'selesai_peminjaman') {
-            // Ubah status tugas
             $this->selectedTask->update(['status' => 'selesai']);
             
-            // Bebaskan Sopir
             if ($this->sopir) {
                 $this->sopir->update(['status' => 'tersedia']);
             }
 
             $this->dispatch('notify', message: 'Tugas diselesaikan! Status Anda kembali Tersedia.', type: 'success');
-            $this->backToIndex(); // Kembali ke depan karena tugas hilang dari daftar aktif
+            $this->backToIndex(); 
             return;
         }
 
         $this->dispatch('notify', message: 'Logbook berhasil dicatat!', type: 'success');
-        $this->loadLogHistory(); // Refresh riwayat di bawah form
+        $this->loadLogHistory(); 
         $this->resetForm();
     }
 
@@ -161,6 +146,4 @@ class TugasAktif extends Component
         $this->deskripsi_aktivitas = '';
         $this->foto_bukti = null;
     }
-
-    
 }

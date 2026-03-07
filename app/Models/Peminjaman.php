@@ -35,6 +35,11 @@ class Peminjaman extends Model
         'denda' 
     ];
 
+    public function logbooks()
+{
+    return $this->hasMany(DriverLogbook::class, 'peminjaman_id');
+}
+
     // Relasi ke User
     public function user(): BelongsTo
     {
