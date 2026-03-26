@@ -177,7 +177,6 @@ class UserIndex extends Component
         if (!empty($this->password)) {
             $data['password'] = Hash::make($this->password);
         }
-
         if ($this->editingUserId) {
             $user = User::findOrFail($this->editingUserId);
             
@@ -185,7 +184,6 @@ class UserIndex extends Component
                 $this->dispatch('notify', message: 'Dilarang menonaktifkan akun sendiri!', type: 'error');
                 return;
             }
-            
             $user->update($data);
             $user->syncRoles([$this->selectedRole]); // Sync memastikan role lama dibuang
             $user->touch(); 
@@ -196,14 +194,7 @@ class UserIndex extends Component
             if ($this->selectedRole !== 'pelanggan') {
                 $data['email_verified_at'] = now();
             }
-
             $user = User::create($data);
-
-            /**
-             * PERBAIKAN:
-             * 1. Jalankan event Registered dahulu (yang mungkin memberikan role default 'pelanggan').
-             * 2. Gunakan syncRoles untuk memaksa HANYA role yang dipilih admin yang aktif.
-             */
             event(new Registered($user));
             $user->syncRoles([$this->selectedRole]); 
             
@@ -211,7 +202,6 @@ class UserIndex extends Component
             
             $message = 'Pengguna baru berhasil didaftarkan.';
         }
-
         // --- Update Detail Profil ---
         if ($this->selectedRole === 'pelanggan') {
             $user->pelanggan()->update([

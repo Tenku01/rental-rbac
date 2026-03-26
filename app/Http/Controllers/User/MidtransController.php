@@ -10,6 +10,8 @@ use App\Models\Peminjaman;
 use App\Models\PaymentTransaction;
 use Midtrans\Config;
 use Midtrans\Snap;
+use App\Mail\PaymentSuccessMail;
+use Illuminate\Support\Facades\Mail;
 
 class MidtransController extends Controller
 {
@@ -152,6 +154,16 @@ class MidtransController extends Controller
                         'total_dibayarkan' => $peminjaman->total_harga,
                     ]);
                 }
+                
+                try {
+                    Mail::to($peminjaman->user->email)->send(new PaymentSuccessMail($payment));
+                    Log::info("Email sukses dikirim ke " . $peminjaman->user->email);
+                } catch (\Exception $e) {
+                    Log::error("Gagal mengirim email: " . $e->getMessage());
+                }
+
+                break;
+
                 break;
 
             case 'pending':
@@ -236,7 +248,21 @@ class MidtransController extends Controller
         }
     }
 
-    public function success() { return view('user.pesanan.success-payment'); }
+   // 🔹 Redirect URLs untuk Frontend
+   // 🔹 Redirect URLs untuk Frontend
+    public function success(Request $request) 
+    { 
+        // Ambil 1 transaksi pembayaran yang PALING BARU milik user yang sedang login
+        $payment = PaymentTransaction::with(['peminjaman', 'peminjaman.mobil'])
+            ->whereHas('peminjaman', function($query) {
+                // Pastikan ini adalah transaksi milik user yang sedang login
+                $query->where('user_id', auth::id());
+            })
+            ->latest('created_at') // Urutkan dari yang paling terakhir dibuat
+            ->first(); // Ambil satu data saja
+
+        return view('user.pesanan.success-payment', compact('payment')); 
+    }
     public function failed() { return view('user.pesanan.failed-payment'); }
     public function unfinish() { return view('user.pesanan.unfinish-payment'); }
 }

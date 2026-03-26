@@ -26,7 +26,7 @@ use App\Http\Controllers\Resepsionis\MidtransController as ResepsionisMidtransCo
 use App\Http\Controllers\Resepsionis\PeminjamanController as ResepsionisPeminjamanController;
 use App\Http\Controllers\Resepsionis\PengembalianController as ResepsionisPengembalianController;
 use App\Http\Controllers\Resepsionis\PembatalanPesananController as ResepsionisPembatalanPesananController;
-
+use App\Http\Controllers\User\GoogleAuthController;
 
 use App\Livewire\Menu\Dashboard\HomeIndex;
 use App\Livewire\Menu\Master\{
@@ -63,6 +63,8 @@ Route::get('/', [LandingController::class, 'index'])->name('landing');
 
 // Auth routes (login, register, forgot password, dll)
 require __DIR__ . '/auth.php';
+Route::get('/auth/google', [GoogleAuthController::class, 'redirect'])->name('auth.google');
+Route::get('/auth/google/callback', [GoogleAuthController::class, 'callback']);
 
 // Hanya untuk user yang login
 Route::middleware(['auth','verified'])->group(function () {
@@ -111,7 +113,7 @@ Route::middleware('role:staff')->group(function () {
     Route::get('/peminjaman/{peminjaman}/pay', [MidtransController::class, 'pay'])->name('payment.pay');
     Route::get('/peminjaman/{peminjaman}/pay-sisa', [MidtransController::class, 'paySisa'])->name('payment.pay-sisa');
     Route::post('/payment/notification', [MidtransController::class, 'notification'])->name('payment.notification');
-    Route::get('/payment/callback', [MidtransController::class, 'callback'])->name('payment.callback');
+    // Route::get('/payment/callback', [MidtransController::class, 'callback'])->name('payment.callback');
     Route::get('/payment/success', [MidtransController::class, 'success'])->name('payment.success');
     Route::get('/payment/failed', [MidtransController::class, 'failed'])->name('payment.failed');
     Route::get('/payment/unfinish', [MidtransController::class, 'unfinish'])->name('payment.unfinish');
@@ -147,6 +149,8 @@ Route::middleware('role:staff')->group(function () {
 
         Route::post('/chat/kirim', [PeminjamanController::class, 'kirimPesan'])->name('chat.kirim');
 
+        
+
     // // Route dari definisi lama Anda (jika masih diperlukan)
     // Route::post('/peminjaman/{peminjaman}/cancel', [PembatalanPesananController::class, 'store'])
     //     ->name('pembatalan.store');
@@ -166,7 +170,7 @@ Route::middleware('role:staff')->group(function () {
 });
      // --- GROUP MASTER DATA ---
     Route::middleware('permission:read-users')->get('/management/users', UserIndex::class)->name('users');
-        Route::middleware('permission:read-pelanggan')->get('/management/pelanggan', PelangganIndex::class)->name('pelanggan');
+        Route::middleware('permission:read-pelanggans')->get('/management/pelanggan', PelangganIndex::class)->name('pelanggan');
     Route::middleware('permission:read-roles')->get('/management/roles', RoleIndex::class)->name('roles');
     Route::middleware('permission:read-mobils')->get('/management/mobil', MobilIndex::class)->name('mobil');
     Route::middleware('permission:read-sopirs')->get('/management/sopir', SopirIndex::class)->name('sopir');
@@ -186,6 +190,7 @@ Route::middleware('role:staff')->group(function () {
     Route::middleware('permission:read-vehicle_damage_reports')->get('/operasional/laporan-kerusakan', VehicleDamageIndex::class)->name('damage-report');
     Route::middleware('permission:read-fines')->get('/operasional/denda', FineIndex::class)->name('fines');
 
+    
 
 
 

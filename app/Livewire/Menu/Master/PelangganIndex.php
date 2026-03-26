@@ -64,7 +64,7 @@ class PelangganIndex extends Component
     #[Layout('layouts.admin')]
     public function render()
     {
-        abort_if(Gate::denies('read-pelanggan'), 403, 'Akses ditolak.');
+        abort_if(Gate::denies('read-pelanggans'), 403, 'Akses ditolak.');
 
         $pelanggans = Pelanggan::with('user')
             ->when($this->search, function($q) {
@@ -87,7 +87,7 @@ class PelangganIndex extends Component
 
     public function create()
     {
-        abort_if(Gate::denies('create-pelanggan'), 403);
+        abort_if(Gate::denies('create-pelanggans'), 403);
         $this->resetInput();
         $this->isEditMode = false;
         $this->modalTitle = 'Tambah Pelanggan Baru';
@@ -96,7 +96,7 @@ class PelangganIndex extends Component
 
     public function store()
     {
-        abort_if(Gate::denies('create-pelanggan'), 403);
+        abort_if(Gate::denies('create-pelanggans'), 403);
         $this->validate();
 
         DB::beginTransaction();
@@ -140,7 +140,7 @@ class PelangganIndex extends Component
 
     public function edit($id)
     {
-        abort_if(Gate::denies('update-pelanggan'), 403);
+        abort_if(Gate::denies('update-pelanggans'), 403);
         
         $pelanggan = Pelanggan::with('user')->findOrFail($id);
         
@@ -159,7 +159,7 @@ class PelangganIndex extends Component
 
     public function update()
     {
-        abort_if(Gate::denies('update-pelanggan'), 403);
+        abort_if(Gate::denies('update-pelanggans'), 403);
         $this->validate();
 
         DB::beginTransaction();
@@ -198,7 +198,7 @@ class PelangganIndex extends Component
 
     public function delete($id)
     {
-        abort_if(Gate::denies('delete-pelanggan'), 403);
+        abort_if(Gate::denies('delete-pelanggans'), 403);
         
         $pelanggan = Pelanggan::findOrFail($id);
         
@@ -213,7 +213,7 @@ class PelangganIndex extends Component
 
     public function toggleStatus($id)
     {
-        abort_if(Gate::denies('update-pelanggan'), 403);
+        abort_if(Gate::denies('update-pelanggans'), 403);
         $pelanggan = Pelanggan::findOrFail($id);
         $pelanggan->status = ($pelanggan->status === 'aktif') ? 'tidak aktif' : 'aktif';
         $pelanggan->save();

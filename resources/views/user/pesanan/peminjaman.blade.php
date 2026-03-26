@@ -778,7 +778,7 @@
                             // Buka Snap Midtrans
                             snap.pay(response.data.snap_token, {
                                 onSuccess: function() {
-                                    window.location.href = "{{ route('payment.success') }}";
+                                    window.location.href = "{{ route('payment.success') }}"
                                 },
                                 onError: function() {
                                     window.location.href = "{{ route('payment.failed') }}";

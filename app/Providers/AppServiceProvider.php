@@ -10,7 +10,6 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\ServiceProvider;
 
-
 class AppServiceProvider extends ServiceProvider
 {
     /**
@@ -26,53 +25,50 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        // 1. LOGIKA SUPERADMIN BYPASS (PENTING)
-        // Membuat role 'admin' otomatis memiliki semua hak akses tanpa perlu dicek satu per satu.
+        /*
         Gate::before(function ($user, $ability) {
             return $user->hasRole('admin') ? true : null;
         });
+        */
 
+
+        // =========================================================================
+        // 2. VIEW COMPOSER UNTUK SOPIR
+        // =========================================================================
         View::composer('sopir.SopirDashboard', function ($view) {
-    $user = Auth::user();
+            $user = Auth::user();
+            if (! $user || ! $user->sopir) {
+                $view->with([
+                    'sopir' => null,
+                    'tugasAktif' => collect(),
+                    'riwayat' => collect(),
+                ]);
+                return;
+            }
 
-    if (! $user || ! method_exists($user, 'hasRole') || ! $user->hasRole('sopir')) {
-        $view->with([
-            'sopir' => null,
-            'tugasAktif' => collect(),
-            'riwayat' => collect(),
-        ]);
-        return;
-    }
+            // Variabel sopir diisi dari relasi user
+            $sopir = $user->sopir;
 
-    $sopir = $user->sopir;
+            $view->with([
+                'sopir' => $sopir,
+                'tugasAktif' => Peminjaman::where('sopir_id', $sopir->id)
+                    ->whereIn('status', ['berlangsung', 'sudah dibayar lunas', 'pembayaran dp'])
+                    ->with(['user', 'mobil'])
+                    ->orderBy('tanggal_sewa')
+                    ->get(),
 
-    if (! $sopir) {
-        $view->with([
-            'sopir' => null,
-            'tugasAktif' => collect(),
-            'riwayat' => collect(),
-        ]);
-        return;
-    }
-
-    $view->with([
-        'sopir' => $sopir,
-        'tugasAktif' => Peminjaman::where('sopir_id', $sopir->id)
-            ->whereIn('status', ['berlangsung', 'sudah dibayar lunas', 'pembayaran dp'])
-            ->with(['user', 'mobil'])
-            ->orderBy('tanggal_sewa')
-            ->get(),
-
-        'riwayat' => Peminjaman::where('sopir_id', $sopir->id)
-            ->whereIn('status', ['selesai', 'dibatalkan'])
-            ->with(['user', 'mobil'])
-            ->orderByDesc('tanggal_kembali')
-            ->limit(10)
-            ->get(),
-    ]);
-});
-    
+                'riwayat' => Peminjaman::where('sopir_id', $sopir->id)
+                    ->whereIn('status', ['selesai', 'dibatalkan'])
+                    ->with(['user', 'mobil'])
+                    ->orderByDesc('tanggal_kembali')
+                    ->limit(10)
+                    ->get(),
+            ]);
+        });
+        
+        // =========================================================================
         // 3. OBSERVER
+        // =========================================================================
         User::observe(UserObserver::class);
     }
 }
