@@ -3,12 +3,11 @@
 namespace App\Mail;
 
 use Illuminate\Bus\Queueable;
-use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Mail\Mailable;
 use Illuminate\Mail\Mailables\Content;
 use Illuminate\Mail\Mailables\Envelope;
 use Illuminate\Queue\SerializesModels;
-use App\Models\PaymentTransaction;
+use App\Models\TransaksiPembayaran;
 
 class PaymentSuccessMail extends Mailable
 {
@@ -19,7 +18,7 @@ class PaymentSuccessMail extends Mailable
     /**
      * Create a new message instance.
      */
-    public function __construct(PaymentTransaction $payment)
+    public function __construct(TransaksiPembayaran $payment)
     {
         $this->payment = $payment;
     }

@@ -7,15 +7,22 @@ use Livewire\Attributes\Layout;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Gate;
-use App\Models\{User, Mobil, Peminjaman, Pengembalian, PembatalanPesanan, PaymentTransaction, Fine, Sopir, VehicleInspection, UserIdentification};
+use Barryvdh\DomPDF\Facade\Pdf; // Tambahkan ini untuk Export PDF
+
+// Model disesuaikan dengan bahasa Indonesia sesuai perombakan database
+use App\Models\{User, Mobil, Peminjaman, Pengembalian, PembatalanPesanan, TransaksiPembayaran, Denda, Sopir, InspeksiMobil};
 use Spatie\Permission\Models\Role;
 
 class HomeIndex extends Component
 {
+    // Property untuk Modal Export
     public $showExportModal = false;
-    public $dateStart, $dateEnd, $filterStatusExport = '';
+    public $exportType = 'peminjaman'; // peminjaman, pembayaran, denda
+    public $exportStartDate;
+    public $exportEndDate;
+    public $exportStatus = 'all';
     
-    // Tambahkan property untuk tracking permission
+    // Property untuk tracking permission
     public $hasFinancialAccess = false;
     public $hasOperationalAccess = false;
     public $hasDriverAccess = false;
@@ -28,7 +35,6 @@ class HomeIndex extends Component
         $user = Auth::user();
         
         if ($user) {
-            // Cache permission check untuk menghindari multiple Gate calls
             $this->hasFinancialAccess = Gate::any([
                 'read-payment_transactions', 
                 'read-peminjaman',
@@ -49,6 +55,94 @@ class HomeIndex extends Component
                 'read-users'
             ]);
         }
+
+        // Set default date untuk modal export (Bulan ini)
+        $this->exportStartDate = now()->startOfMonth()->format('Y-m-d');
+        $this->exportEndDate = now()->format('Y-m-d');
+    }
+
+    // Fungsi untuk mereset dan membuka modal
+    public function openExportModal()
+    {
+        $this->exportType = 'peminjaman';
+        $this->exportStatus = 'all';
+        $this->showExportModal = true;
+    }
+    
+    // Fungsi Utama untuk Download Laporan
+    public function downloadReport()
+    {
+        // Validasi input tanggal
+        $this->validate([
+            'exportStartDate' => 'required|date',
+            'exportEndDate' => 'required|date|after_or_equal:exportStartDate',
+            'exportType' => 'required|in:peminjaman,pembayaran,denda',
+        ]);
+
+        $data = [];
+        $totalOmzet = 0;
+        $title = '';
+
+        // 1. Logika Laporan Peminjaman (Operasional)
+        if ($this->exportType === 'peminjaman') {
+            $title = 'LAPORAN OPERASIONAL PEMINJAMAN';
+            $query = Peminjaman::with(['user', 'mobil'])
+                ->whereBetween('tanggal_sewa', [$this->exportStartDate, $this->exportEndDate]);
+
+            if ($this->exportStatus !== 'all') {
+                $query->where('status', $this->exportStatus);
+            }
+
+            $data = $query->orderBy('tanggal_sewa', 'desc')->get();
+            $totalOmzet = $data->sum('total_harga');
+        } 
+        
+        // 2. Logika Laporan Pembayaran (Cashflow/Keuangan)
+        elseif ($this->exportType === 'pembayaran') {
+            $title = 'LAPORAN TRANSAKSI KEUANGAN';
+            $query = TransaksiPembayaran::with(['peminjaman.user', 'peminjaman.mobil'])
+                ->whereBetween('created_at', [$this->exportStartDate . ' 00:00:00', $this->exportEndDate . ' 23:59:59']);
+
+            if ($this->exportStatus !== 'all') {
+                $query->where('status', $this->exportStatus);
+            }
+
+            $data = $query->orderBy('created_at', 'desc')->get();
+            // Hanya hitung status sukses/settlement
+            $totalOmzet = $data->whereIn('status', ['success', 'settlement'])->sum('jumlah');
+        } 
+        
+        // 3. Logika Laporan Denda
+        elseif ($this->exportType === 'denda') {
+            $title = 'LAPORAN PENERIMAAN DENDA';
+            $query = Denda::with(['peminjaman.user', 'peminjaman.mobil'])
+                ->whereBetween('tanggal_terdeteksi', [$this->exportStartDate, $this->exportEndDate]);
+
+            if ($this->exportStatus !== 'all') {
+                $query->where('status', $this->exportStatus);
+            }
+
+            $data = $query->orderBy('tanggal_terdeteksi', 'desc')->get();
+            $totalOmzet = $data->where('status', 'sudah dibayar')->sum('total_denda');
+        }
+
+        // Generate PDF
+        $pdf = Pdf::loadView('reports.transaksi_pdf', [
+            'data' => $data,
+            'totalOmzet' => $totalOmzet,
+            'startDate' => $this->exportStartDate,
+            'endDate' => $this->exportEndDate,
+            'reportType' => $this->exportType,
+            'title' => $title
+        ]);
+
+        // Menutup modal setelah tombol download ditekan
+        $this->showExportModal = false;
+
+        // Return response download ke browser
+        return response()->streamDownload(function () use ($pdf) {
+            echo $pdf->stream();
+        }, 'Laporan_' . ucfirst($this->exportType) . '_' . date('Ymd_Hi') . '.pdf');
     }
     
     public function render()
@@ -62,7 +156,7 @@ class HomeIndex extends Component
         // --- 1. SEKSI KEUANGAN & TRANSAKSI ---
         if ($this->hasFinancialAccess) {
             if (Gate::allows('read-payment_transactions')) {
-                $data['totalPendapatan'] = PaymentTransaction::where('status', 'settlement')->sum('amount');
+                $data['totalPendapatan'] = TransaksiPembayaran::where('status', 'settlement')->sum('jumlah');
                 $data['chartData'] = $this->getMonthlyRevenue();
                 $data['fineData'] = $this->getMonthlyFines();
             }
@@ -77,7 +171,7 @@ class HomeIndex extends Component
             
             if (Gate::allows('read-pembatalan_pesanan')) {
                 $data['totalPembatalan'] = PembatalanPesanan::count();
-                $data['pendingPembatalan'] = PembatalanPesanan::where('approval_status', 'pending')->count();
+                $data['pendingPembatalan'] = PembatalanPesanan::where('status_persetujuan', 'pending')->count();
             }
         }
         
@@ -90,7 +184,7 @@ class HomeIndex extends Component
             }
             
             if (Gate::allows('read-user_identifications')) {
-                $data['pendingVerifikasi'] = UserIdentification::where('status_approval', 'menunggu')->count();
+                $data['pendingVerifikasi'] = User::where('status_verifikasi', 'menunggu')->count();
             }
             
             if (Gate::allows('read-vehicle_inspections')) {
@@ -100,7 +194,7 @@ class HomeIndex extends Component
                 
                 $data['metrics'] = [
                     ['label' => 'Perlu Pengecekan', 'value' => Pengembalian::where('status', 'menunggu pengecekan')->count(), 'color' => 'yellow'],
-                    ['label' => 'Total Inspeksi', 'value' => VehicleInspection::count(), 'color' => 'green']
+                    ['label' => 'Total Inspeksi', 'value' => InspeksiMobil::count(), 'color' => 'green']
                 ];
             }
         }
@@ -127,7 +221,6 @@ class HomeIndex extends Component
             $data['operationalCount'] = User::role($operationalRoles)->count();
         }
         
-        // Tambahkan permission flags ke view
         $data['hasFinancialAccess'] = $this->hasFinancialAccess;
         $data['hasOperationalAccess'] = $this->hasOperationalAccess;
         $data['hasDriverAccess'] = $this->hasDriverAccess;
@@ -136,21 +229,20 @@ class HomeIndex extends Component
         return view('livewire.menu.dashboard.home-index', $data);
     }
     
-    // Helper method untuk permission checking yang lebih clean
     private function userCan($permission)
     {
         return Gate::allows($permission);
     }
     
     private function getMonthlyRevenue() {
-        $rev = PaymentTransaction::where('status', 'settlement')->whereYear('created_at', date('Y'))
-            ->select(DB::raw('SUM(amount) as total'), DB::raw('MONTH(created_at) as month'))
+        $rev = TransaksiPembayaran::where('status', 'settlement')->whereYear('created_at', date('Y'))
+            ->select(DB::raw('SUM(jumlah) as total'), DB::raw('MONTH(created_at) as month'))
             ->groupBy('month')->pluck('total', 'month')->toArray();
         return array_map(fn($m) => $rev[$m] ?? 0, range(1, 12));
     }
     
     private function getMonthlyFines() {
-        $fines = Fine::where('status', 'sudah dibayar')->whereYear('tanggal_pembayaran', date('Y'))
+        $fines = Denda::where('status', 'sudah dibayar')->whereYear('tanggal_pembayaran', date('Y'))
             ->select(DB::raw('SUM(total_denda) as total'), DB::raw('MONTH(tanggal_pembayaran) as month'))
             ->groupBy('month')->pluck('total', 'month')->toArray();
         return array_map(fn($m) => $fines[$m] ?? 0, range(1, 12));
@@ -172,7 +264,6 @@ class HomeIndex extends Component
             'recentPeminjaman' => collect(), 'chartData' => [], 'fineData' => [], 
             'topMobilLabels' => [], 'topMobilData' => [], 'latestChecks' => collect(),
             'metrics' => [], 'tugasAktif' => collect(), 'sopir' => null,
-            // Tambahkan default untuk permission flags
             'hasFinancialAccess' => false,
             'hasOperationalAccess' => false,
             'hasDriverAccess' => false,

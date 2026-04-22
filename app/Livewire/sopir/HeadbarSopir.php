@@ -5,7 +5,7 @@ namespace App\Livewire\Sopir;
 use Livewire\Component;
 use App\Models\Sopir;
 use App\Models\Peminjaman;
-use App\Models\Message;
+use App\Models\Pesan; // 🔹 Diperbarui dari Message
 use Illuminate\Support\Facades\Auth;
 
 class HeadbarSopir extends Component
@@ -37,11 +37,13 @@ class HeadbarSopir extends Component
         $totalUnread = 0;
 
         foreach($activeChats as $chat) {
-            $lm = Message::where('peminjaman_id', $chat->id)->latest()->first();
+            // 🔹 Diperbarui: Message -> Pesan
+            $lm = Pesan::where('peminjaman_id', $chat->id)->latest()->first();
             
-            $unreadCount = Message::where('peminjaman_id', $chat->id)
-                ->where('sender_id', '!=', Auth::id())
-                ->where('is_read', false)
+            // 🔹 Diperbarui: Message -> Pesan, sender_id -> pengirim_id, is_read -> sudah_dibaca
+            $unreadCount = Pesan::where('peminjaman_id', $chat->id)
+                ->where('pengirim_id', '!=', Auth::id())
+                ->where('sudah_dibaca', false)
                 ->count();
                 
             // Flatten data agar mudah dirender oleh Blade
@@ -49,7 +51,8 @@ class HeadbarSopir extends Component
                 'id' => $chat->id,
                 'mobil_merek' => $chat->mobil->merek ?? 'Mobil',
                 'user_name' => $chat->user->name ?? 'Pelanggan',
-                'last_message' => $lm ? $lm->message : 'Belum ada obrolan...',
+                // 🔹 Diperbarui: message -> isi_pesan
+                'last_message' => $lm ? $lm->isi_pesan : 'Belum ada obrolan...',
                 'last_time' => $lm ? $lm->created_at : $chat->created_at,
                 'unread' => $unreadCount
             ];

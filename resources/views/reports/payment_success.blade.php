@@ -13,7 +13,8 @@
                     <img src="{{ $message->embed(public_path('logoakarentcar.png')) }}" alt="Logo AKA Rentcar" style="max-height: 50px; margin-bottom: 15px; display: block;">
                     
                     <h2 style="color: #0891b2; margin: 0; font-size: 28px; letter-spacing: 1px;">INVOICE</h2>
-                    <p style="margin: 5px 0 0; color: #6b7280; font-size: 14px;">#{{ $payment->midtrans_transaction_id }}</p>
+                    <!-- 🔹 Diperbarui: midtrans_transaction_id -> id_transaksi_midtrans -->
+                    <p style="margin: 5px 0 0; color: #6b7280; font-size: 14px;">#{{ $payment->id_transaksi_midtrans }}</p>
                     <p style="margin: 5px 0 0; font-size: 13px; color: #9ca3af;">{{ \Carbon\Carbon::parse($payment->created_at)->translatedFormat('d F Y, H:i') }} WIB</p>
                 </td>
                 <td align="right" valign="top">
@@ -54,7 +55,8 @@
                 </tr>
                 <tr>
                     <td style="padding: 6px 0;">Layanan:</td>
-                    <td align="right" style="padding: 6px 0; color: #0891b2;"><strong>{{ $payment->peminjaman->add_on_sopir ? 'Dengan Sopir' : 'Lepas Kunci' }}</strong></td>
+                    <!-- 🔹 Diperbarui: add_on_sopir -> tambahan_sopir -->
+                    <td align="right" style="padding: 6px 0; color: #0891b2;"><strong>{{ $payment->peminjaman->tambahan_sopir ? 'Dengan Sopir' : 'Lepas Kunci' }}</strong></td>
                 </tr>
                 <tr>
                     <td style="padding: 6px 0;">Waktu Ambil:</td>
@@ -78,7 +80,7 @@
                 
                 @if($payment->peminjaman->sisa_bayar > 0)
                 <tr>
-                    <td style="padding: 8px 0;">Total Telah Dibayar <span style="font-size:12px; color:#9ca3af;">(Termasuk trx ini)</span></td>
+                    <td style="padding: 8px 0;">Total Telah Dibayar <span style="font-size:12px; color:#9ca3af;">(Termasuk transaksi ini)</span></td>
                     <td align="right" style="padding: 8px 0; color: #1f2937;"><strong>Rp {{ number_format($payment->peminjaman->total_dibayarkan, 0, ',', '.') }}</strong></td>
                 </tr>
                 <tr>
@@ -92,7 +94,8 @@
                 </tr>
                 <tr>
                     <td style="padding: 20px 0 0;"><strong style="font-size: 16px; color: #1f2937;">Nominal Transaksi Ini</strong></td>
-                    <td align="right" style="padding: 20px 0 0; color: #0891b2; font-size: 24px;"><strong>Rp {{ number_format($payment->amount, 0, ',', '.') }}</strong></td>
+                    <!-- 🔹 Diperbarui: amount -> jumlah -->
+                    <td align="right" style="padding: 20px 0 0; color: #0891b2; font-size: 24px;"><strong>Rp {{ number_format($payment->jumlah, 0, ',', '.') }}</strong></td>
                 </tr>
             </table>
         </div>

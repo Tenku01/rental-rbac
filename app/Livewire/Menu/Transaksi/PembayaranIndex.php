@@ -5,7 +5,7 @@ namespace App\Livewire\Menu\Transaksi;
 use Livewire\Component;
 use Livewire\WithPagination;
 use Livewire\Attributes\Layout;
-use App\Models\PaymentTransaction;
+use App\Models\TransaksiPembayaran; // 🔹 Diperbarui dari PaymentTransaction
 use Illuminate\Support\Facades\Gate;
 
 class PembayaranIndex extends Component
@@ -18,7 +18,7 @@ class PembayaranIndex extends Component
     
     // --- Modal Detail ---
     public $showDetailModal = false;
-    public $selectedPayment = null;
+    public $selectedPembayaran = null; // 🔹 Diperbarui dari selectedPayment
     public $rawJson = ''; // Untuk menampilkan respon mentah Midtrans
 
     protected $paginationTheme = 'tailwind';
@@ -29,12 +29,12 @@ class PembayaranIndex extends Component
     #[Layout('layouts.admin')]
     public function render()
     {
-        // RBAC: Hanya user dengan izin 'read-payment' yang bisa melihat
-        abort_if(Gate::denies('read-payment'), 403, 'Anda tidak memiliki akses melihat data keuangan.');
+        // RBAC: Hanya user dengan izin 'read-payment_transactions' yang bisa melihat
+        abort_if(Gate::denies('read-payment_transactions'), 403, 'Anda tidak memiliki akses melihat data keuangan.');
 
-        $payments = PaymentTransaction::with(['peminjaman.user', 'peminjaman.mobil'])
+        $pembayaranList = TransaksiPembayaran::with(['peminjaman.user', 'peminjaman.mobil']) // 🔹 Diperbarui
             ->when($this->search, function($q) {
-                $q->where('midtrans_transaction_id', 'like', '%'.$this->search.'%')
+                $q->where('id_transaksi_midtrans', 'like', '%'.$this->search.'%') // 🔹 Diperbarui
                   ->orWhere('id', 'like', '%'.$this->search.'%')
                   ->orWhereHas('peminjaman.user', fn($sq) => $sq->where('name', 'like', '%'.$this->search.'%'));
             })
@@ -43,20 +43,21 @@ class PembayaranIndex extends Component
             ->paginate(10);
 
         return view('livewire.menu.transaksi.pembayaran-index', [
-            'payments' => $payments
+            'pembayaranList' => $pembayaranList // 🔹 Diperbarui
         ]);
     }
 
     // --- Action: Show Detail ---
     public function showDetail($id)
     {
-        // Membutuhkan hak akses 'read-payment' (atau 'update-payment' jika ingin lebih ketat)
-        abort_if(Gate::denies('read-payment'), 403);
+        // 🔹 Diperbarui: Membutuhkan hak akses 'read-payment_transactions' yang valid di Spatie
+        abort_if(Gate::denies('read-payment_transactions'), 403);
 
-        $this->selectedPayment = PaymentTransaction::with(['peminjaman.user', 'peminjaman.mobil'])->findOrFail($id);
+        $this->selectedPembayaran = TransaksiPembayaran::with(['peminjaman.user', 'peminjaman.mobil'])->findOrFail($id); // 🔹 Diperbarui
         
         // Format JSON agar mudah dibaca di modal
-        $this->rawJson = json_encode(json_decode($this->selectedPayment->midtrans_response), JSON_PRETTY_PRINT);
+        // 🔹 Diperbarui: midtrans_response -> respon_midtrans
+        $this->rawJson = json_encode(json_decode($this->selectedPembayaran->respon_midtrans), JSON_PRETTY_PRINT);
         
         $this->showDetailModal = true;
     }
@@ -64,7 +65,7 @@ class PembayaranIndex extends Component
     public function closeModal()
     {
         $this->showDetailModal = false;
-        $this->selectedPayment = null;
+        $this->selectedPembayaran = null; // 🔹 Diperbarui
         $this->rawJson = '';
     }
 }

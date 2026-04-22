@@ -1,65 +1,32 @@
 <?php
 
-use App\Models\Resepsionis;
-use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\GuestChatController;
 use App\Http\Controllers\LandingController;
-use App\Http\Controllers\Sopir\LogbookController;
+use App\Http\Controllers\User\GoogleAuthController;
 use App\Http\Controllers\User\IdentityController;
 use App\Http\Controllers\User\MidtransController;
 use App\Http\Controllers\User\MobilControllerUser;
-use App\Http\Controllers\User\PeminjamanController;
-use App\Http\Controllers\Resepsionis\FineController;
-use App\Http\Controllers\Resepsionis\UserController;
-use App\Http\Controllers\Sopir\SopirActionController;
-use App\Http\Controllers\User\PengembalianController;
-use App\Http\Controllers\Sopir\SopirDashboardController;
-use App\Http\Controllers\Staff\StaffDashboardController;
-use App\Http\Controllers\Resepsionis\DashboardController;
-use App\Http\Controllers\Resepsionis\PelangganController;
+use App\Http\Controllers\User\NotificationController;
 use App\Http\Controllers\User\PembatalanPesananController;
-use App\Http\Controllers\Resepsionis\TransactionController;
-use App\Http\Controllers\Resepsionis\VerificationController;
-use App\Http\Controllers\Admin\PembatalanPesananApprovalController;
-use App\Http\Controllers\Resepsionis\MobilController as ResepsionisMobilController;
-use App\Http\Controllers\Resepsionis\MidtransController as ResepsionisMidtransController;
-use App\Http\Controllers\Resepsionis\PeminjamanController as ResepsionisPeminjamanController;
-use App\Http\Controllers\Resepsionis\PengembalianController as ResepsionisPengembalianController;
-use App\Http\Controllers\Resepsionis\PembatalanPesananController as ResepsionisPembatalanPesananController;
-use App\Http\Controllers\User\GoogleAuthController;
-
+use App\Http\Controllers\User\PeminjamanController;
+use App\Http\Controllers\User\PengembalianController;
 use App\Livewire\Menu\Dashboard\HomeIndex;
-use App\Livewire\Menu\Master\{
-    UserIndex,
-    RoleIndex,
-    MobilIndex,
-    SopirIndex,
-    StaffIndex,
-    ResepsionisIndex,
-    PelangganIndex
-  
-};
-use App\Livewire\Menu\Transaksi\{
-    PeminjamanIndex,
-    PengembalianIndex,
-    PembatalanPesananIndex,
-    TransactionIndex,
-    FineIndex,
-    PembayaranIndex
-};
-use App\Livewire\Menu\Operasional\{
-    DriverLogbookIndex,
-    VehicleInspectionIndex,
-    VehicleDamageIndex,
-    VerifikasiUserIndex
-};
+use App\Livewire\Menu\Master\{ UserIndex, RoleIndex, MobilIndex, SopirIndex };
+use App\Livewire\Menu\Operasional\{ LogbookSopirIndex, InspeksiMobilIndex, LaporanKerusakanIndex, VerifikasiUserIndex };
+use App\Livewire\Menu\Transaksi\{ PeminjamanIndex, PengembalianIndex, PembatalanPesananIndex, TransactionIndex, DendaIndex, PembayaranIndex };
+use App\Livewire\Resepsionis\LiveChatAdmin;
+use App\Livewire\Sopir\ChatPeminjaman;
 use App\Livewire\Sopir\Dashboard as SopirDashboard;
 use App\Livewire\Sopir\TugasAktif;
-use App\Livewire\Sopir\ChatPeminjaman;
 use App\Livewire\Staff\Dashboard as StaffDashboard;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Route;
 
 // Landing page
 Route::get('/', [LandingController::class, 'index'])->name('landing');
+
+Route::get('/guest-chat/{sessionId}', [GuestChatController::class, 'fetchMessages']);
+Route::post('/guest-chat/send', [GuestChatController::class, 'sendMessage']);
 
 // Auth routes (login, register, forgot password, dll)
 require __DIR__ . '/auth.php';
@@ -68,6 +35,9 @@ Route::get('/auth/google/callback', [GoogleAuthController::class, 'callback']);
 
 // Hanya untuk user yang login
 Route::middleware(['auth','verified'])->group(function () {
+
+//route eror
+Route::view('/unauthorized', 'erorrs.unauthorized')->name('unauthorized');
 
     // Dashboard user
     Route::get('/dashboard', function () {
@@ -84,6 +54,10 @@ Route::middleware(['auth','verified'])->group(function () {
 Route::middleware('role:staff')->group(function () {
         Route::get('/staff/dashboard', StaffDashboard::class)->name('staff.dashboard');
     });
+
+     Route::middleware('role:admin|resepsionis')
+        ->get('/resepsionis/livechat', LiveChatAdmin::class)
+        ->name('resepsionis.livechat');
 
     // Mobil (User)
     Route::get('/mobils', [MobilControllerUser::class, 'mobil'])->name('mobils.index');
@@ -147,7 +121,12 @@ Route::middleware('role:staff')->group(function () {
     Route::post('/pengembalian/{kode_pengembalian}/select-manual-payment', [PengembalianController::class, 'selectManualPaymentMethod'])
         ->name('pengembalian.selectManualPaymentMethod');
 
+// Route::get('/pesanan/chat/{id}', \App\Livewire\User\ChatPesanan::class)->name('pesanan.chat');
+
+        Route::get('/pesanan-saya/{id}/chat', [PeminjamanController::class, 'chat'])->name('pesanan.chat');
         Route::post('/chat/kirim', [PeminjamanController::class, 'kirimPesan'])->name('chat.kirim');
+Route::get('/user/notifications', [NotificationController::class, 'getNotifications'])->name('user.notifications');
+    Route::post('/user/notifications/mark-read', [NotificationController::class, 'markAsRead'])->name('user.notifications.read');
 
         
 
@@ -170,12 +149,9 @@ Route::middleware('role:staff')->group(function () {
 });
      // --- GROUP MASTER DATA ---
     Route::middleware('permission:read-users')->get('/management/users', UserIndex::class)->name('users');
-        Route::middleware('permission:read-pelanggans')->get('/management/pelanggan', PelangganIndex::class)->name('pelanggan');
     Route::middleware('permission:read-roles')->get('/management/roles', RoleIndex::class)->name('roles');
     Route::middleware('permission:read-mobils')->get('/management/mobil', MobilIndex::class)->name('mobil');
     Route::middleware('permission:read-sopirs')->get('/management/sopir', SopirIndex::class)->name('sopir');
-    Route::middleware('permission:read-staffs')->get('/management/staff', StaffIndex::class)->name('staff');
-    Route::middleware('permission:read-resepsionis')->get('/management/resepsionis', ResepsionisIndex::class)->name('resepsionis');
     Route::middleware('permission:read-user_identifications')->get('/management/verifikasi', VerifikasiUserIndex::class)->name('verifikasi');
 
     // --- GROUP TRANSAKSI ---
@@ -185,10 +161,10 @@ Route::middleware('role:staff')->group(function () {
     Route::middleware('permission:read-payment_transactions')->get('/transaksi/payments', PembayaranIndex::class)->name('pembayaran');
 
     // --- GROUP OPERASIONAL ---
-    Route::middleware('permission:read-driver_logbooks')->get('/operasional/logbook', DriverLogbookIndex::class)->name('logbook');
-    Route::middleware('permission:read-vehicle_inspections')->get('/operasional/inspeksi', VehicleInspectionIndex::class)->name('inspeksi');
-    Route::middleware('permission:read-vehicle_damage_reports')->get('/operasional/laporan-kerusakan', VehicleDamageIndex::class)->name('damage-report');
-    Route::middleware('permission:read-fines')->get('/operasional/denda', FineIndex::class)->name('fines');
+    Route::middleware('permission:read-driver_logbooks')->get('/operasional/logbook', LogbookSopirIndex::class)->name('logbook');
+    Route::middleware('permission:read-vehicle_inspections')->get('/operasional/inspeksi', InspeksiMobilIndex::class)->name('inspeksi');
+    Route::middleware('permission:read-vehicle_damage_reports')->get('/operasional/laporan-kerusakan', LaporanKerusakanIndex::class)->name('damage-report');
+    Route::middleware('permission:read-fines')->get('/operasional/denda', DendaIndex::class)->name('fines');
 
     
 

@@ -30,5 +30,10 @@ class Sopir extends Model
     {
         return $this->hasMany(Peminjaman::class, 'sopir_id');
     }
+
+    public function peminjaman()
+{
+    return $this->hasMany(Peminjaman::class, 'sopir_id');
+}
     
 }

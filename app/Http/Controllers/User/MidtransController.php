@@ -7,7 +7,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 use App\Models\Peminjaman;
-use App\Models\PaymentTransaction;
+use App\Models\TransaksiPembayaran; // Diperbarui dari PaymentTransaction
 use Midtrans\Config;
 use Midtrans\Snap;
 use App\Mail\PaymentSuccessMail;
@@ -24,57 +24,57 @@ class MidtransController extends Controller
     }
 
     // 🔹 Membuat transaksi (otomatis cek DP / LUNAS)
-   public function pay(Peminjaman $peminjaman)
-{
-    $this->initMidtrans(); // tetap sandbox, tidak diubah
+    public function pay(Peminjaman $peminjaman)
+    {
+        $this->initMidtrans(); // tetap sandbox, tidak diubah
 
-    $isDP = $peminjaman->tipe_pembayaran === 'dp';
-    $orderType = strtoupper($isDP ? 'DP' : 'LUNAS');
-    $orderId = $orderType . '-' . $peminjaman->id . '-' . time();
-    $grossAmount = $isDP ? $peminjaman->dp_dibayarkan : $peminjaman->total_harga;
+        $isDP = $peminjaman->tipe_pembayaran === 'dp';
+        $orderType = strtoupper($isDP ? 'DP' : 'LUNAS');
+        $orderId = $orderType . '-' . $peminjaman->id . '-' . time();
+        $grossAmount = $isDP ? $peminjaman->dp_dibayarkan : $peminjaman->total_harga;
 
-    $midtransParams = [
-        'transaction_details' => [
-            'order_id' => $orderId,
-            'gross_amount' => $grossAmount,
-        ],
-        'customer_details' => [
-            'first_name' => Auth::user()->name,
-            'email' => Auth::user()->email,
-        ],
-        'enabled_payments' => [
-            'qris',            // <-- QRIS DITAMBAHKAN DI SINI
-            'bank_transfer',
-            'credit_card',
-        ],
-        'gopay' => [
-            'enable_callback' => true,
-        ],
-        'qris' => [
-            'acquirer' => 'gopay', 
-        ],
-    ];
+        $midtransParams = [
+            'transaction_details' => [
+                'order_id' => $orderId,
+                'gross_amount' => $grossAmount,
+            ],
+            'customer_details' => [
+                'first_name' => Auth::user()->name,
+                'email' => Auth::user()->email,
+            ],
+            'enabled_payments' => [
+                'qris',            // <-- QRIS DITAMBAHKAN DI SINI
+                'bank_transfer',
+                'credit_card',
+            ],
+            'gopay' => [
+                'enable_callback' => true,
+            ],
+            'qris' => [
+                'acquirer' => 'gopay', 
+            ],
+        ];
 
-    try {
-        $snapToken = Snap::getSnapToken($midtransParams);
+        try {
+            $snapToken = Snap::getSnapToken($midtransParams);
 
-        PaymentTransaction::create([
-            'peminjaman_id' => $peminjaman->id,
-            'midtrans_transaction_id' => $orderId,
-            'status' => 'pending',
-            'amount' => $grossAmount,
-            'tipe_transaksi' => $isDP ? 'dp' : 'lunas',
-            'midtrans_response' => json_encode($midtransParams),
-        ]);
+            TransaksiPembayaran::create([
+                'peminjaman_id' => $peminjaman->id,
+                'id_transaksi_midtrans' => $orderId, // Diperbarui
+                'status' => 'pending',
+                'jumlah' => $grossAmount,            // Diperbarui
+                'tipe_transaksi' => $isDP ? 'dp' : 'lunas',
+                'respon_midtrans' => json_encode($midtransParams), // Diperbarui
+            ]);
 
-        return response()->json(['snap_token' => $snapToken]);
-    } catch (\Exception $e) {
-        Log::error('Midtrans payment creation failed: ' . $e->getMessage());
-        return response()->json([
-            'error' => 'Gagal membuat transaksi: ' . $e->getMessage()
-        ], 500);
+            return response()->json(['snap_token' => $snapToken]);
+        } catch (\Exception $e) {
+            Log::error('Midtrans payment creation failed: ' . $e->getMessage());
+            return response()->json([
+                'error' => 'Gagal membuat transaksi: ' . $e->getMessage()
+            ], 500);
+        }
     }
-}
 
     // 🔹 Membuat transaksi Sisa Bayar
     public function paySisa(Peminjaman $peminjaman)
@@ -94,19 +94,18 @@ class MidtransController extends Controller
                 'email' => Auth::user()->email,
             ],
             'enabled_payments' => ['qris', 'bank_transfer', 'credit_card'],
-            
         ];
 
         try {
             $snapToken = Snap::getSnapToken($midtransParams);
 
-            PaymentTransaction::create([
+            TransaksiPembayaran::create([
                 'peminjaman_id' => $peminjaman->id,
-                'midtrans_transaction_id' => $orderId,
+                'id_transaksi_midtrans' => $orderId, // Diperbarui
                 'status' => 'pending',
-                'amount' => $grossAmount,
+                'jumlah' => $grossAmount,            // Diperbarui
                 'tipe_transaksi' => 'sisa', // 🔹 tandai sebagai pelunasan
-                'midtrans_response' => json_encode($midtransParams),
+                'respon_midtrans' => json_encode($midtransParams), // Diperbarui
             ]);
 
             return response()->json(['snap_token' => $snapToken]);
@@ -114,7 +113,6 @@ class MidtransController extends Controller
             return response()->json(['error' => 'Gagal membuat transaksi sisa: ' . $e->getMessage()], 500);
         }
     }
-
 
     // 🔹 Notifikasi dari Midtrans (webhook)
     public function notification(Request $request)
@@ -129,7 +127,7 @@ class MidtransController extends Controller
         $transactionStatus = $request->transaction_status;
         $orderId = $request->order_id;
 
-        $payment = PaymentTransaction::where('midtrans_transaction_id', $orderId)->first();
+        $payment = TransaksiPembayaran::where('id_transaksi_midtrans', $orderId)->first(); // Diperbarui
         if (!$payment) return response()->json(['message' => 'Payment not found'], 404);
 
         $peminjaman = $payment->peminjaman;
@@ -143,8 +141,8 @@ class MidtransController extends Controller
                 if ($payment->tipe_transaksi === 'dp') {
                     $peminjaman->update([
                         'status' => 'pembayaran dp',
-                        'dp_dibayarkan' => $payment->amount,
-                        'total_dibayarkan' => $payment->amount,
+                        'dp_dibayarkan' => $payment->jumlah,       // Diperbarui
+                        'total_dibayarkan' => $payment->jumlah,    // Diperbarui
                     ]);
                 } else {
                     $peminjaman->update([
@@ -162,9 +160,7 @@ class MidtransController extends Controller
                     Log::error("Gagal mengirim email: " . $e->getMessage());
                 }
 
-                break;
-
-                break;
+                break; // Break yang dobel sudah dihapus
 
             case 'pending':
                 $payment->update(['status' => 'pending']);
@@ -185,24 +181,24 @@ class MidtransController extends Controller
 
         return response()->json(['message' => 'Notification processed']);
     }
+
     public function cancelPayment(Peminjaman $peminjaman)
-{
-    try {
-        // Hapus payment transaction yang masih pending
-        PaymentTransaction::where('peminjaman_id', $peminjaman->id)
-            ->where('status', 'pending')
-            ->delete();
+    {
+        try {
+            // Hapus payment transaction yang masih pending
+            TransaksiPembayaran::where('peminjaman_id', $peminjaman->id) // Diperbarui
+                ->where('status', 'pending')
+                ->delete();
 
-        // Jika kamu mau, bisa juga update status peminjaman:
-        // $peminjaman->update(['status' => 'dibatalkan']);
+            // Jika kamu mau, bisa juga update status peminjaman:
+            // $peminjaman->update(['status' => 'dibatalkan']);
 
-        return response()->json(['message' => 'Transaksi dibatalkan.'], 200);
-    } catch (\Exception $e) {
-        Log::error('Cancel Payment Error: ' . $e->getMessage());
-        return response()->json(['error' => 'Gagal membatalkan transaksi'], 500);
+            return response()->json(['message' => 'Transaksi dibatalkan.'], 200);
+        } catch (\Exception $e) {
+            Log::error('Cancel Payment Error: ' . $e->getMessage());
+            return response()->json(['error' => 'Gagal membatalkan transaksi'], 500);
+        }
     }
-}
-
 
     public function callback(Request $request)
     {
@@ -212,57 +208,59 @@ class MidtransController extends Controller
 
         if (!$orderId) return response()->json(['message' => 'Invalid payload'], 400);
 
-        $payment = PaymentTransaction::where('midtrans_transaction_id', $orderId)->first();
+        $payment = TransaksiPembayaran::where('id_transaksi_midtrans', $orderId)->first(); // Diperbarui
+        
+        // Memperbaiki syntax struktur if-else yang error dari kode asli
         if ($payment && $payment->peminjaman) {
             $peminjaman = $payment->peminjaman;
 
             $payment->update([
                 'status' => $status,
-                'midtrans_response' => json_encode($data),
+                'respon_midtrans' => json_encode($data), // Diperbarui
             ]);
 
-           if ($status === 'settlement') {
-    if ($payment->tipe_transaksi === 'dp') {
-        $peminjaman->update([
-            'status' => 'pembayaran dp',
-            'dp_dibayarkan' => $payment->amount,
-            'total_dibayarkan' => $payment->amount,
-        ]);
-    } elseif ($payment->tipe_transaksi === 'sisa') {
-        $peminjaman->update([
-            'status' => 'sudah dibayar lunas',
-            'sisa_bayar' => 0,
-            'total_dibayarkan' => $peminjaman->dp_dibayarkan + $payment->amount,
-        ]);
-    } else { // transaksi langsung lunas
-        $peminjaman->update([
-            'status' => 'sudah dibayar lunas',
-            'dp_dibayarkan' => $peminjaman->total_harga,
-            'sisa_bayar' => 0,
-            'total_dibayarkan' => $peminjaman->total_harga,
-        ]);
+            if ($status === 'settlement') {
+                if ($payment->tipe_transaksi === 'dp') {
+                    $peminjaman->update([
+                        'status' => 'pembayaran dp',
+                        'dp_dibayarkan' => $payment->jumlah,        // Diperbarui
+                        'total_dibayarkan' => $payment->jumlah,     // Diperbarui
+                    ]);
+                } elseif ($payment->tipe_transaksi === 'sisa') {
+                    $peminjaman->update([
+                        'status' => 'sudah dibayar lunas',
+                        'sisa_bayar' => 0,
+                        'total_dibayarkan' => $peminjaman->dp_dibayarkan + $payment->jumlah, // Diperbarui
+                    ]);
+                } else { // transaksi langsung lunas
+                    $peminjaman->update([
+                        'status' => 'sudah dibayar lunas',
+                        'dp_dibayarkan' => $peminjaman->total_harga,
+                        'sisa_bayar' => 0,
+                        'total_dibayarkan' => $peminjaman->total_harga,
+                    ]);
+                }
             }
         }
 
         return response()->json(['message' => 'Callback processed', 'status' => $status]);
-        }
     }
 
-   // 🔹 Redirect URLs untuk Frontend
-   // 🔹 Redirect URLs untuk Frontend
+    // 🔹 Redirect URLs untuk Frontend
     public function success(Request $request) 
     { 
         // Ambil 1 transaksi pembayaran yang PALING BARU milik user yang sedang login
-        $payment = PaymentTransaction::with(['peminjaman', 'peminjaman.mobil'])
+        $payment = TransaksiPembayaran::with(['peminjaman', 'peminjaman.mobil']) // Diperbarui
             ->whereHas('peminjaman', function($query) {
                 // Pastikan ini adalah transaksi milik user yang sedang login
-                $query->where('user_id', auth::id());
+                $query->where('user_id', Auth::id()); // Diperbaiki capitalisasi 'Auth'
             })
             ->latest('created_at') // Urutkan dari yang paling terakhir dibuat
             ->first(); // Ambil satu data saja
 
         return view('user.pesanan.success-payment', compact('payment')); 
     }
+
     public function failed() { return view('user.pesanan.failed-payment'); }
     public function unfinish() { return view('user.pesanan.unfinish-payment'); }
 }

@@ -2,107 +2,134 @@
 
 // app/Http/Controllers/User/IdentityController.php
 
-// app/Http/Controllers/User/IdentityController.php
-
 namespace App\Http\Controllers\User;
 
 use App\Http\Controllers\Controller;
-use App\Models\UserIdentification;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
-
 
 class IdentityController extends Controller
 {
     /**
      * Menampilkan form upload KTP dan SIM
      */
-   public function showUploadForm()
+    public function showUploadForm()
     {
-        // Ambil data status_approval dan tanggal_upload berdasarkan user yang sedang login
-        $userIdentification = UserIdentification::where('user_id', Auth::id())->first();
-
-        // Konversi tanggal_upload menjadi objek Carbon untuk memudahkan format
-        if ($userIdentification && $userIdentification->tanggal_upload) {
-            $userIdentification->tanggal_upload = \Carbon\Carbon::parse($userIdentification->tanggal_upload);
-        }
-
-        return view('user.identitas.upload_identity', compact('userIdentification'));
+        $user = Auth::user();
+        return view('user.identitas.upload_identity', ['userIdentification' => $user]);
     }
+
     /**
      * Menyimpan file KTP dan SIM
      */
     public function store(Request $request)
     {
-        // Validasi file yang di-upload
+        // Validasi dengan pesan custom
         $request->validate([
-            'ktp' => 'required|image|mimes:jpg,png,jpeg|max:2048',
-            'sim' => 'required|image|mimes:jpg,png,jpeg|max:2048',
+            'ktp' => 'required|image|mimes:jpg,png,jpeg|max:5120',
+            'sim' => 'required|image|mimes:jpg,png,jpeg|max:5120',
+        ], [
+            'ktp.required' => 'Foto KTP wajib diunggah.',
+            'ktp.image'    => 'File KTP harus berupa gambar.',
+            'ktp.mimes'    => 'Format KTP harus jpg, png, atau jpeg.',
+            'ktp.max'      => 'Ukuran KTP maksimal adalah 5MB.',
+            'sim.required' => 'Foto SIM wajib diunggah.',
+            'sim.image'    => 'File SIM harus berupa gambar.',
+            'sim.mimes'    => 'Format SIM harus jpg, png, atau jpeg.',
+            'sim.max'      => 'Ukuran SIM maksimal adalah 5MB.',
         ]);
 
-        // Menyimpan file KTP
-        $ktpPath = $request->file('ktp')->store('ktp', 'public');
+        /** @var \App\Models\User $user */
+        $user = Auth::user();
 
-        // Menyimpan file SIM
+        $ktpPath = $request->file('ktp')->store('ktp', 'public');
         $simPath = $request->file('sim')->store('sim', 'public');
 
-        // Menyimpan data KTP dan SIM ke dalam tabel user_identifications
-        UserIdentification::create([
-            'user_id' => Auth::id(), // Mendapatkan ID user yang sedang login
-            'ktp' => $ktpPath,
-            'sim' => $simPath,
-            'tanggal_upload' => now(),  // Menyimpan tanggal saat ini tanpa waktu
-            'status_approval' => 'menunggu',  // Menetapkan status_approval ke 'menunggu'
+        $user->update([
+            'foto_ktp' => $ktpPath,
+            'foto_sim' => $simPath,
+            'status_verifikasi' => 'menunggu', 
+            'alasan_penolakan' => null,
         ]);
 
-        // Redirect ke halaman dashboard atau halaman lain setelah berhasil upload
-        return redirect()->route('dashboard')->with('success', 'KTP dan SIM berhasil diupload.');
-    }
- public function edit($id)
-    {
-        $userIdentification = UserIdentification::findOrFail($id);
-        return view('user.identitas.edit_identity', compact('userIdentification'));
+        return redirect()->route('dashboard')->with('success', 'KTP dan SIM berhasil diupload dan sedang ditinjau.');
     }
 
-    // Mengupdate data KTP dan SIM
-    public function update(Request $request, $id)
+    /**
+     * Menampilkan form edit KTP dan SIM
+     */
+    public function edit($id = null)
     {
+        $user = Auth::user();
+        return view('user.identitas.edit_identity', ['userIdentification' => $user]);
+    }
+
+    /**
+     * Mengupdate data KTP dan SIM
+     */
+    public function update(Request $request, $id = null)
+    {
+        // Validasi dengan pesan custom (nullable karena opsional saat edit)
         $request->validate([
-            'ktp' => 'nullable|image|mimes:jpg,png,jpeg|max:2048',
-            'sim' => 'nullable|image|mimes:jpg,png,jpeg|max:2048',
+            'ktp' => 'nullable|image|mimes:jpg,png,jpeg|max:5120',
+            'sim' => 'nullable|image|mimes:jpg,png,jpeg|max:5120',
+        ], [
+            'ktp.image' => 'File KTP harus berupa gambar.',
+            'ktp.mimes' => 'Format KTP harus jpg, png, atau jpeg.',
+            'ktp.max'   => 'Ukuran KTP maksimal adalah 5MB.',
+            'sim.image' => 'File SIM harus berupa gambar.',
+            'sim.mimes' => 'Format SIM harus jpg, png, atau jpeg.',
+            'sim.max'   => 'Ukuran SIM maksimal adalah 5MB.',
         ]);
 
-        $userIdentification = UserIdentification::findOrFail($id);
+        /** @var \App\Models\User $user */
+        $user = Auth::user();
+        $hasUpdates = false;
 
-        // Jika ada file KTP baru, hapus file lama dan simpan file baru
         if ($request->hasFile('ktp')) {
-            Storage::delete('public/' . $userIdentification->ktp);
-            $userIdentification->ktp = $request->file('ktp')->store('ktp', 'public');
+            if ($user->foto_ktp) {
+                Storage::delete('public/' . $user->foto_ktp);
+            }
+            $user->foto_ktp = $request->file('ktp')->store('ktp', 'public');
+            $hasUpdates = true;
         }
 
-        // Jika ada file SIM baru, hapus file lama dan simpan file baru
         if ($request->hasFile('sim')) {
-            Storage::delete('public/' . $userIdentification->sim);
-            $userIdentification->sim = $request->file('sim')->store('sim', 'public');
+            if ($user->foto_sim) {
+                Storage::delete('public/' . $user->foto_sim);
+            }
+            $user->foto_sim = $request->file('sim')->store('sim', 'public');
+            $hasUpdates = true;
         }
 
-        $userIdentification->save();
+        if ($hasUpdates) {
+            $user->status_verifikasi = 'menunggu';
+            $user->alasan_penolakan = null;
+        }
+
+        $user->save();
 
         return redirect()->route('dashboard')->with('success', 'Data identitas berhasil diperbarui.');
     }
 
-    // Menghapus data KTP dan SIM
-    public function destroy($id)
+    /**
+     * Menghapus data KTP dan SIM
+     */
+    public function destroy($id = null)
     {
-        $userIdentification = UserIdentification::findOrFail($id);
+        /** @var \App\Models\User $user */
+        $user = Auth::user();
 
-        // Hapus file yang di-upload
-        Storage::delete('public/' . $userIdentification->ktp);
-        Storage::delete('public/' . $userIdentification->sim);
+        if ($user->foto_ktp) Storage::delete('public/' . $user->foto_ktp);
+        if ($user->foto_sim) Storage::delete('public/' . $user->foto_sim);
 
-        // Hapus data dari database
-        $userIdentification->delete();
+        $user->update([
+            'foto_ktp' => null,
+            'foto_sim' => null,
+            'status_verifikasi' => 'belum_upload',
+            'alasan_penolakan' => null,
+        ]);
 
         return redirect()->route('dashboard')->with('success', 'Data identitas berhasil dihapus.');
     }

@@ -3,7 +3,7 @@
 namespace App\Livewire\Sopir;
 
 use Livewire\Component;
-use App\Models\Message;
+use App\Models\Pesan; // 🔹 Diperbarui dari Message
 use App\Events\MessageSent;
 use Livewire\Attributes\On;
 use Livewire\Attributes\Layout; // 1. Import Attribute Layout
@@ -16,18 +16,20 @@ class ChatPeminjaman extends Component
     public $pesanBaru = '';
     public $riwayatChat = [];
 
-public function mount($peminjaman_id)
+    public function mount($peminjaman_id)
     {
         $this->peminjaman_id = $peminjaman_id;
         
         // 1. UPDATE status baca secara terpisah (TIDAK ditampung ke variabel)
-        Message::where('peminjaman_id', $this->peminjaman_id)
-                ->where('sender_id', '!=', Auth::id())
-                ->where('is_read', false)
-                ->update(['is_read' => true]);
+        // 🔹 Diperbarui: Message -> Pesan, sender_id -> pengirim_id, is_read -> sudah_dibaca
+        Pesan::where('peminjaman_id', $this->peminjaman_id)
+                ->where('pengirim_id', '!=', Auth::id())
+                ->where('sudah_dibaca', false)
+                ->update(['sudah_dibaca' => true]);
 
         // 2. AMBIL data obrolan dan simpan ke variabel array $riwayatChat
-        $this->riwayatChat = Message::where('peminjaman_id', $this->peminjaman_id)
+        // 🔹 Diperbarui: Message -> Pesan
+        $this->riwayatChat = Pesan::where('peminjaman_id', $this->peminjaman_id)
                                     ->orderBy('created_at', 'asc')
                                     ->get()
                                     ->toArray();
@@ -40,10 +42,11 @@ public function mount($peminjaman_id)
         ]);
 
         // 1. Simpan pesan ke database
-        $message = Message::create([
+        // 🔹 Diperbarui: Message -> Pesan, sender_id -> pengirim_id, message -> isi_pesan
+        $message = Pesan::create([
             'peminjaman_id' => $this->peminjaman_id,
-            'sender_id' => Auth::id(),
-            'message' => $this->pesanBaru,
+            'pengirim_id' => Auth::id(),
+            'isi_pesan' => $this->pesanBaru,
         ]);
 
         // 2. Siarkan (Broadcast) pesan ke server Reverb
@@ -61,7 +64,8 @@ public function mount($peminjaman_id)
     public function pesanMasuk($payload)
     {
         // Hanya tambahkan ke layar jika yang mengirim BUKAN diri sendiri
-        if ($payload['sender_id'] !== Auth::id()) {
+        // 🔹 Diperbarui: sender_id -> pengirim_id
+        if ($payload['pengirim_id'] !== Auth::id()) {
             $this->riwayatChat[] = $payload;
         }
     }

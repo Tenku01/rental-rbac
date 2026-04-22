@@ -19,3 +19,7 @@ Broadcast::channel('chat.{peminjaman_id}', function ($user, $peminjaman_id) {
 
     return $isPelanggan || $isSopir;
 });
+
+Broadcast::channel('admin.guest-chat', function ($user) {
+    return $user->hasAnyRole(['admin', 'resepsionis']);
+});

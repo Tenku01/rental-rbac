@@ -3,7 +3,6 @@
 namespace App\Http\Controllers\User;
 
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\DB;
 use App\Http\Controllers\Controller;
 use App\Models\Mobil;
 use Illuminate\Http\Request;
@@ -11,23 +10,20 @@ use Illuminate\Http\Request;
 class MobilControllerUser extends Controller
 {
     public function show($id)
-{
-    $mobil = Mobil::findOrFail($id);
-    return view('user.armada.mobil-detail', compact('mobil'));
-}
+    {
+        $mobil = Mobil::findOrFail($id);
+        return view('user.armada.mobil-detail', compact('mobil'));
+    }
 
     public function mobil(Request $request)
     {
         // Query dasar mobil
-     $query = Mobil::query();
+        $query = Mobil::query();
 
-        // 🔹 Cek apakah user sudah upload identitas (hanya jika sudah login)
+        // 🔹 Cek apakah user sudah upload identitas & disetujui (hanya jika sudah login)
         $hasIdentification = false;
         if (Auth::check()) {
-            $hasIdentification = DB::table('user_identifications')
-                ->where('user_id', Auth::id())
-                ->where('status_approval', 'disetujui')
-                ->exists();
+            $hasIdentification = Auth::user()->status_verifikasi === 'disetujui';
         }
 
         // 🔹 Filter jumlah kursi (jika ada)
@@ -40,8 +36,8 @@ class MobilControllerUser extends Controller
             $query->where('transmisi', $request->transmisi);
         }
 
-        // 🔹 Ambil data mobil dengan pagination
-        $mobils = $query->paginate(6); // 6 per halaman
+        // 🔹 PERBAIKAN: Tambahkan ->withQueryString() di sini
+        $mobils = $query->paginate(6)->withQueryString();
 
         // 🔹 Kirim data ke view
         return view('user.armada.mobil', compact('mobils', 'hasIdentification'));

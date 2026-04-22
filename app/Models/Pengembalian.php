@@ -63,19 +63,19 @@ class Pengembalian extends Model
     /** 🔹 Relasi ke denda (fines) */
     public function fines()
     {
-        return $this->hasMany(Fine::class, 'peminjaman_id', 'peminjaman_id');
+        return $this->hasMany(Denda::class, 'peminjaman_id', 'peminjaman_id');
     }
 
     /** 🔹 Relasi ke laporan kerusakan */
     public function damageReports()
     {
-        return $this->hasMany(VehicleDamageReport::class, 'pengembalian_kode', 'kode_pengembalian');
+        return $this->hasMany(LaporanKerusakanMobil::class, 'pengembalian_kode', 'kode_pengembalian');
     }
 
     /** 🔹 Relasi ke inspeksi kendaraan */
     public function inspections()
     {
-        return $this->hasMany(VehicleInspection::class, 'pengembalian_kode', 'kode_pengembalian');
+        return $this->hasMany(InspeksiMobil::class, 'pengembalian_kode', 'kode_pengembalian');
     }
 
     /**

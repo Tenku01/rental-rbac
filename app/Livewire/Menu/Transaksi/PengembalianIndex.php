@@ -52,9 +52,11 @@ class PengembalianIndex extends Component
             ->when($this->search, function($q) {
                 $q->where('id', 'like', '%'.$this->search.'%')
                   ->orWhereHas('peminjaman.user', fn($sq) => $sq->where('name', 'like', '%'.$this->search.'%'))
-                  ->orWhereHas('peminjaman.mobil', fn($sq) => $sq->where('plat_nomor', 'like', '%'.$this->search.'%'));
+                  // 🔹 Diperbarui: plat_nomor diubah menjadi id sesuai dengan relasi tabel mobils yang baru
+                  ->orWhereHas('peminjaman.mobil', fn($sq) => $sq->where('id', 'like', '%'.$this->search.'%'));
             })
-            ->when($this->filterStatus, fn($q) => $q->where('status_kondisi', $this->filterStatus))
+            // 🔹 Diperbarui: status_kondisi diubah menjadi status agar sinkron dengan field di database
+            ->when($this->filterStatus, fn($q) => $q->where('status', $this->filterStatus))
             ->orderBy('tanggal_pengembalian', 'desc');
 
         // Ambil daftar peminjaman yang SEDANG BERJALAN untuk form Create

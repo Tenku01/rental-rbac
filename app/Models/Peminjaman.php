@@ -37,7 +37,7 @@ class Peminjaman extends Model
 
     public function logbooks()
 {
-    return $this->hasMany(DriverLogbook::class, 'peminjaman_id');
+    return $this->hasMany(LogbookSopir::class, 'peminjaman_id');
 }
 
     // Relasi ke User
@@ -66,16 +66,15 @@ class Peminjaman extends Model
     }
 
     // Relasi ke Transaksi Pembayaran (Midtrans)
-    public function paymentTransactions(): HasMany
+    public function TransaksiPembayaran(): HasMany
     {
-        return $this->hasMany(PaymentTransaction::class, 'peminjaman_id');
+        return $this->hasMany(TransaksiPembayaran::class, 'peminjaman_id');
     }
 
-    // Relasi ke Denda (Fines) - WAJIB ADA untuk Admin Panel
-    // Menggunakan hasMany agar kompatibel dengan loop di view admin
-    public function fines(): HasMany
+
+    public function denda(): HasMany
     {
-        return $this->hasMany(Fine::class, 'peminjaman_id');
+        return $this->hasMany(Denda::class, 'peminjaman_id');
     }
 
     // Relasi ke Pengembalian

@@ -3,16 +3,19 @@
     <!-- Area Riwayat Chat -->
     <div class="flex-1 p-4 overflow-y-auto bg-gray-50 flex flex-col space-y-3">
         @foreach($riwayatChat as $chat)
-            @if($chat['sender_id'] == auth()->id())
+            <!-- 🔹 Diperbarui: sender_id menjadi pengirim_id -->
+            @if($chat['pengirim_id'] == auth()->id())
                 <!-- Pesan dari Sopir (Kanan) -->
                 <div class="self-end max-w-[75%] bg-cyan-600 text-white p-3 rounded-l-lg rounded-br-lg shadow-sm">
-                    <p class="text-sm">{{ $chat['message'] }}</p>
+                    <!-- 🔹 Diperbarui: message menjadi isi_pesan -->
+                    <p class="text-sm">{{ $chat['isi_pesan'] }}</p>
                 </div>
             @else
                 <!-- Pesan dari Pelanggan (Kiri) -->
                 <div class="self-start max-w-[75%] bg-white border border-gray-200 text-gray-800 p-3 rounded-r-lg rounded-bl-lg shadow-sm">
                     <p class="text-xs text-cyan-600 font-semibold mb-1">Pelanggan</p>
-                    <p class="text-sm">{{ $chat['message'] }}</p>
+                    <!-- 🔹 Diperbarui: message menjadi isi_pesan -->
+                    <p class="text-sm">{{ $chat['isi_pesan'] }}</p>
                 </div>
             @endif
         @endforeach

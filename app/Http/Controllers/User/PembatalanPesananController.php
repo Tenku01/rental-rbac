@@ -7,13 +7,15 @@ use App\Models\PembatalanPesanan;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use App\Http\Controllers\Controller;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 class PembatalanPesananController extends Controller
 {
     /**
-     * USER mengajukan pembatalan (status peminjaman TIDAK berubah).
-     * Hanya boleh saat status "sudah dibayar lunas" atau "berlangsung".
-     * Tercatat sebagai approval_status = 'pending' menunggu admin.
+     * USER mengajukan pembatalan (LANGSUNG FINAL).
+     * Peminjaman langsung berstatus 'dibatalkan' dan mobil kembali 'tersedia'.
+     * Admin hanya memproses Refund (jika ada uang yang masuk).
      */
     public function store(Request $request, Peminjaman $peminjaman)
     {
@@ -29,45 +31,70 @@ class PembatalanPesananController extends Controller
             ], 403);
         }
 
-        // Batasi hanya 2 status ini yang bisa diajukan pembatalan
-        if (! in_array($peminjaman->status, ['sudah dibayar lunas', 'berlangsung'])) {
+        // Cegah pembatalan jika statusnya sudah selesai atau sudah dibatalkan sebelumnya
+        if (in_array($peminjaman->status, ['selesai', 'dibatalkan'])) {
             return response()->json([
                 'success' => false,
-                'error'   => 'Status tidak mengizinkan pembatalan'
+                'error'   => 'Pesanan ini sudah selesai atau sudah dibatalkan sebelumnya.'
             ], 422);
         }
 
-        // Cegah duplikasi pengajuan pending
-        if ($peminjaman->pembatalan && $peminjaman->pembatalan->approval_status === 'pending') {
+        // LOGIKA REFUND YANG LEBIH AMAN: Cek berdasarkan nominal uang yang masuk
+        // Jika user sudah bayar DP atau Lunas (total_dibayarkan > 0), maka statusnya 'pending_refund'
+        // Jika belum bayar sama sekali (masih Rp 0), maka statusnya 'no_refund'
+        $refundStatus = ($peminjaman->dp_dibayarkan > 0 || $peminjaman->total_dibayarkan > 0) 
+                        ? 'pending_refund' 
+                        : 'no_refund';
+
+        try {
+            DB::beginTransaction();
+
+            // 1. Buat Record Pembatalan 
+            // status_persetujuan langsung 'approved' karena pembatalan dari user mutlak berhasil
+            $pembatalan = PembatalanPesanan::create([
+                'peminjaman_id'            => $peminjaman->id,
+                'user_id'                  => Auth::id(),
+                'dibatalkan_oleh'          => 'user',
+                'alasan'                   => $request->alasan,
+                'status_pengembalian_dana' => $refundStatus,
+                'dibatalkan_pada'          => now(),
+                'status_persetujuan'       => 'approved', 
+            ]);
+
+            // 2. Ubah status Peminjaman menjadi dibatalkan
+            $peminjaman->update([
+                'status' => 'dibatalkan'
+            ]);
+
+            // 3. Bebaskan Mobil agar bisa disewa orang lain
+            if ($peminjaman->mobil) {
+                $peminjaman->mobil->update([
+                    'status' => 'tersedia'
+                ]);
+            }
+
+            DB::commit();
+
+            // Pesan respon disesuaikan dengan kondisi refund
+            $message = 'Pesanan berhasil dibatalkan.';
+            if ($refundStatus === 'pending_refund') {
+                $message .= ' Pengembalian dana (refund) Anda sedang diproses oleh admin.';
+            }
+
+            return response()->json([
+                'success'         => true,
+                'pembatalan_id'   => $pembatalan->id,
+                'message'         => $message
+            ]);
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error('Gagal membatalkan pesanan: ' . $e->getMessage());
+
             return response()->json([
                 'success' => false,
-                'error'   => 'Pengajuan pembatalan sudah ada dan menunggu persetujuan admin'
-            ], 422);
+                'error'   => 'Terjadi kesalahan sistem saat membatalkan pesanan.'
+            ], 500);
         }
-
-        // Kebijakan refund default saat pengajuan:
-        // - Kalau "sudah dibayar lunas" → pending_refund (akan diputus admin)
-        // - Kalau "berlangsung" → no_refund (umumnya tidak direfund; bisa diubah oleh admin)
-        $refundStatus = $peminjaman->status === 'sudah dibayar lunas' ? 'pending_refund' : 'no_refund';
-
-        $pembatalan = PembatalanPesanan::create([
-            'peminjaman_id'  => $peminjaman->id,
-            'user_id'        => Auth::id(),
-            'cancelled_by'   => 'user',
-            'alasan'         => $request->alasan,
-            'refund_status'  => $refundStatus,
-            'cancelled_at'   => now(),
-            'approval_status'=> 'pending',   // ← kunci: tunggu admin
-        ]);
-
-        // Penting: JANGAN ubah status peminjaman di sini
-        // $peminjaman->status = 'dibatalkan';  // ❌ NO
-        // $peminjaman->save();                 // ❌ NO
-
-        return response()->json([
-            'success'         => true,
-            'pembatalan_id'   => $pembatalan->id,
-            'message'         => 'Pengajuan pembatalan dikirim. Menunggu persetujuan admin.'
-        ]);
     }
 }

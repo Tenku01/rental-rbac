@@ -55,11 +55,11 @@ class Mobil extends Model
 
     public function damageReports()
     {
-        return $this->hasMany(VehicleDamageReport::class, 'mobil_id');
+        return $this->hasMany(LaporanKerusakanMobil::class, 'mobil_id');
     }
 
     public function inspections()
     {
-        return $this->hasMany(VehicleInspection::class, 'mobil_id');
+        return $this->hasMany(InspeksiMobil::class, 'mobil_id');
     }
 }

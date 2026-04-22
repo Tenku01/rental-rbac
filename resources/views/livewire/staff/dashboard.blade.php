@@ -18,11 +18,32 @@
     </div>
 
     {{-- 2. KARTU METRIK DINAMIS --}}
-    <div class="grid grid-cols-1 gap-8 sm:grid-cols-2">
+    <!-- 🔹 Diperbarui menjadi grid 3 kolom untuk 3 jenis status operasional -->
+    <div class="grid grid-cols-1 gap-8 lg:grid-cols-3">
         @foreach ($metrics as $metric)
-            <div class="bg-white overflow-hidden shadow-sm rounded-[2.5rem] transition duration-300 hover:shadow-xl p-8 border-b-[6px] {{ $metric['color'] === 'yellow' ? 'border-amber-400 hover:border-amber-500' : 'border-emerald-500 hover:border-emerald-600' }}">
+            @php
+                $borderColor = match($metric['color']) {
+                    'yellow' => 'border-amber-400 hover:border-amber-500',
+                    'green' => 'border-emerald-500 hover:border-emerald-600',
+                    'blue' => 'border-blue-500 hover:border-blue-600',
+                    default => 'border-gray-400 hover:border-gray-500',
+                };
+                $iconBg = match($metric['color']) {
+                    'yellow' => 'bg-amber-50 text-amber-500',
+                    'green' => 'bg-emerald-50 text-emerald-500',
+                    'blue' => 'bg-blue-50 text-blue-500',
+                    default => 'bg-gray-50 text-gray-500',
+                };
+                $textColor = match($metric['color']) {
+                    'yellow' => 'text-amber-600',
+                    'green' => 'text-emerald-600',
+                    'blue' => 'text-blue-600',
+                    default => 'text-gray-600',
+                };
+            @endphp
+            <div class="bg-white overflow-hidden shadow-sm rounded-[2.5rem] transition duration-300 hover:shadow-xl p-8 border-b-[6px] {{ $borderColor }}">
                 <div class="flex items-center">
-                    <div class="flex-shrink-0 {{ $metric['color'] === 'yellow' ? 'bg-amber-50 text-amber-500' : 'bg-emerald-50 text-emerald-500' }} rounded-2xl p-5 shadow-inner border border-gray-50">
+                    <div class="flex-shrink-0 {{ $iconBg }} rounded-2xl p-5 shadow-inner border border-gray-50">
                         <svg class="h-10 w-10" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                             {!! $metric['icon_path'] !!}
                         </svg>
@@ -31,7 +52,7 @@
                         <dl>
                             <dt class="text-[11px] font-black text-gray-400 uppercase tracking-widest truncate">{{ $metric['label'] }}</dt>
                             <dd class="flex items-baseline mt-2">
-                                <div class="text-5xl font-black {{ $metric['color'] === 'yellow' ? 'text-amber-600' : 'text-emerald-600' }} tracking-tighter">
+                                <div class="text-5xl font-black {{ $textColor }} tracking-tighter">
                                     {{ number_format($metric['value'], 0, ',', '.') }}
                                 </div>
                             </dd>
@@ -42,90 +63,118 @@
         @endforeach
     </div>
 
-    {{-- 3. TABEL 5 ANTREAN TERAKHIR --}}
-    <div class="mt-8">
-        <h2 class="text-lg font-black text-gray-900 uppercase tracking-tight mb-6 flex items-center">
-            <span class="w-2 h-6 bg-cyan-600 rounded-full mr-3"></span>
-            5 Pengecekan Terakhir & Menunggu
-        </h2>
+    {{-- 3. TABEL ANTREAN (SPLIT 2 KOLOM KIRI & KANAN) --}}
+    <div class="grid grid-cols-1 xl:grid-cols-2 gap-10 mt-8">
         
-        <div class="bg-white shadow-sm overflow-hidden rounded-[2rem] border border-gray-100">
-            <div class="overflow-x-auto">
-                <table class="min-w-full divide-y divide-gray-100">
-                    <thead class="bg-gray-50/80">
-                        <tr>
-                            <th scope="col" class="px-8 py-6 text-left text-[11px] font-black text-gray-400 uppercase tracking-widest">Kode Pengembalian</th>
-                            <th scope="col" class="px-8 py-6 text-left text-[11px] font-black text-gray-400 uppercase tracking-widest">Waktu Kembali</th>
-                            <th scope="col" class="px-8 py-6 text-left text-[11px] font-black text-gray-400 uppercase tracking-widest">Penyewa & Armada</th>
-                            <th scope="col" class="px-8 py-6 text-center text-[11px] font-black text-gray-400 uppercase tracking-widest">Status Fisik</th>
-                            <th scope="col" class="px-8 py-6 text-right text-[11px] font-black text-gray-400 uppercase tracking-widest">Aksi Lanjutan</th>
-                        </tr>
-                    </thead>
-                    <tbody class="bg-white divide-y divide-gray-50">
-                        @forelse ($latestChecks as $check)
-                            @php
-                                $statusClass = match(strtolower($check->status)) {
-                                    'selesai' => 'bg-emerald-50 text-emerald-600 border-emerald-200',
-                                    'selesai pengecekan' => 'bg-blue-50 text-blue-600 border-blue-200', 
-                                    'menunggu pengecekan' => 'bg-amber-50 text-amber-600 border-amber-200',
-                                    default => 'bg-gray-50 text-gray-600 border-gray-200'
-                                };
-                                $statusLabel = match(strtolower($check->status)) {
-                                    'selesai' => 'Selesai',
-                                    'selesai pengecekan' => 'Selesai Cek',
-                                    'menunggu pengecekan' => 'Perlu Dicek',
-                                    default => ucfirst($check->status)
-                                };
-                            @endphp
-                            <tr class="hover:bg-cyan-50/20 transition duration-200 group">
-                                <td class="px-8 py-6 whitespace-nowrap">
-                                    <div class="text-sm font-black text-gray-900 tracking-tight">{{ $check->kode_pengembalian }}</div>
-                                    <div class="text-[9px] font-bold text-gray-400 mt-1 uppercase">ID DB: #{{ $check->id }}</div>
-                                </td>
-                                <td class="px-8 py-6 whitespace-nowrap">
-                                    <div class="text-sm font-bold text-gray-800">{{ \Carbon\Carbon::parse($check->tanggal_pengembalian)->format('d M Y') }}</div>
-                                    <div class="text-[10px] text-gray-400 font-bold uppercase tracking-widest mt-0.5">{{ \Carbon\Carbon::parse($check->tanggal_pengembalian)->format('H:i') }} WIB</div>
-                                </td>
-                                <td class="px-8 py-6 whitespace-nowrap">
-                                    <div class="font-bold text-gray-900 text-xs uppercase">{{ $check->peminjaman->user->name ?? 'Pengguna Tidak Dikenal' }}</div>
-                                    <div class="text-[10px] font-black text-cyan-600 uppercase tracking-widest mt-1">
-                                        {{ $check->peminjaman->mobil->merek ?? '-' }} ({{ $check->peminjaman->mobil->plat_nomor ?? 'N/A' }})
-                                    </div>
-                                </td>
-                                <td class="px-8 py-6 whitespace-nowrap text-center">
-                                    <span class="px-4 py-1.5 inline-flex text-[9px] font-black uppercase tracking-widest rounded-xl border {{ $statusClass }}">
-                                        {{ $statusLabel }}
-                                    </span>
-                                </td>
-                                <td class="px-8 py-6 whitespace-nowrap text-right text-sm font-medium">
-                                    @if (strtolower($check->status) === 'menunggu pengecekan')
-                                        {{-- Link ini akan melempar staff ke Menu Inspeksi Livewire yang sudah ada --}}
-                                        <a href="{{ route('inspeksi') }}" wire:navigate class="inline-flex items-center px-6 py-2.5 bg-amber-500 hover:bg-amber-600 text-white text-[10px] font-black uppercase tracking-widest rounded-xl transition-all shadow-lg shadow-amber-200 transform group-hover:scale-105">
-                                            Proses Pengecekan
-                                        </a>
-                                    @else
-                                        {{-- Link ini akan melempar staff ke Menu Pengembalian untuk melihat rekap detailnya --}}
-                                        <a href="{{ route('pengembalian') }}" wire:navigate class="text-cyan-600 hover:text-cyan-800 font-black text-[10px] uppercase tracking-widest flex items-center justify-end gap-1">
-                                            Lihat Detail
-                                            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M9 5l7 7-7 7"></path></svg>
-                                        </a>
-                                    @endif
-                                </td>
-                            </tr>
-                        @empty
+        {{-- SECTION KIRI: PENYERAHAN AWAL --}}
+        <div class="space-y-6">
+            <h2 class="text-lg font-black text-gray-900 uppercase tracking-tight mb-2 flex items-center">
+                <span class="w-2 h-6 bg-blue-600 rounded-full mr-3"></span>
+                5 Penyerahan Terdekat
+            </h2>
+            
+            <div class="bg-white shadow-sm overflow-hidden rounded-[2rem] border border-gray-100">
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-gray-100">
+                        <thead class="bg-blue-50/80">
                             <tr>
-                                <td colspan="5" class="px-8 py-16 text-center">
-                                    <div class="inline-flex items-center justify-center w-20 h-20 rounded-full bg-gray-50 text-gray-300 mb-4">
-                                        <svg class="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                                    </div>
-                                    <p class="text-sm font-bold text-gray-500 uppercase tracking-widest">Antrean pengecekan kosong.</p>
+                                <th scope="col" class="px-6 py-5 text-left text-[10px] font-black text-blue-600 uppercase tracking-widest">ID & Waktu Sewa</th>
+                                <th scope="col" class="px-6 py-5 text-left text-[10px] font-black text-blue-600 uppercase tracking-widest">Pelanggan & Armada</th>
+                                <th scope="col" class="px-6 py-5 text-right text-[10px] font-black text-blue-600 uppercase tracking-widest">Aksi</th>
+                            </tr>
+                        </thead>
+                        <tbody class="bg-white divide-y divide-gray-50">
+                            @forelse($pendingDepartures as $pre)
+                            <tr class="hover:bg-blue-50/20 transition duration-200 group">
+                                <td class="px-6 py-5 whitespace-nowrap">
+                                    <div class="font-black text-sm text-gray-900 tracking-tight">#{{ $pre->id }}</div>
+                                    <div class="text-[9px] font-bold text-gray-400 mt-1 uppercase">{{ \Carbon\Carbon::parse($pre->tanggal_sewa)->format('d M Y') }}</div>
+                                </td>
+                                <td class="px-6 py-5 whitespace-nowrap">
+                                    <div class="font-bold text-gray-800 text-xs uppercase">{{ $pre->user->name ?? 'N/A' }}</div>
+                                    <div class="font-bold text-cyan-600 text-[10px] mt-0.5">{{ $pre->mobil->merek ?? 'N/A' }} [{{ $pre->mobil->id ?? 'N/A' }}]</div>
+                                </td>
+                                <td class="px-6 py-5 whitespace-nowrap text-right">
+                                    <a href="{{ route('inspeksi') }}" wire:navigate class="inline-flex items-center px-5 py-2.5 bg-blue-500 hover:bg-blue-600 text-white text-[10px] font-black uppercase tracking-widest rounded-xl transition-all shadow-lg shadow-blue-200 transform group-hover:scale-105">
+                                        pergi
+                                    </a>
                                 </td>
                             </tr>
-                        @endforelse
-                    </tbody>
-                </table>
+                            @empty
+                            <tr>
+                                <td colspan="3" class="px-6 py-12 text-center">
+                                    <div class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gray-50 text-gray-300 mb-3">
+                                        <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                                    </div>
+                                    <p class="text-xs font-bold text-gray-500 uppercase tracking-widest">Tidak ada jadwal penyerahan.</p>
+                                </td>
+                            </tr>
+                            @endforelse
+                        </tbody>
+                    </table>
+                </div>
             </div>
         </div>
+
+        {{-- SECTION KANAN: PENGEMBALIAN AKHIR --}}
+        <div class="space-y-6">
+            <h2 class="text-lg font-black text-gray-900 uppercase tracking-tight mb-2 flex items-center">
+                <span class="w-2 h-6 bg-amber-500 rounded-full mr-3"></span>
+                5 Pengembalian Menunggu
+            </h2>
+            
+            <div class="bg-white shadow-sm overflow-hidden rounded-[2rem] border border-gray-100">
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-gray-100">
+                        <thead class="bg-amber-50/80">
+                            <tr>
+                                <th scope="col" class="px-6 py-5 text-left text-[10px] font-black text-amber-600 uppercase tracking-widest">Kode & Waktu Kembali</th>
+                                <th scope="col" class="px-6 py-5 text-left text-[10px] font-black text-amber-600 uppercase tracking-widest">Pelanggan & Armada</th>
+                                <th scope="col" class="px-6 py-5 text-right text-[10px] font-black text-amber-600 uppercase tracking-widest">Aksi</th>
+                            </tr>
+                        </thead>
+                        <tbody class="bg-white divide-y divide-gray-50">
+                            @forelse ($latestChecks as $check)
+                                <tr class="hover:bg-amber-50/20 transition duration-200 group">
+                                    <td class="px-6 py-5 whitespace-nowrap">
+                                        <div class="text-sm font-black text-gray-900 tracking-tight">{{ $check->kode_pengembalian }}</div>
+                                        <div class="text-[9px] text-gray-400 font-bold uppercase tracking-widest mt-1">{{ \Carbon\Carbon::parse($check->tanggal_pengembalian)->format('d M Y, H:i') }}</div>
+                                    </td>
+                                    <td class="px-6 py-5 whitespace-nowrap">
+                                        <div class="font-bold text-gray-900 text-xs uppercase">{{ $check->peminjaman->user->name ?? 'N/A' }}</div>
+                                        <div class="font-bold text-cyan-600 text-[10px] mt-0.5">
+                                            {{ $check->peminjaman->mobil->merek ?? '-' }} [{{ $check->peminjaman->mobil->id ?? 'N/A' }}]
+                                        </div>
+                                    </td>
+                                    <td class="px-6 py-5 whitespace-nowrap text-right">
+                                        @if (strtolower($check->status) === 'menunggu pengecekan')
+                                            <a href="{{ route('inspeksi') }}" wire:navigate class="inline-flex items-center px-5 py-2.5 bg-amber-500 hover:bg-amber-600 text-white text-[10px] font-black uppercase tracking-widest rounded-xl transition-all shadow-lg shadow-amber-200 transform group-hover:scale-105">
+                                                Proses Akhir
+                                            </a>
+                                        @else
+                                            <a href="{{ route('pengembalian') }}" wire:navigate class="text-cyan-600 hover:text-cyan-800 font-black text-[10px] uppercase tracking-widest flex items-center justify-end gap-1">
+                                                Lihat Detail
+                                                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M9 5l7 7-7 7"></path></svg>
+                                            </a>
+                                        @endif
+                                    </td>
+                                </tr>
+                            @empty
+                                <tr>
+                                    <td colspan="3" class="px-6 py-12 text-center">
+                                        <div class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gray-50 text-gray-300 mb-3">
+                                            <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                                        </div>
+                                        <p class="text-xs font-bold text-gray-500 uppercase tracking-widest">Antrean pengecekan kosong.</p>
+                                    </td>
+                                </tr>
+                            @endforelse
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
     </div>
 
     {{-- 4. AKSES CEPAT PINTASAN --}}

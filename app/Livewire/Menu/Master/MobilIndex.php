@@ -16,7 +16,7 @@ class MobilIndex extends Component
     use WithFileUploads;
 
     // --- Properties ---
-    public $plat_nomor, $tipe, $merek, $warna, $transmisi, $kursi, $harga, $foto, $status;
+    public $plat_nomor, $tipe, $merek, $warna, $transmisi, $kursi, $harga, $foto, $status = 'tersedia';
     public $id_asli;
     public $foto_lama;
 
@@ -28,6 +28,21 @@ class MobilIndex extends Component
     public $showStatusModal = false;
     public $status_edit = '';
 
+
+ public function mount()
+    {
+        if (Gate::denies('read-mobils')) {
+            return redirect()->route('unauthorized');
+        }
+    }
+    // --- Validasi Realtime ---
+    public function updated($propertyName)
+    {
+        $this->validateOnly($propertyName);
+    }
+    
+
+
     // --- Validation Rules ---
     protected function rules()
     {
@@ -38,26 +53,47 @@ class MobilIndex extends Component
                 Rule::unique('mobils', 'id')->ignore($this->id_asli, 'id'),
                 'regex:/^[A-Z]{1,2}\s[0-9]{1,4}\s[A-Z]{1,3}$/'
             ],
-            'tipe' => 'required|string',
-            'merek' => 'required|string',
-            'warna' => 'required|string',
+            'tipe' => 'required|string|max:50|regex:/^[a-zA-Z0-9\s]+$/',
+            'merek' => 'required|string|max:50|regex:/^[a-zA-Z\s]+$/',
+            'warna' => 'required|string|max:30|regex:/^[a-zA-Z\s]+$/',
             'transmisi' => 'required|in:manual,otomatis',
             'kursi' => 'required|in:5,7,9,14,19',
-            'harga' => 'required|numeric|min:0',
+            'harga' => 'required|numeric|min:10000',
             'status' => 'required|in:tersedia,disewa,pemeliharaan,dibersihkan',
-            'foto' => $this->isEditMode ? 'nullable|image|max:2048' : 'required|image|max:2048',
+            'foto' => $this->isEditMode ? 'nullable|mimes:jpg,jpeg,png|max:2048' : 'required|mimes:jpg,jpeg,png|max:2048',
         ];
     }
 
+    // --- Custom Messages (Bahasa Indonesia) ---
     protected $messages = [
-        'plat_nomor.regex' => 'Format Plat Nomor salah! Gunakan HURUF KAPITAL dan SPASI. Contoh: B 1234 XYZ',
-        'plat_nomor.unique' => 'Plat Nomor ini sudah terdaftar.',
+        'plat_nomor.required' => 'Plat Nomor wajib diisi.',
+        'plat_nomor.regex' => 'Format salah! Gunakan format baku. Contoh: B 1234 XYZ',
+        'plat_nomor.unique' => 'Plat Nomor ini sudah terdaftar di sistem.',
+        'tipe.required' => 'Tipe mobil wajib diisi.',
+        'tipe.max' => 'Tipe mobil maksimal 50 karakter.',
+        'tipe.regex' => 'Tipe hanya boleh berisi huruf, angka, dan spasi.',
+        'merek.required' => 'Merek mobil wajib diisi.',
+        'merek.max' => 'Merek mobil maksimal 50 karakter.',
+        'merek.regex' => 'Merek hanya boleh berisi huruf dan spasi (tanpa angka/simbol).',
+        'warna.required' => 'Warna mobil wajib diisi.',
+        'warna.max' => 'Warna mobil maksimal 30 karakter.',
+        'warna.regex' => 'Warna hanya boleh berisi huruf dan spasi.',
+        'transmisi.required' => 'Silakan pilih jenis transmisi.',
+        'transmisi.in' => 'Pilihan transmisi tidak valid.',
+        'kursi.required' => 'Silakan pilih jumlah kursi.',
+        'kursi.in' => 'Pilihan jumlah kursi tidak valid.',
+        'harga.required' => 'Harga sewa per hari wajib diisi.',
+        'harga.numeric' => 'Harga sewa harus berupa angka.',
+        'harga.min' => 'Harga sewa minimal Rp 10.000.',
+        'status.required' => 'Status ketersediaan wajib dipilih.',
+        'foto.required' => 'Foto armada wajib diunggah.',
+        'foto.mimes' => 'Format file ditolak! Hanya izinkan JPG atau PNG.',
+        'foto.max' => 'Ukuran foto maksimal 2MB.',
     ];
 
     #[Layout('layouts.admin')]
     public function render()
     {
-        // Minimal harus punya akses read-mobils
         abort_if(Gate::denies('read-mobils'), 403);
 
         $mobils = Mobil::query()
@@ -85,9 +121,9 @@ class MobilIndex extends Component
 
     public function store()
     {
-        abort_if(Gate::denies('create-mobils'), 403); // RBAC Protect
+        abort_if(Gate::denies('create-mobils'), 403); 
 
-        $this->plat_nomor = strtoupper($this->plat_nomor);
+        $this->plat_nomor = strtoupper(trim($this->plat_nomor));
         $this->validate();
 
         $fotoPath = null;
@@ -109,7 +145,9 @@ class MobilIndex extends Component
 
         $this->showModal = false;
         $this->resetInputFields();
-        session()->flash('message', 'Mobil berhasil ditambahkan.');
+        
+        // Menggunakan Toast Notification
+        $this->dispatch('show-toast', type: 'success', message: 'Mobil baru berhasil ditambahkan.');
     }
 
     public function edit($id)
@@ -133,9 +171,9 @@ class MobilIndex extends Component
 
     public function update()
     {
-        abort_if(Gate::denies('update-mobils'), 403); // RBAC Protect
+        abort_if(Gate::denies('update-mobils'), 403); 
 
-        $this->plat_nomor = strtoupper($this->plat_nomor);
+        $this->plat_nomor = strtoupper(trim($this->plat_nomor));
         $this->validate();
 
         $mobil = Mobil::findOrFail($this->id_asli);
@@ -162,18 +200,20 @@ class MobilIndex extends Component
 
         $this->showModal = false;
         $this->resetInputFields();
-        session()->flash('message', 'Data mobil berhasil diperbarui.');
+        
+        // Menggunakan Toast Notification
+        $this->dispatch('show-toast', type: 'success', message: 'Data mobil berhasil diperbarui.');
     }
 
     public function delete($id)
     {
-        abort_if(Gate::denies('delete-mobils'), 403); // RBAC Protect
+        abort_if(Gate::denies('delete-mobils'), 403); 
 
         try {
             $mobil = Mobil::findOrFail($id);
             
             if ($mobil->peminjaman()->exists()) {
-                session()->flash('error', 'GAGAL HAPUS: Mobil ini memiliki riwayat transaksi.');
+                $this->dispatch('show-toast', type: 'error', message: 'Gagal Hapus: Mobil ini memiliki riwayat transaksi aktif.');
                 return;
             }
 
@@ -182,10 +222,10 @@ class MobilIndex extends Component
             }
 
             $mobil->delete();
-            session()->flash('message', 'Mobil berhasil dihapus.');
+            $this->dispatch('show-toast', type: 'success', message: 'Data armada berhasil dihapus.');
 
         } catch (\Exception $e) {
-            session()->flash('error', 'Terjadi kesalahan: ' . $e->getMessage());
+            $this->dispatch('show-toast', type: 'error', message: 'Terjadi kesalahan sistem saat menghapus data.');
         }
     }
 
@@ -203,8 +243,6 @@ class MobilIndex extends Component
 
     public function updateStatusOnly()
     {
-        // Karena Staff sudah bisa masuk halaman ini (Gate read-mobils lolos),
-        // Kita izinkan perubahan status operasional saja.
         $this->validate([
             'status_edit' => 'required|in:tersedia,pemeliharaan,dibersihkan',
         ]);
@@ -214,7 +252,7 @@ class MobilIndex extends Component
 
         $this->showStatusModal = false;
         $this->resetInputFields();
-        session()->flash('message', 'Status armada ' . $mobil->id . ' berhasil diubah menjadi ' . strtoupper($this->status_edit));
+        $this->dispatch('show-toast', type: 'success', message: "Status {$mobil->id} berhasil diubah ke " . strtoupper($this->status_edit));
     }
 
     // =========================================================
@@ -229,5 +267,6 @@ class MobilIndex extends Component
         $this->foto = null; $this->status = 'tersedia';
         $this->id_asli = null; $this->foto_lama = null;
         $this->status_edit = '';
+        $this->resetValidation();
     }
 }

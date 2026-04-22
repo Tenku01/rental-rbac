@@ -67,10 +67,10 @@
                         @php
                             $sudahCatat = $task->logbooks->count() > 0;
                             
-                            // Hitung jumlah pesan masuk yang belum dibaca khusus untuk tugas ini
-                            $unreadChat = \App\Models\Message::where('peminjaman_id', $task->id)
-                                ->where('sender_id', '!=', Auth::id())
-                                ->where('is_read', false)
+                            // 🔹 Diperbarui: Model Pesan, pengirim_id, sudah_dibaca
+                            $unreadChat = \App\Models\Pesan::where('peminjaman_id', $task->id)
+                                ->where('pengirim_id', '!=', Auth::id())
+                                ->where('sudah_dibaca', false)
                                 ->count();
                         @endphp
                         
@@ -83,10 +83,12 @@
                                     </div>
                                     <div>
                                         <h3 class="text-lg font-black text-gray-900 tracking-tight">
-                                            {{ $task->mobil->merek ?? 'N/A' }} - {{ $task->mobil->plat_nomor ?? 'N/A' }}
+                                            <!-- 🔹 Diperbarui: mobil->plat_nomor diganti mobil->id -->
+                                            {{ $task->mobil->merek ?? 'N/A' }} - {{ $task->mobil->id ?? 'N/A' }}
                                         </h3>
                                         <p class="text-sm font-bold text-gray-500 mt-1 uppercase tracking-widest text-[10px]">
-                                            Pelanggan: <span class="text-cyan-600">{{ $task->user->pelanggan->nama_lengkap ?? 'N/A' }}</span>
+                                            <!-- 🔹 Diperbarui: pelanggan->nama_lengkap dihapus dan langsung ke user->name -->
+                                            Pelanggan: <span class="text-cyan-600">{{ $task->user->name ?? 'N/A' }}</span>
                                         </p>
                                         <div class="flex items-center gap-4 mt-3">
                                             <span class="flex items-center text-xs font-semibold text-gray-500">
@@ -161,8 +163,10 @@
             </div>
             <div class="relative z-10">
                 <p class="text-[10px] font-black text-cyan-400 uppercase tracking-[0.2em]">Target Kendaraan</p>
-                <h1 class="text-3xl font-black tracking-tight mt-1">{{ $selectedTask->mobil->merek ?? 'N/A' }} ({{ $selectedTask->mobil->plat_nomor ?? 'N/A' }})</h1>
-                <p class="text-sm font-medium text-cyan-100 mt-2">Pelanggan: {{ $selectedTask->user->pelanggan->nama_lengkap ?? 'N/A' }} | Lokasi: {{ $selectedTask->lokasi_jemput ?? 'Pool' }}</p>
+                <!-- 🔹 Diperbarui: mobil->plat_nomor -> mobil->id -->
+                <h1 class="text-3xl font-black tracking-tight mt-1">{{ $selectedTask->mobil->merek ?? 'N/A' }} ({{ $selectedTask->mobil->id ?? 'N/A' }})</h1>
+                <!-- 🔹 Diperbarui: pelanggan->nama_lengkap -> user->name -->
+                <p class="text-sm font-medium text-cyan-100 mt-2">Pelanggan: {{ $selectedTask->user->name ?? 'N/A' }} | Lokasi: {{ $selectedTask->lokasi_jemput ?? 'Pool' }}</p>
             </div>
         </div>
 

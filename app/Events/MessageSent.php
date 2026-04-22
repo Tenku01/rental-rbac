@@ -2,7 +2,7 @@
 
 namespace App\Events;
 
-use App\Models\Message;
+use App\Models\Pesan; // 🔹 Wajib diubah menjadi Pesan
 use Illuminate\Broadcasting\PrivateChannel;
 use Illuminate\Contracts\Broadcasting\ShouldBroadcastNow;
 use Illuminate\Foundation\Events\Dispatchable;
@@ -12,11 +12,11 @@ class MessageSent implements ShouldBroadcastNow
 {
     use Dispatchable, SerializesModels;
 
-    public $message;
+    public $pesan;
 
-    public function __construct(Message $message)
+    public function __construct(Pesan $pesan)
     {
-        $this->message = $message;
+        $this->pesan = $pesan;
     }
 
     /**
@@ -26,7 +26,7 @@ class MessageSent implements ShouldBroadcastNow
     {
         // Kita gunakan ID peminjaman sebagai nama ruangan yang bersifat Private
         return [
-            new PrivateChannel('chat.' . $this->message->peminjaman_id),
+            new PrivateChannel('chat.' . $this->pesan->peminjaman_id),
         ];
     }
 
@@ -35,12 +35,13 @@ class MessageSent implements ShouldBroadcastNow
      */
     public function broadcastWith(): array
     {
+        // 🔹 Diperbarui: Gunakan $this->pesan dan panggil nama kolom bahasa Indonesia
         return [
-            'id' => $this->message->id,
-            'peminjaman_id' => $this->message->peminjaman_id,
-            'sender_id' => $this->message->sender_id,
-            'message' => $this->message->message,
-            'waktu' => $this->message->created_at->format('H:i'),
+            'id'            => $this->pesan->id,
+            'peminjaman_id' => $this->pesan->peminjaman_id,
+            'pengirim_id'   => $this->pesan->pengirim_id,
+            'isi_pesan'     => $this->pesan->isi_pesan,
+            'waktu'         => $this->pesan->created_at->format('H:i'),
         ];
     }
 }

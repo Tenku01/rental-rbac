@@ -1,6 +1,6 @@
 <div class="p-8 space-y-10 bg-[#f9fafb] min-h-screen font-inter">
 <style>
-@import url('https://www.google.com/search?q=https://fonts.googleapis.com/css2%3Ffamily%3DInter:wght%40300%3B400%3B500%3B600%3B700%3B800%3B900%26display%3Dswap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
 .font-inter { font-family: 'Inter', sans-serif; }
 .custom-scrollbar::-webkit-scrollbar { width: 4px; }
 .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
@@ -71,35 +71,37 @@
                 </tr>
             </thead>
             <tbody class="divide-y divide-gray-50">
-                @forelse($payments as $pay)
+                @forelse($pembayaranList as $pembayaran)
                 <tr class="hover:bg-emerald-50/10 transition-colors group">
                     <td class="px-8 py-6">
-                        <div class="font-black text-gray-900 text-xs tracking-tight" title="{{ $pay->midtrans_transaction_id }}">
-                            {{ Str::limit($pay->midtrans_transaction_id, 20) }}
+                        <!-- 🔹 Diperbarui: midtrans_transaction_id -> id_transaksi_midtrans -->
+                        <div class="font-black text-gray-900 text-xs tracking-tight" title="{{ $pembayaran->id_transaksi_midtrans }}">
+                            {{ Str::limit($pembayaran->id_transaksi_midtrans, 20) }}
                         </div>
-                        <div class="text-[9px] font-bold text-gray-400 mt-1 uppercase">{{ $pay->tipe_transaksi }}</div>
+                        <div class="text-[9px] font-bold text-gray-400 mt-1 uppercase">{{ $pembayaran->tipe_transaksi }}</div>
                     </td>
                     <td class="px-8 py-6">
-                        <div class="font-bold text-gray-800 text-xs uppercase">{{ $pay->peminjaman->user->name ?? 'User Terhapus' }}</div>
-                        <div class="text-[10px] text-gray-400 mt-0.5">{{ $pay->peminjaman->user->email ?? '-' }}</div>
+                        <div class="font-bold text-gray-800 text-xs uppercase">{{ $pembayaran->peminjaman->user->name ?? 'User Terhapus' }}</div>
+                        <div class="text-[10px] text-gray-400 mt-0.5">{{ $pembayaran->peminjaman->user->email ?? '-' }}</div>
                     </td>
                     <td class="px-8 py-6">
                         <span class="px-2 py-1 bg-gray-100 text-gray-600 text-[10px] font-mono font-bold rounded border border-gray-200">
-                            #{{ $pay->peminjaman_id }}
+                            #{{ $pembayaran->peminjaman_id }}
                         </span>
                     </td>
                     <td class="px-8 py-6">
-                        <div class="text-xs font-black text-gray-700">{{ $pay->created_at->format('d M Y') }}</div>
-                        <div class="text-[10px] text-gray-400 font-bold">{{ $pay->created_at->format('H:i') }} WIB</div>
+                        <div class="text-xs font-black text-gray-700">{{ $pembayaran->created_at->format('d M Y') }}</div>
+                        <div class="text-[10px] text-gray-400 font-bold">{{ $pembayaran->created_at->format('H:i') }} WIB</div>
                     </td>
                     <td class="px-8 py-6 text-center">
-                        <div class="text-sm font-black {{ $pay->tipe_transaksi == 'refund' ? 'text-rose-600' : 'text-emerald-600' }}">
-                            {{ $pay->tipe_transaksi == 'refund' ? '-' : '+' }} Rp {{ number_format($pay->amount, 0, ',', '.') }}
+                        <div class="text-sm font-black {{ $pembayaran->tipe_transaksi == 'refund' ? 'text-rose-600' : 'text-emerald-600' }}">
+                            <!-- 🔹 Diperbarui: amount -> jumlah -->
+                            {{ $pembayaran->tipe_transaksi == 'refund' ? '-' : '+' }} Rp {{ number_format($pembayaran->jumlah, 0, ',', '.') }}
                         </div>
                     </td>
                     <td class="px-8 py-6 text-center">
                         @php
-                            $badge = match($pay->status) {
+                            $badge = match($pembayaran->status) {
                                 'settlement', 'capture' => 'bg-emerald-100 text-emerald-700 border-emerald-200',
                                 'pending' => 'bg-amber-100 text-amber-700 border-amber-200',
                                 'refunded' => 'bg-purple-100 text-purple-700 border-purple-200',
@@ -108,12 +110,12 @@
                             };
                         @endphp
                         <span class="inline-flex px-3 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest border {{ $badge }}">
-                            {{ $pay->status }}
+                            {{ $pembayaran->status }}
                         </span>
                     </td>
                     <td class="px-8 py-6 text-right">
-                        @can('read-payment')
-                        <button wire:click="showDetail({{ $pay->id }})" class="p-2 text-emerald-600 bg-emerald-50 hover:bg-emerald-600 hover:text-white rounded-xl transition-all border border-emerald-100 shadow-sm">
+                        @can('read-payment_transactions')
+                        <button wire:click="showDetail({{ $pembayaran->id }})" class="p-2 text-emerald-600 bg-emerald-50 hover:bg-emerald-600 hover:text-white rounded-xl transition-all border border-emerald-100 shadow-sm">
                             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path></svg>
                         </button>
                         @endcan
@@ -128,7 +130,8 @@
         </table>
     </div>
     <div class="px-8 py-8 border-t border-gray-100 bg-gray-50/50">
-        {{ $payments->links('components.pagination-info') }}
+        <!-- 🔹 Diperbarui: payments -> pembayaranList -->
+        {{ $pembayaranList->links('components.pagination-info') }}
     </div>
 </div>
 
@@ -156,23 +159,25 @@
                     <div class="col-span-2 p-6 bg-gray-900 rounded-[2rem] text-white flex justify-between items-center shadow-lg">
                         <div>
                             <p class="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] mb-1">Total Nominal</p>
-                            <p class="text-2xl font-black text-white">Rp {{ number_format($selectedPayment->amount, 0, ',', '.') }}</p>
+                            <!-- 🔹 Diperbarui: amount -> jumlah -->
+                            <p class="text-2xl font-black text-white">Rp {{ number_format($selectedPembayaran->jumlah, 0, ',', '.') }}</p>
                         </div>
                         <div class="text-right">
                             <span class="px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest bg-white/10 text-white border border-white/20">
-                                {{ $selectedPayment->status }}
+                                {{ $selectedPembayaran->status }}
                             </span>
                         </div>
                     </div>
                     
                     <div class="p-5 bg-gray-50 rounded-2xl border border-gray-100">
                         <p class="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1">ID Transaksi (Midtrans/System)</p>
-                        <p class="text-xs font-mono font-bold text-gray-800 break-all">{{ $selectedPayment->midtrans_transaction_id }}</p>
+                        <!-- 🔹 Diperbarui: midtrans_transaction_id -> id_transaksi_midtrans -->
+                        <p class="text-xs font-mono font-bold text-gray-800 break-all">{{ $selectedPembayaran->id_transaksi_midtrans }}</p>
                     </div>
 
                     <div class="p-5 bg-gray-50 rounded-2xl border border-gray-100">
                         <p class="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1">Waktu Transaksi</p>
-                        <p class="text-xs font-bold text-gray-800">{{ $selectedPayment->created_at->format('d M Y, H:i:s') }}</p>
+                        <p class="text-xs font-bold text-gray-800">{{ $selectedPembayaran->created_at->format('d M Y, H:i:s') }}</p>
                     </div>
                 </div>
 
@@ -184,10 +189,10 @@
                     </div>
                 </div>
 
-                @if($selectedPayment->id_transaksi_awal)
+                @if($selectedPembayaran->id_transaksi_awal)
                 <div class="p-4 bg-rose-50 border border-rose-100 rounded-xl flex items-center gap-3">
                     <svg class="w-5 h-5 text-rose-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                    <p class="text-xs text-rose-700 font-bold">Ini adalah transaksi REFUND dari ID #{{ $selectedPayment->id_transaksi_awal }}</p>
+                    <p class="text-xs text-rose-700 font-bold">Ini adalah transaksi REFUND dari ID #{{ $selectedPembayaran->id_transaksi_awal }}</p>
                 </div>
                 @endif
             </div>

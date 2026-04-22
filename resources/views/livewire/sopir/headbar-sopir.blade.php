@@ -180,9 +180,11 @@
                     if (!this.joinedChannels.includes(id)) {
                         window.Echo.private('chat.' + id)
                             .listen('MessageSent', (e) => {
-                                let payload = (e.message && typeof e.message === 'object') ? e
-                                    .message : e;
-                                if (payload.sender_id != this.currentUserId) {
+                                // 🔹 Diperbarui: Fallback penangkapan payload dari event
+                                let payload = (e.pesan && typeof e.pesan === 'object') ? e.pesan : ((e.message && typeof e.message === 'object') ? e.message : e);
+                                
+                                // 🔹 Diperbarui: sender_id -> pengirim_id
+                                if (payload.pengirim_id != this.currentUserId) {
 
                                     // === FITUR SUARA NOTIFIKASI AKTIF ===
                                     // Mengambil file dari public/notifikasi.mp3

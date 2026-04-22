@@ -12,22 +12,23 @@ use Illuminate\Validation\Rule;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\DB;
 
+#[Layout('layouts.admin')] 
 class SopirIndex extends Component
 {
     use WithPagination;
 
     // --- Filters & Search ---
     public $search = '';
-    public $filterStatus = ''; // Tersedia, Bekerja, Tidak Tersedia
+    public $filterStatus = ''; 
 
     // --- Modal States ---
     public $showModal = false;
-    public $showDetailModal = false; // Tambahan untuk modal detail
+    public $showDetailModal = false;
     public $isEditMode = false;
     public $modalTitle = '';
     
     // --- Data Properties ---
-    public $selectedSopir = null; // Menyimpan data sopir yang dilihat detailnya
+    public $selectedSopir = null;
 
     // --- Form Fields ---
     public $sopirId;
@@ -41,14 +42,31 @@ class SopirIndex extends Component
 
     protected $paginationTheme = 'tailwind';
 
+    /**
+     * mount() dipanggil SEBELUM render().
+     * Menggunakan redirect()->route('unauthorized') tanpa method layout()
+     * agar tidak terjadi error pada lifecycle Livewire.
+     */
+    public function mount()
+    {
+        if (Gate::denies('read-sopirs')) {
+            return redirect()->route('unauthorized');
+        }
+    }
+
     public function updatedSearch() { $this->resetPage(); }
     public function updatedFilterStatus() { $this->resetPage(); }
+
+    public function updated($propertyName)
+    {
+        $this->validateOnly($propertyName);
+    }
 
     protected function rules()
     {
         $rules = [
-            'nama' => 'required|string|max:255',
-            'no_sim' => 'required|string|max:50',
+            'nama' => 'required|string|max:255|regex:/^[a-zA-Z\s\.,\']+$/',
+            'no_sim' => 'required|string|max:50|regex:/^[a-zA-Z0-9\-]+$/',
             'status' => 'required|in:Tersedia,Bekerja,Tidak Tersedia',
         ];
 
@@ -63,10 +81,24 @@ class SopirIndex extends Component
         return $rules;
     }
 
-    #[Layout('layouts.admin')]
+    protected $messages = [
+        'nama.required' => 'Nama lengkap wajib diisi.',
+        'nama.regex' => 'Nama hanya boleh berisi huruf dan tanda baca standar.',
+        'no_sim.required' => 'Nomor SIM wajib diisi.',
+        'no_sim.regex' => 'Format nomor SIM tidak valid.',
+        'email.required' => 'Alamat email wajib diisi.',
+        'email.email' => 'Format email tidak valid.',
+        'email.unique' => 'Email sudah terdaftar.',
+        'password.required' => 'Password wajib diisi untuk akun baru.',
+        'password.min' => 'Password minimal 8 karakter.',
+        'password.confirmed' => 'Konfirmasi password tidak cocok.',
+        'status.required' => 'Status wajib dipilih.',
+    ];
+
     public function render()
     {
-        abort_if(Gate::denies('read-sopir'), 403, 'Akses ditolak.');
+        // Fallback jika mount terlewati
+        abort_if(Gate::denies('read-roles'), 403);
 
         $sopirs = Sopir::with('user')
             ->when($this->search, function($q) {
@@ -75,7 +107,6 @@ class SopirIndex extends Component
                   ->orWhereHas('user', fn($sq) => $sq->where('email', 'like', '%' . $this->search . '%'));
             })
             ->when($this->filterStatus, fn($q) => $q->where('status', $this->filterStatus))
-            ->orderBy('status', 'asc') // Urutkan status agar yang 'Bekerja' atau 'Tersedia' di atas
             ->orderBy('nama', 'asc')
             ->paginate(10);
 
@@ -84,13 +115,12 @@ class SopirIndex extends Component
         ]);
     }
 
-    // =========================================================================
-    // CRUD: CREATE
-    // =========================================================================
-
     public function create()
     {
-        abort_if(Gate::denies('create-sopir'), 403);
+        if (Gate::denies('create-sopirs')) {
+            return redirect()->route('unauthorized');
+        }
+
         $this->resetInput();
         $this->isEditMode = false;
         $this->modalTitle = 'Tambah Sopir Baru';
@@ -99,48 +129,47 @@ class SopirIndex extends Component
 
     public function store()
     {
-        abort_if(Gate::denies('create-sopir'), 403);
+        if (Gate::denies('create-sopirs')) {
+            return redirect()->route('unauthorized');
+        }
+
         $this->validate();
 
         DB::beginTransaction();
         try {
-            // 1. Buat User
             $user = User::create([
-                'name' => $this->nama,
-                'email' => $this->email,
+                'name' => trim($this->nama),
+                'email' => strtolower(trim($this->email)),
                 'password' => Hash::make($this->password),
                 'status' => 'aktif'
             ]);
 
             $user->assignRole('sopir');
 
-            // 2. Buat/Update Data Sopir (Menggunakan updateOrCreate untuk handle observer)
             Sopir::updateOrCreate(
                 ['user_id' => $user->id],
                 [
-                    'nama' => $this->nama,
-                    'no_sim' => $this->no_sim,
+                    'nama' => trim($this->nama),
+                    'no_sim' => strtoupper(trim($this->no_sim)),
                     'status' => $this->status
                 ]
             );
 
             DB::commit();
             $this->closeModal();
-            $this->dispatch('notify', message: 'Sopir berhasil ditambahkan.', type: 'success');
+            $this->dispatch('show-toast', message: 'Sopir berhasil didaftarkan.', type: 'success');
 
         } catch (\Exception $e) {
             DB::rollBack();
-            $this->dispatch('notify', message: 'Gagal: ' . $e->getMessage(), type: 'error');
+            $this->dispatch('show-toast', message: 'Terjadi kesalahan sistem.', type: 'error');
         }
     }
 
-    // =========================================================================
-    // CRUD: UPDATE
-    // =========================================================================
-
     public function edit($id)
     {
-        abort_if(Gate::denies('update-sopir'), 403);
+        if (Gate::denies('update-sopirs')) {
+            return redirect()->route('unauthorized');
+        }
         
         $sopir = Sopir::with('user')->findOrFail($id);
         
@@ -158,7 +187,10 @@ class SopirIndex extends Component
 
     public function update()
     {
-        abort_if(Gate::denies('update-sopir'), 403);
+        if (Gate::denies('update-sopirs')) {
+            return redirect()->route('unauthorized');
+        }
+
         $this->validate();
 
         DB::beginTransaction();
@@ -166,59 +198,51 @@ class SopirIndex extends Component
             $sopir = Sopir::findOrFail($this->sopirId);
             $user = User::findOrFail($this->userId);
 
-            // Update User
-            $userData = ['name' => $this->nama, 'email' => $this->email];
+            $userData = ['name' => trim($this->nama), 'email' => strtolower(trim($this->email))];
             if ($this->password) {
                 $userData['password'] = Hash::make($this->password);
             }
             $user->update($userData);
 
-            // Update Sopir
             $sopir->update([
-                'nama' => $this->nama, 
-                'no_sim' => $this->no_sim,
+                'nama' => trim($this->nama), 
+                'no_sim' => strtoupper(trim($this->no_sim)),
                 'status' => $this->status
             ]);
 
             DB::commit();
             $this->closeModal();
-            $this->dispatch('notify', message: 'Data sopir diperbarui.', type: 'success');
+            $this->dispatch('show-toast', message: 'Data sopir berhasil diperbarui.', type: 'success');
 
         } catch (\Exception $e) {
             DB::rollBack();
-            $this->dispatch('notify', message: 'Gagal: ' . $e->getMessage(), type: 'error');
+            $this->dispatch('show-toast', message: 'Gagal memperbarui data.', type: 'error');
         }
     }
-
-    // =========================================================================
-    // CRUD: DELETE
-    // =========================================================================
 
     public function delete($id)
     {
-        abort_if(Gate::denies('delete-sopir'), 403);
-        
-        $sopir = Sopir::findOrFail($id);
-        
-        // Hapus akun user terkait (Cascade delete di DB biasanya handle sisanya)
-        if ($sopir->user) {
-            $sopir->user->delete();
-        } else {
-            $sopir->delete();
+        if (Gate::denies('delete-sopirs')) {
+            return redirect()->route('unauthorized');
         }
-
-        $this->dispatch('notify', message: 'Data sopir & akun dihapus.', type: 'warning');
+        
+        try {
+            $sopir = Sopir::findOrFail($id);
+            if ($sopir->user) {
+                $sopir->user->delete();
+            } else {
+                $sopir->delete();
+            }
+            $this->dispatch('show-toast', message: 'Data sopir & akun dihapus.', type: 'success');
+        } catch (\Exception $e) {
+            $this->dispatch('show-toast', message: 'Gagal menghapus data.', type: 'error');
+        }
     }
-
-    // =========================================================================
-    // CRUD: SHOW DETAIL (NEW)
-    // =========================================================================
 
     public function showDetail($id)
     {
-        // Eager load relasi peminjaman beserta detail mobil untuk tabel riwayat
         $this->selectedSopir = Sopir::with(['user', 'peminjaman' => function($q) {
-            $q->with('mobil')->orderBy('created_at', 'desc')->limit(10); // Ambil 10 tugas terakhir
+            $q->with('mobil')->orderBy('created_at', 'desc')->limit(10);
         }])->findOrFail($id);
 
         $this->showDetailModal = true;
@@ -235,6 +259,6 @@ class SopirIndex extends Component
     private function resetInput()
     {
         $this->reset(['nama', 'email', 'password', 'password_confirmation', 'no_sim', 'status', 'sopirId', 'userId', 'isEditMode', 'modalTitle']);
-        $this->resetErrorBag();
+        $this->resetValidation();
     }
 }

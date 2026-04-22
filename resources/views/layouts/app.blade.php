@@ -37,7 +37,7 @@
     <!-- 🔹 Navbar -->
     <x-navbar />
 
-    <div class="min-h-screen pt-20">
+    <div class="min-h-screen pt-[70px]">
         <!-- Page Heading -->
         @if (isset($header))
             <header class="bg-white shadow-sm">

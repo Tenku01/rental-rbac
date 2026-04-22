@@ -61,7 +61,7 @@
             @endforeach
         @else
             <button class="px-5 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all shadow-sm whitespace-nowrap bg-white text-amber-600 shadow-md ring-1 ring-black/5">
-                Menunggu Inspeksi
+                Menunggu Serah Terima
             </button>
         @endif
     </div>
@@ -98,14 +98,14 @@
                         <div class="text-[9px] font-black uppercase px-2 py-0.5 rounded bg-gray-100 text-gray-500 inline-block mt-1">{{ $item->metode_pembayaran }}</div>
                     </td>
                     <td class="px-8 py-6">
-                        <div class="font-bold text-gray-800 text-xs">{{ $item->user->name ?? 'User Terhapus' }}</div>
+                        <div class="font-bold text-gray-800 text-xs uppercase">{{ $item->user->name ?? 'User Terhapus' }}</div>
                         <div class="text-[10px] text-gray-400 mt-0.5">{{ $item->user->email ?? '-' }}</div>
                     </td>
                     <td class="px-8 py-6">
                         <div class="flex items-center gap-3">
                             <div>
                                 <div class="font-bold text-gray-800 text-xs">{{ $item->mobil->merek ?? '?' }} {{ $item->mobil->tipe ?? '' }}</div>
-                                <div class="text-[10px] font-mono text-cyan-600 font-bold">{{ $item->mobil->plat_nomor ?? 'N/A' }}</div>
+                                <div class="text-[10px] font-mono text-cyan-600 font-bold">{{ $item->mobil->id ?? 'N/A' }}</div>
                                 <div class="text-[10px] text-gray-400 mt-1 flex items-center gap-1">
                                     <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
                                     {{ \Carbon\Carbon::parse($item->tanggal_sewa)->format('d/m') }} - {{ \Carbon\Carbon::parse($item->tanggal_kembali)->format('d/m/y') }}
@@ -143,11 +143,18 @@
                     <td class="px-8 py-6 text-right">
                         <div class="flex justify-end gap-2">
                             @if($activeTab === 'pengecekan')
-                                {{-- Tombol Khusus Tab Pengecekan (Dapat dilihat Staff dan Admin) --}}
-                                <button wire:click="openCheckModal({{ $item->id }})" class="p-2.5 text-amber-600 bg-amber-50 hover:bg-amber-600 hover:text-white rounded-xl transition-all border border-amber-100 shadow-sm flex items-center gap-2 px-4" title="Cek Kendaraan & Serahkan">
-                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"></path></svg>
-                                    <span class="text-[10px] font-black uppercase tracking-widest">Inspeksi</span>
-                                </button>
+                                {{-- 🔹 Diperbarui: Pilihan Tombol 'Catat Awal' vs 'Edit Catatan' --}}
+                                @if(empty($item->kondisi_mobil))
+                                    <button wire:click="openCheckModal({{ $item->id }})" class="p-2.5 text-blue-600 bg-blue-50 hover:bg-blue-600 hover:text-white rounded-xl transition-all border border-blue-100 shadow-sm flex items-center gap-2 px-4" title="Catat Kondisi Awal">
+                                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"></path></svg>
+                                        <span class="text-[10px] font-black uppercase tracking-widest">Catat Awal</span>
+                                    </button>
+                                @else
+                                    <button wire:click="openCheckModal({{ $item->id }})" class="p-2.5 text-amber-600 bg-amber-50 hover:bg-amber-600 hover:text-white rounded-xl transition-all border border-amber-100 shadow-sm flex items-center gap-2 px-4" title="Edit Catatan Kendaraan">
+                                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
+                                        <span class="text-[10px] font-black uppercase tracking-widest">Edit Catatan</span>
+                                    </button>
+                                @endif
                             @else
                                 {{-- Tombol Data Umum (HANYA UNTUK ADMIN - Yang punya hak update) --}}
                                 @can('update-peminjaman')
@@ -168,7 +175,7 @@
                 @empty
                 <tr>
                     <td colspan="6" class="px-8 py-24 text-center text-gray-400 text-sm font-medium italic">
-                        {{ $activeTab === 'pengecekan' ? 'Tidak ada mobil yang menunggu inspeksi saat ini.' : 'Belum ada data transaksi peminjaman.' }}
+                        {{ $activeTab === 'pengecekan' ? 'Tidak ada mobil yang menunggu serah terima saat ini.' : 'Belum ada data transaksi peminjaman.' }}
                     </td>
                 </tr>
                 @endforelse
@@ -370,7 +377,7 @@
                     <div class="rounded-2xl border border-gray-100 overflow-hidden">
                         <div class="bg-gray-50 px-5 py-3 border-b border-gray-100 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Riwayat Pembayaran Kas & Online</div>
                         <div class="divide-y divide-gray-50 max-h-40 overflow-y-auto custom-scrollbar">
-                            @forelse($selectedPeminjaman->paymentTransactions as $pay)
+                            @forelse($selectedPeminjaman->TransaksiPembayaran as $pay)
                                 <div class="px-5 py-4 flex justify-between items-center hover:bg-gray-50/50 transition-colors">
                                     <div>
                                         <div class="text-[10px] font-black text-gray-700 uppercase tracking-widest">{{ str_replace('_', ' ', $pay->tipe_transaksi) }}</div>
@@ -503,13 +510,14 @@
                     <div class="group">
                         <label class="block text-[11px] font-black text-gray-400 uppercase tracking-widest mb-3">Deskripsi Kondisi Mobil</label>
                         <textarea wire:model="kondisi_mobil_input" rows="5" class="w-full rounded-2xl border-gray-100 bg-gray-50 p-5 focus:border-amber-500 focus:ring-4 focus:ring-amber-500/10 font-bold text-gray-700 transition-all custom-scrollbar" placeholder="Contoh: Bensin 3/4, ada goresan tipis di bumper depan kiri, ban serep lengkap..."></textarea>
+                        <p class="text-[10px] text-gray-400 font-bold mt-2 ml-2 italic">*Catatan yang dibuat oleh pelanggan tidak akan bisa dihapus/diedit di sini.</p>
                         @error('kondisi_mobil_input') <span class="text-rose-500 text-[10px] font-black mt-2 block">{{ $message }}</span> @enderror
                     </div>
                 </div>
 
                 <div class="bg-gray-50/80 px-10 py-8 flex flex-row-reverse gap-4 border-t border-gray-100 rounded-b-[2.5rem]">
                     <button type="submit" class="inline-flex justify-center rounded-2xl px-12 py-4 bg-amber-500 text-xs font-black text-white hover:bg-amber-600 shadow-xl shadow-amber-100 transition-all uppercase tracking-[0.2em] leading-none">
-                        Simpan & Serahkan
+                        Simpan Catatan Awal
                     </button>
                     <button type="button" wire:click="closeModal" class="inline-flex justify-center rounded-2xl px-8 py-4 bg-white text-xs font-black text-gray-400 hover:bg-gray-100 border border-gray-200 transition-all uppercase tracking-[0.2em] leading-none">
                         Batal

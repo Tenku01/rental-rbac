@@ -6,7 +6,7 @@ use Livewire\Component;
 use Livewire\WithFileUploads;
 use Livewire\Attributes\Layout;
 use App\Models\Peminjaman;
-use App\Models\DriverLogbook; 
+use App\Models\LogbookSopir; // 🔹 Diperbarui dari DriverLogbook
 use App\Models\Sopir;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Gate; 
@@ -48,7 +48,8 @@ class TugasAktif extends Component
         ];
 
         if ($this->sopir && $this->viewMode === 'index') {
-            $tasks = Peminjaman::with(['mobil', 'user.pelanggan', 'logbooks' => function($q) {
+            // 🔹 Diperbarui: Hapus relasi 'user.pelanggan' menjadi 'user' karena tabel pelanggans sudah di-drop
+            $tasks = Peminjaman::with(['mobil', 'user', 'logbooks' => function($q) {
                 // PERBAIKAN: Gunakan waktu_log, bukan created_at
                 $q->whereDate('waktu_log', Carbon::today());
             }])
@@ -74,7 +75,8 @@ class TugasAktif extends Component
         // RBAC: Read Permission
         abort_if(Gate::denies('read-driver_logbooks'), 403, 'Akses ditolak.');
 
-        $this->selectedTask = Peminjaman::with(['mobil', 'user.pelanggan'])->findOrFail($peminjamanId);
+        // 🔹 Diperbarui: Hapus relasi 'user.pelanggan' menjadi 'user'
+        $this->selectedTask = Peminjaman::with(['mobil', 'user'])->findOrFail($peminjamanId);
         $this->loadLogHistory();
         
         $this->resetForm();
@@ -91,7 +93,8 @@ class TugasAktif extends Component
     public function loadLogHistory()
     {
         if ($this->selectedTask) {
-            $this->logHistory = DriverLogbook::where('peminjaman_id', $this->selectedTask->id)
+            // 🔹 Diperbarui: DriverLogbook menjadi LogbookSopir
+            $this->logHistory = LogbookSopir::where('peminjaman_id', $this->selectedTask->id)
                 // PERBAIKAN: Gunakan waktu_log, bukan created_at
                 ->orderBy('waktu_log', 'desc')
                 ->get();
@@ -114,7 +117,8 @@ class TugasAktif extends Component
             $path = $this->foto_bukti->store('logbook_photos', 'public');
         }
 
-        DriverLogbook::create([
+        // 🔹 Diperbarui: DriverLogbook menjadi LogbookSopir
+        LogbookSopir::create([
             'peminjaman_id' => $this->selectedTask->id,
             'status_log' => $this->status_log,
             'deskripsi_aktivitas' => $this->deskripsi_aktivitas,

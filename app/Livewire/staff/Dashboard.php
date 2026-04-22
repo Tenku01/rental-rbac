@@ -5,7 +5,7 @@ namespace App\Livewire\Staff;
 use Livewire\Component;
 use Livewire\Attributes\Layout;
 use App\Models\Pengembalian;
-use App\Models\Staff;
+use App\Models\Peminjaman; // 🔹 Ditambahkan untuk mengambil data Peminjaman
 use Illuminate\Support\Facades\Auth;
 
 class Dashboard extends Component
@@ -13,39 +13,59 @@ class Dashboard extends Component
     #[Layout('layouts.admin')] // Menggunakan layout utama yang ada sidebarnya
     public function render()
     {
-        // PROTEKSI HAK AKSES: Hanya Staff yang bisa mengakses (berdasarkan relasi tabel staffs)
-        $isStaff = Staff::where('user_id', Auth::id())->exists();
+        // 🔹 PROTEKSI HAK AKSES: Tabel staffs dihapus, gunakan Spatie Role
+        /** @var \App\Models\User $user */
+        $user = Auth::user();
+        
+        // Memastikan yang akses memiliki role staff atau admin
+        $isStaff = $user && ($user->hasRole('staff') || $user->hasRole('admin'));
         abort_unless($isStaff, 403, 'Akses ditolak. Halaman khusus Staff Operasional.');
 
-        // 1. Ambil data Metrik (Sesuai Controller Lama)
-        $totalCompleted = Pengembalian::whereIn('status', ['selesai', 'selesai pengecekan'])->count();
+        // 1. Ambil data Metrik (Sesuai Controller Lama + Penyesuaian Status Baru)
+        $totalCompleted = Pengembalian::whereIn('status', ['selesai', 'selesai pengecekan', 'sudah dicek'])->count();
         $needsReview = Pengembalian::where('status', 'menunggu pengecekan')->count();
+        // 🔹 Metrik Baru: Jumlah mobil yang menunggu inspeksi awal/penyerahan
+        $needsHandover = Peminjaman::where('status', 'sudah dibayar lunas')->count();
 
         $metrics = [
             [
-                'label' => 'Perlu Cek',
+                'label' => 'Perlu Penyerahan (Awal)',
+                'value' => $needsHandover,
+                'color' => 'blue',
+                'icon_path' => '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"></path>'
+            ],
+            [
+                'label' => 'Perlu Pengecekan (Akhir)',
                 'value' => $needsReview,
                 'color' => 'yellow',
                 'icon_path' => '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>'
             ],
             [
-                'label' => 'Total Selesai',
+                'label' => 'Total Selesai / Aman',
                 'value' => $totalCompleted,
                 'color' => 'green',
                 'icon_path' => '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>'
             ]
         ];
 
-        // 2. Ambil 5 Antrean Pengecekan Terakhir
+        // 2. Ambil 5 Antrean Pengecekan Akhir (Kembali)
         $latestChecks = Pengembalian::with(['peminjaman.user', 'peminjaman.mobil'])
-            ->orderByRaw("FIELD(status, 'menunggu pengecekan') DESC") // Prioritaskan yang menunggu
+            ->orderByRaw("FIELD(status, 'menunggu pengecekan') DESC") 
             ->orderBy('tanggal_pengembalian', 'desc')
+            ->take(5)
+            ->get();
+
+        // 🔹 3. Ambil 5 Antrean Penyerahan Awal (Berangkat)
+        $pendingDepartures = Peminjaman::with(['user', 'mobil'])
+            ->where('status', 'sudah dibayar lunas')
+            ->orderBy('tanggal_sewa', 'asc')
             ->take(5)
             ->get();
 
         return view('livewire.staff.dashboard', [
             'metrics' => $metrics,
             'latestChecks' => $latestChecks,
+            'pendingDepartures' => $pendingDepartures, // 🔹 Lempar ke view
         ]);
     }
 }

@@ -7,8 +7,6 @@
  <script type="text/javascript" src="https://app.sandbox.midtrans.com/snap/snap.js"
         data-client-key="{{ config('services.midtrans.client_key') }}"></script>
     <!-- Dependencies -->
-{{-- <script type="text/javascript" src="https://app.midtrans.com/snap/snap.js"
-    data-client-key="{{ config('services.midtrans.client_key') }}"></script> --}}
     <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script src="https://code.jquery.com/ui/1.13.2/jquery-ui.min.js"></script>
@@ -27,11 +25,12 @@
                     sisaSopir: 0,
                     isCheckingDriver: false,
                     addOnSopir: 0, // 0 = tidak, 1 = ya
-                    hargaSopirPerHari: 1500, 
+                    hargaSopirPerHari: 150000, // Disesuaikan dengan controller (150.000)
                 
-                    // HARGA
+                    // HARGA & PEMBAYARAN
                     hargaMobil: {{ $mobil->harga }},
                     tipePembayaran: 'dp',
+                    metodePembayaran: 'transfer', // Default rencana pelunasan
                     dpManual: {{ $mobil->harga * 0.5 }}, // Default 50%
                     dpError: '',
                 
@@ -135,7 +134,7 @@
                         this.dpManual = Number(this.dpManual);
                         const total = this.totalHarga();
                         
-                        const minDp = 1000; // Contoh minimal 50rb
+                        const minDp = 1000; // Ubah minimal DP sesuai kebutuhan (contoh 50.000)
                         
                         if (this.dpManual < minDp) {
                              this.dpError = 'Minimal DP adalah ' + this.formatRupiah(minDp);
@@ -155,6 +154,7 @@
                     updateDP() {
                         if (this.tipePembayaran === 'lunas') {
                             this.dpError = '';
+                            this.metodePembayaran = 'transfer'; // Paksa transfer jika dibayar lunas
                         } else {
                             this.validateDP();
                         }
@@ -174,8 +174,8 @@
                     @csrf
                     <input type="hidden" name="mobil_id" value="{{ $mobil->id }}">
                     <!-- Input hidden untuk x-model agar terkirim di form submit -->
-                    <input type="hidden" name="add_on_sopir" x-model="addOnSopir"> 
-                    <input type="hidden" name="add_on_sopir" x-bind:value="addOnSopir">
+                    <input type="hidden" name="tambahan_sopir" x-model="addOnSopir"> 
+                    <input type="hidden" name="tambahan_sopir" x-bind:value="addOnSopir">
                     
                     <input type="hidden" name="tanggal_kembali_field" x-bind:value="tanggalKembali">
                     <input type="hidden" name="tipe_pembayaran" x-bind:value="tipePembayaran">
@@ -276,7 +276,7 @@
                                         <span class="block text-xs text-gray-500">Setir sendiri</span>
                                     </div>
                                 </div>
-                                <input type="radio" name="add_on_sopir_radio" value="0" x-model="addOnSopir" class="w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500">
+                                <input type="radio" name="tambahan_sopir_radio" value="0" x-model="addOnSopir" class="w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500">
                             </label>
 
                             <!-- Opsi 2: Dengan Sopir (UPDATED) -->
@@ -300,7 +300,7 @@
                                         
                                         <!-- Teks Berubah Tergantung Status -->
                                         <template x-if="sopirAvailable">
-                                            <span class="block text-xs text-blue-600 font-medium">+ {{ number_format(1500, 0, ',', '.') }} /hari</span>
+                                            <span class="block text-xs text-blue-600 font-medium">+ {{ number_format(150000, 0, ',', '.') }} /hari</span>
                                         </template>
                                         <template x-if="!sopirAvailable">
                                             <span class="block text-xs text-red-600 font-bold mt-1">HABIS / TIDAK TERSEDIA</span>
@@ -308,7 +308,7 @@
                                     </div>
                                 </div>
                                 
-                                <input type="radio" name="add_on_sopir_radio" value="1" x-model="addOnSopir" 
+                                <input type="radio" name="tambahan_sopir_radio" value="1" x-model="addOnSopir" 
                                     :disabled="!sopirAvailable"
                                     class="w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500 disabled:opacity-50">
                             </label>
@@ -350,14 +350,14 @@
                     <div x-show="tipePembayaran === 'dp'" x-cloak x-transition.opacity
                         class="mt-4 p-4 border border-yellow-200 bg-yellow-50 rounded-lg">
                         <label for="dpManual" class="block text-sm font-medium text-gray-700">Nominal DP <span
-                                class="text-xs text-gray-500">(Minimal Rp 50.000 / testing 1.000)</span></label>
+                                class="text-xs text-gray-500">(Minimal Rp 50.000)</span></label>
                         <div class="relative mt-1">
                             <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-500">Rp</span>
                             <input type="number" id="dpManual" name="dp" x-model.number="dpManual"
                                 @input="validateDP" :required="tipePembayaran === 'dp'"
                                 :disabled="tipePembayaran === 'lunas'"
                                 class="pl-10 block w-full border-gray-300 rounded-lg shadow-sm focus:ring-cyan-500 focus:border-cyan-500 disabled:opacity-50"
-                                min="1000" step="1000">
+                                min="1000" step="1000" placeholder="Masukkan nominal DP" />
                         </div>
                         <template x-if="dpError">
                             <p class="text-red-600 text-sm mt-1 flex items-center">
@@ -365,6 +365,34 @@
                                 <span x-text="dpError"></span>
                             </p>
                         </template>
+
+                        <!-- Pilihan Rencana Pelunasan (Hanya Tampil Jika Pilih DP) -->
+                        <div class="mt-5 pt-4 border-t border-yellow-200">
+                            <x-input-label value="Rencana Pelunasan Sisa Tagihan" class="text-cyan-700 font-medium mb-2" />
+                            <p class="text-xs text-gray-600 mb-3">Pilih bagaimana Anda ingin melunasi sisa pembayaran saat mengambil mobil nanti:</p>
+                            <div class="flex flex-col sm:flex-row gap-4">
+                                <label
+                                    class="flex-1 inline-flex items-start space-x-3 p-3 border rounded-lg transition duration-150 cursor-pointer"
+                                    :class="{ 'bg-white border-cyan-500 shadow-md ring-1 ring-cyan-500': metodePembayaran === 'transfer', 'bg-white border-gray-300 hover:border-cyan-400': metodePembayaran !== 'transfer' }">
+                                    <input type="radio" value="transfer" x-model="metodePembayaran"
+                                        name="metode_pembayaran" class="mt-1 text-cyan-600 focus:ring-cyan-500">
+                                    <div class="flex flex-col">
+                                        <span class="font-medium text-gray-800">Transfer / Online</span>
+                                        <span class="text-xs text-gray-500">Bayar via sistem (Midtrans)</span>
+                                    </div>
+                                </label>
+                                <label
+                                    class="flex-1 inline-flex items-start space-x-3 p-3 border rounded-lg transition duration-150 cursor-pointer"
+                                    :class="{ 'bg-white border-cyan-500 shadow-md ring-1 ring-cyan-500': metodePembayaran === 'cash', 'bg-white border-gray-300 hover:border-cyan-400': metodePembayaran !== 'cash' }">
+                                    <input type="radio" value="cash" x-model="metodePembayaran"
+                                        name="metode_pembayaran" class="mt-1 text-cyan-600 focus:ring-cyan-500">
+                                    <div class="flex flex-col">
+                                        <span class="font-medium text-gray-800">Bayar di Tempat</span>
+                                        <span class="text-xs text-gray-500">Tunai saat serah terima mobil</span>
+                                    </div>
+                                </label>
+                            </div>
+                        </div>
                     </div>
 
                     <!-- Ringkasan Pembayaran -->
@@ -386,48 +414,22 @@
                             </div>
                             <div class="border-t border-cyan-200 pt-3 mt-3">
                                 <div class="flex justify-between"><span class="font-bold"
-                                        x-text="tipePembayaran === 'lunas' ? 'BAYAR LUNAS (DP)' : 'Nominal DP yang dibayar:'"></span><span
+                                        x-text="tipePembayaran === 'lunas' ? 'BAYAR LUNAS (Sekarang)' : 'Nominal DP (Dibayar Sekarang):'"></span><span
                                         class="font-bold text-green-700" x-text="formatRupiah(dpManual)"></span></div>
                                 <template x-if="tipePembayaran === 'dp'">
                                     <div class="flex justify-between mt-1 text-sm text-gray-600"><span>Sisa
-                                            Pembayaran:</span><span class="font-semibold"
+                                            Pembayaran <span x-text="metodePembayaran === 'cash' ? '(Di Tempat)' : '(Via Transfer)'"></span>:</span><span class="font-semibold"
                                             x-text="formatRupiah(sisaBayar())"></span></div>
                                 </template>
                             </div>
                         </div>
                     </div>
 
-                    <!-- Metode Pembayaran -->
-                    <div x-data="{ open: false, selected: 'Transfer Bank', value: 'transfer' }" class="relative w-full pt-4 border-t border-gray-100">
-                        <x-input-label value="Metode Pembayaran" class="text-cyan-700 font-medium" />
-                        <button type="button" @click="open=!open"
-                            class="p-3 w-full border border-cyan-400 bg-white rounded-lg flex items-center justify-between hover:bg-cyan-50 transition duration-150 mt-1 shadow-sm focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500">
-                            <span x-text="selected" class="font-medium text-gray-800"></span>
-                            <svg class="w-4 h-4 text-cyan-600 transition-transform" :class="{ 'rotate-180': open }"
-                                fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                    d="M19 9l-7 7-7-7"></path>
-                            </svg>
-                        </button>
-                        <div x-show="open" x-cloak @click.away="open=false"
-                            class="absolute z-20 mt-1 w-full bg-white border border-cyan-200 rounded-lg shadow-xl origin-top-right">
-                            <ul class="divide-y divide-gray-100">
-                                <li @click="selected='Transfer Bank'; value='transfer'; open=false"
-                                    class="p-3 hover:bg-cyan-100 cursor-pointer rounded-t-lg">Transfer Bank (Via
-                                    Midtrans)</li>
-                                <li @click="selected='Bayar di Tempat'; value='cash'; open=false"
-                                    class="p-3 hover:bg-cyan-100 cursor-pointer rounded-b-lg">Bayar di Tempat (Hanya
-                                    untuk sisa pembayaran)</li>
-                            </ul>
-                        </div>
-                        <input type="hidden" name="metode_pembayaran" x-model="value">
-                    </div>
-
                     <!-- Tombol Submit -->
                     <div class="flex items-center justify-end mt-8 pt-4 border-t border-gray-200">
                         <x-primary-button type="button" id="pay-button"
                             class="ml-3 w-full sm:w-auto px-6 py-3 text-lg font-semibold bg-cyan-600 hover:bg-cyan-700 transition duration-200 shadow-xl hover:shadow-cyan-400/50 flex justify-center items-center gap-2">
-                            <span>Ajukan Peminjaman & Lanjutkan Pembayaran</span>
+                            <span x-text="tipePembayaran === 'lunas' ? 'Ajukan & Bayar Lunas' : 'Ajukan & Bayar DP Sekarang'"></span>
                         </x-primary-button>
                     </div>
                 </form>
@@ -761,18 +763,8 @@
                         payButton.disabled = false;
                         payButton.textContent = 'Ajukan Peminjaman & Lanjutkan Pembayaran';
 
-                        // --- LOGIKA BARU: CEK CASH VS MIDTRANS ---
-                        
-                        // 1. Jika Pembayaran Cash (Sukses Langsung)
-                        if (response.data.status === 'success') {
-                            showToast('✅ ' + response.data.message);
-                            // Redirect setelah delay sedikit agar user bisa baca toast
-                            setTimeout(function() {
-                                window.location.href = response.data.redirect_url;
-                            }, 1500);
-                        }
-                        // 2. Jika Midtrans (Snap Token)
-                        else if (response.data.snap_token) {
+                        // 1. Tangkap Snap Token untuk Midtrans
+                        if (response.data.snap_token) {
                             const peminjamanId = response.data.peminjaman_id;
 
                             // Buka Snap Midtrans
@@ -810,7 +802,7 @@
                                 }
                             });
                         } 
-                        // 3. Error dari Backend
+                        // 2. Error dari Backend (Skenario bentrok/race condition)
                         else if (response.data.error) {
                             showToast('❌ ' + response.data.error);
                         }

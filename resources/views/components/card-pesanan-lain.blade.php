@@ -1,54 +1,5 @@
 <div class="bg-white shadow-sm hover:shadow-lg transition-shadow duration-300 rounded-xl overflow-hidden border border-gray-200 flex flex-col h-full"
-     x-data="{ 
-        openModal: false, 
-        chatModalOpen: false,
-        pesanBaru: '',
-        scrollToBottom() { 
-            $nextTick(() => { 
-                const cb = document.getElementById('kotak-chat-{{ $item->id }}'); 
-                if(cb) cb.scrollTop = cb.scrollHeight; 
-            }) 
-        },
-        initChat() {
-            const setupEcho = () => {
-                if (window.Echo) {
-                    window.Echo.private('chat.{{ $item->id }}')
-                        .listen('MessageSent', (event) => {
-                            if (event.sender_id !== {{ auth()->id() }}) {
-                                const cb = document.getElementById('kotak-chat-{{ $item->id }}');
-                                const emptyMsg = cb.querySelector('.empty-message');
-                                if(emptyMsg) emptyMsg.remove();
-                                
-                                const html = `<div class=\'self-start max-w-[80%] bg-white border border-gray-100 text-gray-800 p-3 rounded-r-2xl rounded-tl-2xl rounded-bl-sm shadow-sm mt-2\'><p class=\'text-xs text-blue-600 font-bold mb-0.5\'>Sopir</p><p class=\'text-sm\'>${event.message}</p><span class=\'text-[10px] text-gray-400 flex justify-start mt-1\'>Baru saja</span></div>`;
-                                cb.insertAdjacentHTML('beforeend', html);
-                                this.scrollToBottom();
-                            }
-                        });
-                } else {
-                    setTimeout(setupEcho, 100);
-                }
-            };
-            setupEcho();
-        },
-        kirimPesan() {
-            if(this.pesanBaru.trim() === '') return;
-            let pesan = this.pesanBaru;
-            this.pesanBaru = ''; 
-            
-            const cb = document.getElementById('kotak-chat-{{ $item->id }}');
-            const emptyMsg = cb.querySelector('.empty-message');
-            if(emptyMsg) emptyMsg.remove();
-
-            const html = `<div class=\'self-end max-w-[80%] bg-green-500 text-white p-3 rounded-l-2xl rounded-tr-2xl rounded-br-sm shadow-sm mt-2\'><p class=\'text-sm\'>${pesan}</p><span class=\'text-[10px] text-green-100 flex justify-end mt-1\'>Baru saja</span></div>`;
-            cb.insertAdjacentHTML('beforeend', html);
-            this.scrollToBottom();
-
-            axios.post('{{ route('chat.kirim') }}', {
-                peminjaman_id: '{{ $item->id }}',
-                message: pesan
-            }).catch(error => console.error('Gagal mengirim pesan', error));
-        }
-    }" x-init="initChat()">
+     x-data="{ openModal: false }">
     
     <!-- Bagian Gambar & Status Badge -->
     <div class="relative h-48 bg-gray-100">
@@ -180,11 +131,13 @@
                     Cek Kondisi Mobil
                 </button>
                 <div class="grid grid-cols-2 gap-2 mt-1">
-                    <button @click="chatModalOpen = true; scrollToBottom()" class="flex justify-center items-center px-4 py-2 border border-blue-200 text-sm font-medium rounded-lg text-blue-700 bg-blue-50 hover:bg-blue-100 transition shadow-sm">
-                        <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"></path></svg>
-                        Chat Sopir
-                    </button>
-                    <a href="{{ route('mobils.show', $item->mobil_id) }}" class="flex justify-center items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-lg text-gray-700 bg-white hover:bg-gray-50 transition">
+                    @if($item->sopir_id)
+                        <a href="{{ route('pesanan.chat', $item->id) }}" class="flex justify-center items-center px-4 py-2 border border-blue-200 text-sm font-medium rounded-lg text-blue-700 bg-blue-50 hover:bg-blue-100 transition shadow-sm">
+                            <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"></path></svg>
+                            Chat Sopir
+                        </a>
+                    @endif
+                    <a href="{{ route('mobils.show', $item->mobil_id) }}" class="flex justify-center items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-lg text-gray-700 bg-white hover:bg-gray-50 transition {{ $item->sopir_id ? '' : 'col-span-2' }}">
                         Detail Mobil
                     </a>
                     @unless($isPendingCancel)
@@ -203,11 +156,13 @@
                     </button>
                     
                     <div class="grid grid-cols-2 gap-2 mt-2.5">
-                        <button @click="chatModalOpen = true; scrollToBottom()" class="flex justify-center items-center px-4 py-2 border border-blue-200 text-sm font-medium rounded-lg text-blue-700 bg-blue-50 hover:bg-blue-100 transition shadow-sm">
-                            <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"></path></svg>
-                            Chat Sopir
-                        </button>
-                        <a href="{{ route('mobils.show', $item->mobil_id) }}" class="flex justify-center items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-lg text-gray-700 bg-white hover:bg-gray-50 transition">
+                        @if($item->sopir_id)
+                            <a href="{{ route('pesanan.chat', $item->id) }}" class="flex justify-center items-center px-4 py-2 border border-blue-200 text-sm font-medium rounded-lg text-blue-700 bg-blue-50 hover:bg-blue-100 transition shadow-sm">
+                                <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"></path></svg>
+                                Chat Sopir
+                            </a>
+                        @endif
+                        <a href="{{ route('mobils.show', $item->mobil_id) }}" class="flex justify-center items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-lg text-gray-700 bg-white hover:bg-gray-50 transition {{ $item->sopir_id ? '' : 'col-span-2' }}">
                             Detail Mobil
                         </a>
                         @unless($isPendingCancel)
@@ -262,7 +217,4 @@
 
         </div>
     </div>
-    
-    {{-- Memanggil komponen partial modal yang tadi dipilih --}}
-    @include('components.chat-modal-partial', ['item' => $item])
 </div>

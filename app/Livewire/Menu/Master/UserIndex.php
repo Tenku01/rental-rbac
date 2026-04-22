@@ -7,14 +7,14 @@ use Livewire\WithPagination;
 use Livewire\WithFileUploads;
 use Livewire\Attributes\Layout;
 use App\Models\User;
-use App\Models\UserIdentification;
+// use App\Models\UserIdentification; // Dihapus karena tabel sudah tidak ada
 use Spatie\Permission\Models\Role;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rules;
-use Illuminate\Auth\Events\Registered; // Import untuk notifikasi email verifikasi
+use Illuminate\Auth\Events\Registered;
 
 class UserIndex extends Component
 {
@@ -49,12 +49,25 @@ class UserIndex extends Component
 
     protected $paginationTheme = 'tailwind';
 
+        public function mount()
+        {
+            if (Gate::denies('read-users')) {
+                return redirect()->route('unauthorized');
+            }
+        }
+
     public function updatedSearch() { $this->resetPage(); }
     public function updatedFilterRole() { $this->resetPage(); }
 
     public function updatedSelectedRole()
     {
         $this->resetValidation();
+    }
+
+    // Hook untuk validasi real-time saat user mengetik
+    public function updated($propertyName)
+    {
+        $this->validateOnly($propertyName);
     }
 
     protected function rules()
@@ -77,11 +90,11 @@ class UserIndex extends Component
             $rules['no_telepon'] = 'required|numeric';
             
             if (!$this->editingUserId) {
-                $rules['ktp_file'] = 'required|image|max:2048';
-                $rules['sim_file'] = 'required|image|max:2048';
+                $rules['ktp_file'] = 'required|image|max:5120'; // Disesuaikan ke 5MB
+                $rules['sim_file'] = 'required|image|max:5120';
             } else {
-                $rules['ktp_file'] = 'nullable|image|max:2048';
-                $rules['sim_file'] = 'nullable|image|max:2048';
+                $rules['ktp_file'] = 'nullable|image|max:5120';
+                $rules['sim_file'] = 'nullable|image|max:5120';
             }
         }
 
@@ -90,6 +103,40 @@ class UserIndex extends Component
         }
 
         return $rules;
+    }
+
+    // Menambahkan custom message dalam bahasa Indonesia yang ramah
+    protected function messages()
+    {
+        return [
+            'name.required' => 'Nama lengkap wajib diisi.',
+            'name.string' => 'Format nama tidak valid.',
+            'name.max' => 'Nama maksimal 255 karakter.',
+            'email.required' => 'Alamat email wajib diisi.',
+            'email.email' => 'Format email harus valid (contoh: budi@gmail.com).',
+            'email.unique' => 'Email ini sudah terdaftar di sistem.',
+            'selectedRole.required' => 'Peran (Role) wajib dipilih.',
+            'selectedRole.exists' => 'Peran yang dipilih tidak valid di sistem.',
+            'status.required' => 'Status keaktifan wajib dipilih.',
+            'status.in' => 'Pilihan status tidak valid.',
+            'password.required' => 'Password wajib diisi untuk pengguna baru.',
+            'password.confirmed' => 'Konfirmasi password tidak cocok.',
+            'password.min' => 'Password minimal harus 8 karakter.',
+            
+            // Pesan khusus Pelanggan
+            'alamat.required' => 'Alamat lengkap wajib diisi untuk role pelanggan.',
+            'no_telepon.required' => 'Nomor telepon wajib diisi.',
+            'no_telepon.numeric' => 'Nomor telepon hanya boleh berisi angka.',
+            'ktp_file.required' => 'Foto KTP wajib diunggah untuk pelanggan baru.',
+            'ktp_file.image' => 'File KTP harus berupa gambar.',
+            'ktp_file.max' => 'Ukuran file KTP maksimal 5MB.',
+            'sim_file.required' => 'Foto SIM wajib diunggah untuk pelanggan baru.',
+            'sim_file.image' => 'File SIM harus berupa gambar.',
+            'sim_file.max' => 'Ukuran file SIM maksimal 5MB.',
+            
+            // Pesan khusus Sopir
+            'no_sim_sopir.required' => 'Nomor SIM wajib diisi untuk role sopir.',
+        ];
     }
 
     #[Layout('layouts.admin')]
@@ -134,7 +181,8 @@ class UserIndex extends Component
     {
         abort_if(Gate::denies('update-users'), 403);
         
-        $user = User::with(['pelanggan', 'sopir'])->findOrFail($id);
+        // Relasi pelanggan dihapus karena atributnya sekarang di users
+        $user = User::with(['sopir'])->findOrFail($id);
         
         $this->editingUserId = $user->id;
         $this->name = $user->name;
@@ -142,9 +190,10 @@ class UserIndex extends Component
         $this->status = $user->status;
         $this->selectedRole = $user->getRoleNames()->first();
         
-        if ($this->selectedRole === 'pelanggan' && $user->pelanggan) {
-            $this->alamat = $user->pelanggan->alamat;
-            $this->no_telepon = $user->pelanggan->no_telepon;
+        if ($this->selectedRole === 'pelanggan') {
+            // Ambil langsung dari object user
+            $this->alamat = $user->alamat;
+            $this->no_telepon = $user->no_telepon;
         } elseif ($this->selectedRole === 'sopir' && $user->sopir) {
             $this->no_sim_sopir = $user->sopir->no_sim;
         }
@@ -174,9 +223,16 @@ class UserIndex extends Component
             'status' => $this->status,
         ];
 
+        // Jika role pelanggan, sertakan alamat & no telepon ke dalam array user update/create
+        if ($this->selectedRole === 'pelanggan') {
+            $data['alamat'] = $this->alamat;
+            $data['no_telepon'] = $this->no_telepon;
+        }
+
         if (!empty($this->password)) {
             $data['password'] = Hash::make($this->password);
         }
+
         if ($this->editingUserId) {
             $user = User::findOrFail($this->editingUserId);
             
@@ -185,15 +241,19 @@ class UserIndex extends Component
                 return;
             }
             $user->update($data);
-            $user->syncRoles([$this->selectedRole]); // Sync memastikan role lama dibuang
+            $user->syncRoles([$this->selectedRole]); 
             $user->touch(); 
             
             $message = 'Informasi pengguna berhasil diperbarui.';
         } else {
-            // --- LOGIKA CREATE ---
             if ($this->selectedRole !== 'pelanggan') {
                 $data['email_verified_at'] = now();
             }
+            // Tambahkan status verifikasi awal untuk pengguna baru ber-role pelanggan
+            if ($this->selectedRole === 'pelanggan') {
+                $data['status_verifikasi'] = 'belum_upload';
+            }
+
             $user = User::create($data);
             event(new Registered($user));
             $user->syncRoles([$this->selectedRole]); 
@@ -202,38 +262,38 @@ class UserIndex extends Component
             
             $message = 'Pengguna baru berhasil didaftarkan.';
         }
-        // --- Update Detail Profil ---
-        if ($this->selectedRole === 'pelanggan') {
-            $user->pelanggan()->update([
-                'alamat' => $this->alamat,
-                'no_telepon' => $this->no_telepon
-            ]);
 
+        // --- Update Detail Profil KTP/SIM langsung di Users ---
+        if ($this->selectedRole === 'pelanggan') {
             if ($this->ktp_file || $this->sim_file) {
-                $identity = UserIdentification::firstOrNew(['user_id' => $user->id]);
                 
                 if ($this->ktp_file) {
-                    if ($identity->ktp && Storage::disk('public')->exists($identity->ktp)) {
-                        Storage::disk('public')->delete($identity->ktp);
+                    if ($user->foto_ktp && Storage::disk('public')->exists($user->foto_ktp)) {
+                        Storage::disk('public')->delete($user->foto_ktp);
                     }
-                    $identity->ktp = $this->ktp_file->store('ktp', 'public');
+                    $user->foto_ktp = $this->ktp_file->store('ktp', 'public');
                 }
 
                 if ($this->sim_file) {
-                    if ($identity->sim && Storage::disk('public')->exists($identity->sim)) {
-                        Storage::disk('public')->delete($identity->sim);
+                    if ($user->foto_sim && Storage::disk('public')->exists($user->foto_sim)) {
+                        Storage::disk('public')->delete($user->foto_sim);
                     }
-                    $identity->sim = $this->sim_file->store('sim', 'public');
+                    $user->foto_sim = $this->sim_file->store('sim', 'public');
                 }
 
-                $identity->status_approval = 'menunggu'; 
-                $identity->save();
+                $user->status_verifikasi = 'menunggu'; 
+                $user->alasan_penolakan = null;
+                $user->save();
             }
 
         } elseif ($this->selectedRole === 'sopir') {
-            $user->sopir()->update([
-                'no_sim' => $this->no_sim_sopir
-            ]);
+            // Logika sopir dibiarkan karena tabel sopirs tidak di-drop
+            $user->sopir()->updateOrCreate(
+                ['user_id' => $user->id],
+                [
+                    'no_sim' => $this->no_sim_sopir
+                ]
+            );
         }
 
         $this->closeModal();
@@ -255,11 +315,9 @@ class UserIndex extends Component
             return;
         }
 
-        $identity = UserIdentification::where('user_id', $user->id)->first();
-        if ($identity) {
-            if ($identity->ktp) Storage::disk('public')->delete($identity->ktp);
-            if ($identity->sim) Storage::disk('public')->delete($identity->sim);
-        }
+        // Cek dan hapus foto identitas milik user sebelum datanya dihapus
+        if ($user->foto_ktp) Storage::disk('public')->delete($user->foto_ktp);
+        if ($user->foto_sim) Storage::disk('public')->delete($user->foto_sim);
 
         $user->delete();
         $this->dispatch('notify', message: 'User berhasil dihapus dari sistem.', type: 'success');

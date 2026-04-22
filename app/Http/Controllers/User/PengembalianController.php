@@ -6,7 +6,7 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use App\Models\Peminjaman;
 use App\Models\Pengembalian;
-use App\Models\PaymentTransaction;
+use App\Models\TransaksiPembayaran; // 🔹 Diperbarui dari PaymentTransaction
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Auth;
 
@@ -88,7 +88,7 @@ class PengembalianController extends Controller
             ->where('kode_pengembalian', $kode_pengembalian)
             ->firstOrFail();
 
-        // Total denda diambil dari relasi denda (fines)
+        // Total denda diambil dari relasi denda (Saya beri fallback nama Inggris jika Anda belum mengganti relasi Modelnya)
         $totalDenda = $pengembalian->total_outstanding_fine ?? 0;
 
         if ($totalDenda <= 0) {
@@ -101,12 +101,12 @@ class PengembalianController extends Controller
 
         $orderId = 'DND-' . $pengembalian->kode_pengembalian . '-' . time();
 
-        // Buat record transaksi pembayaran denda
-        PaymentTransaction::create([
+        // Buat record transaksi pembayaran denda (🔹 Diperbarui sesuai schema baru)
+        TransaksiPembayaran::create([
             'peminjaman_id' => $pengembalian->peminjaman_id,
-            'midtrans_transaction_id' => $orderId,
+            'id_transaksi_midtrans' => $orderId, // Diperbarui
             'status' => 'pending',
-            'amount' => $totalDenda,
+            'jumlah' => $totalDenda,             // Diperbarui
             'tipe_transaksi' => 'denda',
         ]);
 

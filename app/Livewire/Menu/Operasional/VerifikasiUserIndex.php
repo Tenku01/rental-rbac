@@ -6,7 +6,6 @@ use Livewire\Component;
 use Livewire\WithPagination;
 use Livewire\WithFileUploads; 
 use Livewire\Attributes\Layout;
-use App\Models\UserIdentification;
 use App\Models\User;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Storage;
@@ -21,17 +20,21 @@ class VerifikasiUserIndex extends Component
     public $filterStatus = 'menunggu'; 
     public $search = '';
 
-    // Modal State
+    // Modal State (Form)
     public $showModal = false;
     public $modalTitle = '';
     public $isEditMode = false;
     public $editingId = null;
 
+    // Modal State (Detail)
+    public $showDetailModal = false;
+    public $detailData = null;
+
     // Form Fields
     public $user_id;
     public $ktp_file;
     public $sim_file;
-    public $status_approval = 'menunggu';
+    public $status_verifikasi = 'menunggu'; // Disesuaikan dari status_approval
     
     // Preview file lama saat edit
     public $existing_ktp;
@@ -39,30 +42,87 @@ class VerifikasiUserIndex extends Component
 
     protected $paginationTheme = 'tailwind';
 
+    public function mount()
+    {
+        // Tetap menggunakan permission lama agar tidak merusak database Spatie
+        if (Gate::denies('read-user_identifications')) {
+            return redirect()->route('unauthorized');
+        }
+    }
+
     // Reset pagination saat filter berubah
     public function updatedFilterStatus() { $this->resetPage(); }
     public function updatedSearch() { $this->resetPage(); }
 
+    // Standar: Validasi dinamis
+    protected function rules()
+    {
+        $rules = [
+            'status_verifikasi' => 'required|in:menunggu,disetujui,ditolak',
+        ];
+
+        if ($this->isEditMode) {
+            $rules['user_id'] = 'required|exists:users,id';
+            $rules['ktp_file'] = 'nullable|image|max:5120'; // Diubah jadi 5MB
+            $rules['sim_file'] = 'nullable|image|max:5120';
+        } else {
+            $rules['user_id'] = 'required|exists:users,id';
+            $rules['ktp_file'] = 'required|image|max:5120';
+            $rules['sim_file'] = 'required|image|max:5120'; 
+        }
+
+        return $rules;
+    }
+
+    // Standar: Pesan error Bahasa Indonesia
+    protected function messages()
+    {
+        return [
+            'user_id.required' => 'Pelanggan wajib dipilih.',
+            'user_id.exists' => 'Pelanggan tidak valid atau tidak ditemukan.',
+            'ktp_file.required' => 'Dokumen KTP wajib diunggah.',
+            'ktp_file.image' => 'File KTP harus berupa gambar (JPG, PNG).',
+            'ktp_file.max' => 'Ukuran file KTP maksimal 5MB.',
+            'sim_file.required' => 'Dokumen SIM wajib diunggah.',
+            'sim_file.image' => 'File SIM harus berupa gambar (JPG, PNG).',
+            'sim_file.max' => 'Ukuran file SIM maksimal 5MB.',
+            'status_verifikasi.required' => 'Status verifikasi wajib ditentukan.',
+            'status_verifikasi.in' => 'Status tidak dikenali.',
+        ];
+    }
+
+    // Validasi Real-time
+    public function updated($propertyName)
+    {
+        $this->validateOnly($propertyName);
+    }
+
     #[Layout('layouts.admin')]
     public function render()
     {
-        abort_if(Gate::denies('read-verification'), 403, 'Anda tidak memiliki akses melihat data verifikasi.');
-
-        $identitas = UserIdentification::with('user')
+        // Langsung query dari model User (role pelanggan)
+        $identitas = User::role('pelanggan')
             ->when($this->search, function($q) {
-                $q->whereHas('user', function($sq) {
+                $q->where(function($sq) {
                     $sq->where('name', 'like', '%' . $this->search . '%')
                        ->orWhere('email', 'like', '%' . $this->search . '%');
                 });
             })
             ->when($this->filterStatus, function($q) {
-                return $q->where('status_approval', $this->filterStatus);
+                // Filter berdasarkan status
+                return $q->where('status_verifikasi', $this->filterStatus);
+            }, function($q) {
+                // Jika tidak ada filter status yang dipilih, sembunyikan yang 'belum_upload'
+                return $q->where('status_verifikasi', '!=', 'belum_upload');
             })
-            ->orderBy('created_at', 'desc')
+            ->orderBy('updated_at', 'desc') // Pakai updated_at karena user baru saja mengupload
             ->paginate(10);
 
-        // PERUBAHAN: Filter hanya ambil user dengan role 'pelanggan'
-        $users = User::role('pelanggan')->orderBy('name')->get();
+        // Filter user berdasarkan id pelanggan untuk opsi pilihan di form (Hanya yang belum upload)
+        $users = User::role('pelanggan')
+            ->where('status_verifikasi', 'belum_upload')
+            ->orderBy('name')
+            ->get();
 
         return view('livewire.menu.operasional.verifikasi-user-index', [
             'identitas' => $identitas,
@@ -70,40 +130,36 @@ class VerifikasiUserIndex extends Component
         ]);
     }
 
-    // ... (Sisa fungsi approve, reject, create, store, edit, update, delete tetap sama) ...
-    // Saya sertakan kembali fungsi CRUD agar file tetap lengkap dan runnable
+    // --- FITUR ACTION ---
 
     public function approve($id)
     {
-        abort_if(Gate::denies('update-verification'), 403, 'Akses ditolak.');
-
-        $doc = UserIdentification::findOrFail($id);
-        $doc->update([
-            'status_approval' => 'disetujui',
-            'verified_at' => now(),
-            'verified_by' => Auth::id()
+        abort_if(Gate::denies('update-user_identifications'), 403, 'Akses ditolak.');
+        $user = User::findOrFail($id);
+        $user->update([
+            'status_verifikasi' => 'disetujui',
+            'alasan_penolakan' => null // Kosongkan alasan jika disetujui
         ]);
-
-        session()->flash('message', 'Dokumen identitas pengguna ' . ($doc->user->name ?? 'User') . ' telah DISETUJUI.');
+        $this->dispatch('notify', message: 'Dokumen pengguna disetujui.', type: 'success');
     }
 
     public function reject($id)
     {
-        abort_if(Gate::denies('update-verification'), 403, 'Akses ditolak.');
-
-        $doc = UserIdentification::findOrFail($id);
-        $doc->update([
-            'status_approval' => 'ditolak',
-            'verified_at' => now(),
-            'verified_by' => Auth::id()
+        abort_if(Gate::denies('update-user_identifications'), 403, 'Akses ditolak.');
+        $user = User::findOrFail($id);
+        $user->update([
+            'status_verifikasi' => 'ditolak',
+            // Default pesan tolak, bisa dikembangkan di fitur selanjutnya agar admin bisa input text
+            'alasan_penolakan' => 'Dokumen buram atau tidak valid. Silakan unggah ulang identitas yang lebih jelas.'
         ]);
-
-        session()->flash('error', 'Dokumen identitas pengguna ' . ($doc->user->name ?? 'User') . ' telah DITOLAK.');
+        $this->dispatch('notify', message: 'Dokumen pengguna ditolak.', type: 'error');
     }
+
+    // --- FITUR CRUD ---
 
     public function create()
     {
-        abort_if(Gate::denies('create-verification'), 403, 'Akses ditolak.');
+        abort_if(Gate::denies('create-user_identifications'), 403, 'Akses ditolak.');
         
         $this->resetForm();
         $this->modalTitle = 'Upload Dokumen Identitas Baru';
@@ -113,31 +169,16 @@ class VerifikasiUserIndex extends Component
 
     public function store()
     {
-        abort_if(Gate::denies('create-verification'), 403);
+        abort_if(Gate::denies('create-user_identifications'), 403);
+        $this->validate(); 
 
-        $this->validate([
-            'user_id' => 'required|exists:users,id|unique:user_identifications,user_id',
-            'ktp_file' => 'required|image|max:2048',
-            'sim_file' => 'nullable|image|max:2048',
-            'status_approval' => 'required|in:menunggu,disetujui,ditolak',
+        $user = User::findOrFail($this->user_id);
+        $user->update([
+            'status_verifikasi' => $this->status_verifikasi,
+            'foto_ktp' => $this->ktp_file->store('ktp', 'public'),
+            'foto_sim' => $this->sim_file->store('sim', 'public'),
+            'alasan_penolakan' => null
         ]);
-
-        $data = [
-            'user_id' => $this->user_id,
-            'status_approval' => $this->status_approval,
-            'ktp' => $this->ktp_file->store('ktp', 'public'),
-        ];
-
-        if ($this->sim_file) {
-            $data['sim'] = $this->sim_file->store('sim', 'public');
-        }
-
-        if ($this->status_approval !== 'menunggu') {
-            $data['verified_at'] = now();
-            $data['verified_by'] = Auth::id();
-        }
-
-        UserIdentification::create($data);
 
         $this->closeModal();
         $this->dispatch('notify', message: 'Data identitas berhasil ditambahkan.', type: 'success');
@@ -145,15 +186,15 @@ class VerifikasiUserIndex extends Component
 
     public function edit($id)
     {
-        abort_if(Gate::denies('update-verification'), 403, 'Akses ditolak.');
+        abort_if(Gate::denies('update-user_identifications'), 403, 'Akses ditolak.');
 
-        $doc = UserIdentification::findOrFail($id);
+        $user = User::findOrFail($id);
         
         $this->editingId = $id;
-        $this->user_id = $doc->user_id;
-        $this->status_approval = $doc->status_approval;
-        $this->existing_ktp = $doc->ktp;
-        $this->existing_sim = $doc->sim;
+        $this->user_id = $user->id;
+        $this->status_verifikasi = $user->status_verifikasi;
+        $this->existing_ktp = $user->foto_ktp;
+        $this->existing_sim = $user->foto_sim;
 
         $this->modalTitle = 'Edit Data Dokumen';
         $this->isEditMode = true;
@@ -162,63 +203,72 @@ class VerifikasiUserIndex extends Component
 
     public function update()
     {
-        abort_if(Gate::denies('update-verification'), 403);
+        abort_if(Gate::denies('update-user_identifications'), 403);
+        $this->validate(); 
 
-        $this->validate([
-            'user_id' => 'required|exists:users,id|unique:user_identifications,user_id,' . $this->editingId,
-            'ktp_file' => 'nullable|image|max:2048',
-            'sim_file' => 'nullable|image|max:2048',
-            'status_approval' => 'required|in:menunggu,disetujui,ditolak',
-        ]);
-
-        $doc = UserIdentification::findOrFail($this->editingId);
+        $user = User::findOrFail($this->editingId);
 
         $data = [
-            'user_id' => $this->user_id,
-            'status_approval' => $this->status_approval,
+            'status_verifikasi' => $this->status_verifikasi,
+            'alasan_penolakan' => ($this->status_verifikasi === 'ditolak') ? $user->alasan_penolakan : null
         ];
 
         if ($this->ktp_file) {
-            if ($doc->ktp && Storage::disk('public')->exists($doc->ktp)) {
-                Storage::disk('public')->delete($doc->ktp);
+            if ($user->foto_ktp && Storage::disk('public')->exists($user->foto_ktp)) {
+                Storage::disk('public')->delete($user->foto_ktp);
             }
-            $data['ktp'] = $this->ktp_file->store('ktp', 'public');
+            $data['foto_ktp'] = $this->ktp_file->store('ktp', 'public');
         }
 
         if ($this->sim_file) {
-            if ($doc->sim && Storage::disk('public')->exists($doc->sim)) {
-                Storage::disk('public')->delete($doc->sim);
+            if ($user->foto_sim && Storage::disk('public')->exists($user->foto_sim)) {
+                Storage::disk('public')->delete($user->foto_sim);
             }
-            $data['sim'] = $this->sim_file->store('sim', 'public');
+            $data['foto_sim'] = $this->sim_file->store('sim', 'public');
         }
 
-        if ($this->status_approval !== 'menunggu' && $doc->status_approval === 'menunggu') {
-            $data['verified_at'] = now();
-            $data['verified_by'] = Auth::id();
-        }
-
-        $doc->update($data);
+        $user->update($data);
 
         $this->closeModal();
         $this->dispatch('notify', message: 'Data identitas berhasil diperbarui.', type: 'success');
     }
 
+    // Standar: Fungsi detail dokumen/user
+    public function showDetail($id)
+    {
+        abort_if(Gate::denies('read-user_identifications'), 403, 'Akses ditolak.');
+        $this->detailData = User::findOrFail($id);
+        $this->showDetailModal = true;
+    }
+
     public function delete($id)
     {
-        abort_if(Gate::denies('delete-verification'), 403, 'Akses ditolak.');
+        abort_if(Gate::denies('delete-user_identifications'), 403, 'Akses ditolak.');
 
-        $doc = UserIdentification::findOrFail($id);
+        $user = User::findOrFail($id);
 
-        if ($doc->ktp && Storage::disk('public')->exists($doc->ktp)) {
-            Storage::disk('public')->delete($doc->ktp);
+        if ($user->foto_ktp && Storage::disk('public')->exists($user->foto_ktp)) {
+            Storage::disk('public')->delete($user->foto_ktp);
         }
-        if ($doc->sim && Storage::disk('public')->exists($doc->sim)) {
-            Storage::disk('public')->delete($doc->sim);
+        if ($user->foto_sim && Storage::disk('public')->exists($user->foto_sim)) {
+            Storage::disk('public')->delete($user->foto_sim);
         }
 
-        $doc->delete();
+        // HANYA reset kolom identitas, BUKAN menghapus User sepenuhnya
+        $user->update([
+            'foto_ktp' => null,
+            'foto_sim' => null,
+            'status_verifikasi' => 'belum_upload',
+            'alasan_penolakan' => null
+        ]);
 
-        $this->dispatch('notify', message: 'Data identitas berhasil dihapus.', type: 'success');
+        $this->dispatch('notify', message: 'Data identitas berhasil dihapus & status di-reset.', type: 'success');
+    }
+
+    public function closeDetailModal()
+    {
+        $this->showDetailModal = false;
+        $this->detailData = null;
     }
 
     public function closeModal()
@@ -230,7 +280,7 @@ class VerifikasiUserIndex extends Component
     private function resetForm()
     {
         $this->reset([
-            'user_id', 'ktp_file', 'sim_file', 'status_approval', 
+            'user_id', 'ktp_file', 'sim_file', 'status_verifikasi', 
             'editingId', 'existing_ktp', 'existing_sim'
         ]);
         $this->resetErrorBag();

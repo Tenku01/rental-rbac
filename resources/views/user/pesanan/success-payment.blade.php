@@ -11,7 +11,8 @@
                         <div class="text-center sm:text-left">
                            <img src="{{ asset('logoakarentcar.png') }}" alt="Logo" class="h-12 mb-3 mx-auto sm:mx-0">
 <h2 class="text-4xl font-extrabold text-cyan-700 tracking-tight">INVOICE</h2>
-                            <p class="text-gray-500 font-medium mt-1">#{{ $payment->midtrans_transaction_id }}</p>
+                            <!-- 🔹 Diperbarui: midtrans_transaction_id -> id_transaksi_midtrans -->
+                            <p class="text-gray-500 font-medium mt-1">#{{ $payment->id_transaksi_midtrans }}</p>
                             <p class="text-sm text-gray-400 mt-1">{{ \Carbon\Carbon::parse($payment->created_at)->translatedFormat('d F Y, H:i') }} WIB</p>
                         </div>
                         <div class="text-center sm:text-right">
@@ -55,7 +56,8 @@
                                         <div class="flex justify-between">
                                             <span class="text-gray-500">Layanan:</span>
                                             <span class="font-semibold text-cyan-700 bg-cyan-100 px-2 py-0.5 rounded text-sm">
-                                                {{ $payment->peminjaman->add_on_sopir ? 'Dengan Sopir' : 'Lepas Kunci' }}
+                                                <!-- 🔹 Diperbarui: add_on_sopir -> tambahan_sopir -->
+                                                {{ $payment->peminjaman->tambahan_sopir ? 'Dengan Sopir' : 'Lepas Kunci' }}
                                             </span>
                                         </div>
                                     </div>
@@ -89,7 +91,7 @@
                                 
                                 @if($payment->peminjaman->sisa_bayar > 0)
                                 <div class="flex justify-between items-center px-2">
-                                    <span>Total Telah Dibayar (Termasuk trx ini)</span>
+                                    <span>Total Telah Dibayar (Termasuk transaksi ini)</span>
                                     <span class="font-semibold">Rp {{ number_format($payment->peminjaman->total_dibayarkan, 0, ',', '.') }}</span>
                                 </div>
                                 <div class="flex justify-between items-center px-2 text-red-600 bg-red-50 p-2 rounded">
@@ -100,7 +102,8 @@
 
                                 <div class="border-t-2 border-dashed border-gray-300 pt-4 mt-4 flex justify-between items-center px-2">
                                     <span class="text-xl font-bold text-gray-800">Nominal Transaksi Ini</span>
-                                    <span class="text-3xl font-extrabold text-cyan-600">Rp {{ number_format($payment->amount, 0, ',', '.') }}</span>
+                                    <!-- 🔹 Diperbarui: amount -> jumlah -->
+                                    <span class="text-3xl font-extrabold text-cyan-600">Rp {{ number_format($payment->jumlah, 0, ',', '.') }}</span>
                                 </div>
                             </div>
                         </div>
@@ -114,7 +117,7 @@
 
                 <div id="action-buttons" class="flex flex-wrap gap-4 justify-center mt-8 print:hidden">
                     <a href="{{ route('pesanan.saya') }}" class="w-full sm:w-auto text-center bg-white border-2 border-cyan-600 text-cyan-700 px-6 py-3 rounded-xl hover:bg-cyan-50 font-bold transition shadow-sm">
-                        pesanan saya
+                        Pesanan Saya
                     </a>
                     <button onclick="downloadPDF()" class="w-full sm:w-auto text-center bg-green-600 text-white px-6 py-3 rounded-xl hover:bg-green-700 font-bold shadow-lg transition flex items-center justify-center gap-2">
                         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
@@ -147,7 +150,8 @@
             // Opsi konfigurasi resolusi PDF (SUDAH DIPERBAIKI)
             const opt = {
                 margin:       [0.4, 0.3, 0.4, 0.3], // Margin: Atas, Kanan, Bawah, Kiri
-                filename:     'Invoice_AKA_Rental_{{ $payment->midtrans_transaction_id }}.pdf',
+                // 🔹 Diperbarui: midtrans_transaction_id -> id_transaksi_midtrans
+                filename:     'Invoice_AKA_Rental_{{ $payment->id_transaksi_midtrans }}.pdf',
                 image:        { type: 'jpeg', quality: 1 },
                 html2canvas:  { 
                     scale: 2, 
