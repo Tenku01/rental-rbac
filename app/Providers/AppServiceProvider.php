@@ -7,30 +7,38 @@ use App\Models\Peminjaman;
 use App\Observers\UserObserver;
 use Illuminate\Support\Facades\View;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\ServiceProvider;
+use Illuminate\Auth\Events\Login;
+use Illuminate\Auth\Events\Logout;
 
 class AppServiceProvider extends ServiceProvider
 {
-    /**
-     * Register any application services.
-     */
     public function register(): void
     {
         //
     }
 
-    /**
-     * Bootstrap any application services.
-     */
     public function boot(): void
     {
-        /*
-        Gate::before(function ($user, $ability) {
-            return $user->hasRole('admin') ? true : null;
+        // =========================================================================
+        // 1. PELACAK STATUS ONLINE/OFFLINE (VIA CACHE)
+        // =========================================================================
+        
+        // Deteksi Saat Login: Langsung buat cache aktif
+        Event::listen(Login::class, function ($event) {
+            if ($event->user) {
+                Cache::put('user-is-online-' . $event->user->id, true, now()->addMinutes(5));
+            }
         });
-        */
 
+        // Deteksi Saat Logout: Langsung hapus cache agar jadi Nonaktif seketika
+        Event::listen(Logout::class, function ($event) {
+            if ($event->user) {
+                Cache::forget('user-is-online-' . $event->user->id);
+            }
+        });
 
         // =========================================================================
         // 2. VIEW COMPOSER UNTUK SOPIR
@@ -46,9 +54,7 @@ class AppServiceProvider extends ServiceProvider
                 return;
             }
 
-            // Variabel sopir diisi dari relasi user
             $sopir = $user->sopir;
-
             $view->with([
                 'sopir' => $sopir,
                 'tugasAktif' => Peminjaman::where('sopir_id', $sopir->id)

@@ -62,7 +62,7 @@
                 <svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"></path></svg>
             </div>
             <div>
-                <h1 class="text-3xl font-extrabold text-gray-900 tracking-tight leading-none uppercase ">Manajemen Personel</h1>
+                <h1 class="text-3xl font-extrabold text-gray-900 tracking-tight leading-none uppercase ">Manajemen Pengguna</h1>
                 <p class="text-sm text-gray-500 font-medium mt-2">Daftar pengguna terdaftar dan alokasi peranan operasional.</p>
             </div>
         </div>
@@ -173,7 +173,7 @@
                                             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
                                         </button>
                                     @else
-                                        <button onclick="confirm('Hapus personel tim ini secara permanen?') || event.stopImmediatePropagation()" 
+                                        <button onclick="confirm('Hapus Pengguna tim ini secara permanen?') || event.stopImmediatePropagation()" 
                                             wire:click="delete({{ $user->id }})" class="p-2.5 text-rose-600 bg-rose-50 hover:bg-rose-600 hover:text-white rounded-xl transition-all border border-rose-100 shadow-sm" title="Hapus User">
                                             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
                                         </button>
@@ -185,7 +185,7 @@
                     @empty
                     <tr>
                         <td colspan="4" class="px-8 py-24 text-center text-gray-400 text-sm font-medium italic">
-                            Basis data personel tidak ditemukan.
+                            Basis data Pengguna tidak ditemukan.
                         </td>
                     </tr>
                     @endforelse
@@ -307,7 +307,7 @@
                                 </div>
 
                                 <div class="md:col-span-2 space-y-4">
-                                    <label class="block text-[11px] font-black text-gray-400 uppercase tracking-[0.2em] mb-2 text-center">Status Keaktifan Personel <span class="text-rose-500">*</span></label>
+                                    <label class="block text-[11px] font-black text-gray-400 uppercase tracking-[0.2em] mb-2 text-center">Status Keaktifan Pengguna <span class="text-rose-500">*</span></label>
                                     <div class="flex gap-6">
                                         <label class="flex-1 flex items-center justify-center h-16 rounded-2xl border-2 cursor-pointer transition-all shadow-sm {{ $status === 'aktif' ? 'border-emerald-500 bg-emerald-50/50 text-emerald-700 ring-4 ring-emerald-500/10' : 'border-gray-100 hover:border-emerald-200' }}">
                                             <input type="radio" wire:model.live="status" value="aktif" class="hidden">
@@ -463,7 +463,7 @@
                     <div class="bg-gray-50/80 px-10 py-8 flex flex-row-reverse gap-4 border-t border-gray-100 rounded-b-[2.5rem]">
                         <button type="submit" wire:loading.attr="disabled"
                             class="relative inline-flex justify-center items-center rounded-2xl px-12 py-4 bg-cyan-600 text-xs font-black text-white hover:bg-cyan-700 shadow-xl shadow-cyan-100 transition-all uppercase tracking-[0.2em] leading-none disabled:opacity-50 disabled:cursor-not-allowed">
-                            <span wire:loading.remove wire:target="save">Simpan Data Personel</span>
+                            <span wire:loading.remove wire:target="save">Simpan Data Pengguna</span>
                             <span wire:loading wire:target="save" class="flex items-center gap-2">
                                 <svg class="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                                     <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>

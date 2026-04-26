@@ -51,10 +51,17 @@ class Dashboard extends Component
             return;
         }
 
+        // Tentukan status kebalikannya
         $newStatus = ($this->sopir->status === 'Tersedia') ? 'Tidak Tersedia' : 'Tersedia';
+        
+        // 1. Simpan perubahan ke Database
         $this->sopir->update(['status' => $newStatus]);
         
-        $this->dispatch('notify', message: 'Status ketersediaan diperbarui.', type: 'success');
+        // 2. PERBAIKAN: Refresh data di memori Livewire agar UI langsung berubah detik itu juga!
+        $this->sopir->status = $newStatus; 
+
+        // Opsional: Kirim notifikasi sukses
+        $this->dispatch('notify', message: 'Status berhasil diubah!', type: 'success');
     }
 
     #[Layout('layouts.sopir')] // Menggunakan layout lama Anda

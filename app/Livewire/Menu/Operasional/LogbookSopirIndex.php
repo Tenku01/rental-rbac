@@ -41,12 +41,15 @@ class LogbookSopirIndex extends Component
     public function mount()
     {
         // 🔹 Permission name tetap dipertahankan karena tabel Spatie tidak di-translate
-        if (Gate::denies('read-driver_logbooks')) {
+        if (Gate::denies('read-logbook_sopir')) {
             return redirect()->route('unauthorized');
         }
     }
 
-    public function updatedSearch() { $this->resetPage(); }
+    public function updatedSearch()
+    {
+        $this->resetPage();
+    }
 
     // Hook untuk validasi real-time saat user mengetik
     public function updated($propertyName)
@@ -92,17 +95,17 @@ class LogbookSopirIndex extends Component
     public function render()
     {
         $logs = LogbookSopir::with(['peminjaman.sopir', 'peminjaman.user', 'peminjaman.mobil'])
-            ->when($this->search, function($q) {
-                $q->where('id', 'like', '%'.$this->search.'%')
-                  ->orWhereHas('peminjaman.sopir', fn($sq) => $sq->where('nama', 'like', '%'.$this->search.'%'))
-                  ->orWhereHas('peminjaman.mobil', fn($sq) => $sq->where('id', 'like', '%'.$this->search.'%'));
+            ->when($this->search, function ($q) {
+                $q->where('id', 'like', '%' . $this->search . '%')
+                    ->orWhereHas('peminjaman.sopir', fn($sq) => $sq->where('nama', 'like', '%' . $this->search . '%'))
+                    ->orWhereHas('peminjaman.mobil', fn($sq) => $sq->where('id', 'like', '%' . $this->search . '%'));
             })
             ->orderBy('waktu_log', 'desc')
-            ->paginate(10);
+            ->paginate(10)->withPath(url()->current());
 
         // Ambil peminjaman aktif yang menggunakan sopir untuk pilihan di modal
         $activeRentals = Peminjaman::with(['sopir', 'user', 'mobil'])
-            ->where('tambahan_sopir', 1) 
+            ->where('tambahan_sopir', 1)
             ->whereIn('status', ['berlangsung', 'sudah dibayar lunas'])
             ->get();
 
@@ -119,7 +122,7 @@ class LogbookSopirIndex extends Component
 
     public function create()
     {
-        abort_if(Gate::denies('create-driver_logbooks'), 403);
+        abort_if(Gate::denies('create-logbook_sopir'), 403);
         $this->resetForm();
         $this->tanggal_aktivitas = now()->toDateString();
         $this->modalTitle = 'Catat Aktivitas Sopir';
@@ -129,8 +132,8 @@ class LogbookSopirIndex extends Component
 
     public function store()
     {
-        abort_if(Gate::denies('create-driver_logbooks'), 403);
-        
+        abort_if(Gate::denies('create-logbook_sopir'), 403);
+
         $this->validate();
 
         $path = $this->foto_bukti ? $this->foto_bukti->store('logbooks', 'public') : null;
@@ -150,8 +153,8 @@ class LogbookSopirIndex extends Component
 
     public function edit($id)
     {
-        abort_if(Gate::denies('update-driver_logbooks'), 403);
-        
+        abort_if(Gate::denies('update-logbook_sopir'), 403);
+
         $log = LogbookSopir::findOrFail($id);
 
         $this->editingId = $id;
@@ -159,7 +162,7 @@ class LogbookSopirIndex extends Component
         $this->tanggal_aktivitas = $log->tanggal_aktivitas;
         $this->deskripsi_aktivitas = $log->deskripsi_aktivitas;
         $this->status_log = $log->status_log;
-        
+
         $this->modalTitle = 'Koreksi Log Aktivitas';
         $this->isEditMode = true;
         $this->showModal = true;
@@ -167,7 +170,7 @@ class LogbookSopirIndex extends Component
 
     public function update()
     {
-        abort_if(Gate::denies('update-driver_logbooks'), 403);
+        abort_if(Gate::denies('update-logbook_sopir'), 403);
 
         $log = LogbookSopir::findOrFail($this->editingId);
 
@@ -192,8 +195,8 @@ class LogbookSopirIndex extends Component
 
     public function delete($id)
     {
-        abort_if(Gate::denies('delete-driver_logbooks'), 403);
-        
+        abort_if(Gate::denies('delete-logbook_sopir'), 403);
+
         $log = LogbookSopir::findOrFail($id);
         if ($log->foto_bukti) Storage::disk('public')->delete($log->foto_bukti);
         $log->delete();

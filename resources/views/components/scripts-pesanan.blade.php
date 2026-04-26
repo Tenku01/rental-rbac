@@ -34,7 +34,19 @@
                     },
                     onClose: function(){
                         // Jika user menutup pop-up tanpa menyelesaikan pembayaran
-                        alert('Anda menutup jendela pembayaran.');
+                        // Panggil endpoint cancel untuk menghapus transaksi pending
+                        axios.post(`/pengembalian/${kodePengembalian}/cancel-midtrans`)
+                        .then(() => {
+                            // Menampilkan pesan sesuai keinginan Anda
+                            alert('anda membatalkan transaksi pembayaran denda anda, silahkan segera bayar denda anda');
+                            window.location.reload();
+                        })
+                        .catch(err => {
+                            console.error('Gagal membatalkan transaksi:', err);
+                            // Tetap tampilkan pesan meskipun route bermasalah agar feedback user tetap ada
+                            alert('anda membatalkan transaksi pembayaran denda anda, silahkan segera bayar denda anda');
+                            window.location.reload();
+                        });
                     }
                 });
             } else {
@@ -172,7 +184,6 @@
                 const alasan = document.getElementById('alasan_batal').value;
 
                 // Route: /peminjaman/{id}/cancel
-                // PERBAIKAN: Menghapus prefix /user
                 axios.post(`/peminjaman/${id}/cancel`, { alasan }) 
                     .then(res => {
                         if (res.data?.success) {

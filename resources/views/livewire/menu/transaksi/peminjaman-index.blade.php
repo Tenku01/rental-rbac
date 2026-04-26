@@ -35,7 +35,7 @@
     @endcan
 </div>
 
-{{-- 2. TABS MENU (BARU) --}}
+{{-- 2. TABS MENU --}}
 <div class="flex gap-4 mb-2 overflow-x-auto custom-scrollbar pb-2">
     <button wire:click="setTab('biasa')" class="px-6 py-4 rounded-[1.5rem] font-black uppercase tracking-widest text-xs transition-all flex items-center gap-3 whitespace-nowrap {{ $activeTab === 'biasa' ? 'bg-gray-900 text-white shadow-xl' : 'bg-white text-gray-400 hover:bg-gray-50 border border-gray-100' }}">
         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M4 6h16M4 10h16M4 14h16M4 18h16"></path></svg>
@@ -52,7 +52,8 @@
 <div class="bg-white p-2 rounded-[2rem] shadow-sm border border-gray-100 flex flex-col lg:flex-row items-center justify-between gap-4">
     <div class="flex p-1 space-x-1 bg-gray-50 rounded-3xl w-full lg:w-auto overflow-x-auto custom-scrollbar">
         @if($activeTab === 'biasa')
-            @foreach(['' => 'Semua', 'menunggu pembayaran' => 'Menunggu', 'berlangsung' => 'Jalan', 'selesai' => 'Selesai'] as $key => $label)
+            {{-- Filter "Menunggu" dihapus dan diubah jadi "Baru / DP" yang merujuk ke 'pembayaran dp' --}}
+            @foreach(['' => 'Semua', 'pembayaran dp' => 'Baru / DP', 'sudah dibayar lunas' => 'Lunas', 'berlangsung' => 'Jalan', 'selesai' => 'Selesai'] as $key => $label)
             <button wire:click="$set('filterStatus', '{{ $key }}')"
                 class="px-5 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all shadow-sm whitespace-nowrap
                 {{ $filterStatus === $key ? 'bg-white text-cyan-600 shadow-md ring-1 ring-black/5' : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100' }}">
@@ -114,7 +115,9 @@
                         </div>
                     </td>
                     <td class="px-8 py-6 text-center">
-                        <div class="font-black text-xs text-gray-800">Rp {{ number_format($item->total_harga, 0, ',', '.') }}</div>
+                        <div class="font-black text-xs text-gray-800" title="Total Harga">Rp {{ number_format($item->total_harga, 0, ',', '.') }}</div>
+                        <div class="text-[9px] text-gray-500 font-bold mt-0.5" title="Total Telah Dibayar">Dibayar: Rp {{ number_format($item->total_dibayarkan ?? 0, 0, ',', '.') }}</div>
+                        
                         @if($item->sisa_bayar <= 0)
                             <span class="text-[9px] font-black text-emerald-600 uppercase tracking-widest mt-1 block">Lunas</span>
                         @else
@@ -125,7 +128,6 @@
                         @php
                             $st = $item->status;
                             $badge = match($st) {
-                                'menunggu pembayaran' => 'bg-slate-100 text-slate-600 border-slate-200',
                                 'pembayaran dp' => 'bg-amber-100 text-amber-700 border-amber-200',
                                 'sudah dibayar lunas' => 'bg-emerald-100 text-emerald-700 border-emerald-200',
                                 'berlangsung' => 'bg-cyan-100 text-cyan-700 border-cyan-200',
@@ -139,11 +141,10 @@
                         </span>
                     </td>
                     
-                    {{-- AKSI / TOMBOL (Dilindungi RBAC) --}}
+                    {{-- AKSI / TOMBOL --}}
                     <td class="px-8 py-6 text-right">
                         <div class="flex justify-end gap-2">
                             @if($activeTab === 'pengecekan')
-                                {{-- 🔹 Diperbarui: Pilihan Tombol 'Catat Awal' vs 'Edit Catatan' --}}
                                 @if(empty($item->kondisi_mobil))
                                     <button wire:click="openCheckModal({{ $item->id }})" class="p-2.5 text-blue-600 bg-blue-50 hover:bg-blue-600 hover:text-white rounded-xl transition-all border border-blue-100 shadow-sm flex items-center gap-2 px-4" title="Catat Kondisi Awal">
                                         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"></path></svg>
@@ -156,10 +157,18 @@
                                     </button>
                                 @endif
                             @else
-                                {{-- Tombol Data Umum (HANYA UNTUK ADMIN - Yang punya hak update) --}}
+                                {{-- Tombol Data Umum (HANYA UNTUK ADMIN) --}}
                                 @can('update-peminjaman')
-                                    @if($item->sisa_bayar > 0 && $item->status != 'dibatalkan')
-                                        <button wire:click="openPaymentModal({{ $item->id }})" class="p-2.5 text-emerald-600 bg-emerald-50 hover:bg-emerald-600 hover:text-white rounded-xl transition-all border border-emerald-100 shadow-sm" title="Catat Pelunasan">
+                                    @php
+                                        // Cek apakah sudah pernah pelunasan manual
+                                        $hasManualPay = $item->TransaksiPembayaran->contains(function($t) {
+                                            return str_contains($t->id_transaksi_midtrans, 'MANUAL-PAY');
+                                        });
+                                    @endphp
+                                    
+                                    {{-- Tombol bayar HILANG jika Sisa Bayar <= 0, Dibatalkan, atau Sudah Ada Pelunasan Manual --}}
+                                    @if($item->sisa_bayar > 0 && $item->status != 'dibatalkan' && !$hasManualPay)
+                                        <button wire:click="openPaymentModal({{ $item->id }})" class="p-2.5 text-emerald-600 bg-emerald-50 hover:bg-emerald-600 hover:text-white rounded-xl transition-all border border-emerald-100 shadow-sm" title="Terima Setoran DP / Pelunasan Manual">
                                             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>
                                         </button>
                                     @endif
@@ -325,8 +334,9 @@
                 </div>
 
                 <div class="bg-gray-50/80 px-10 py-8 flex flex-row-reverse gap-4 border-t border-gray-100 rounded-b-[2.5rem]">
-                    <button type="submit" class="inline-flex justify-center rounded-2xl px-12 py-4 bg-cyan-600 text-xs font-black text-white hover:bg-cyan-700 shadow-xl shadow-cyan-100 transition-all uppercase tracking-[0.2em] leading-none">
-                        Simpan Reservasi
+                    <button type="submit" wire:loading.attr="disabled" wire:target="storeManual" class="inline-flex justify-center rounded-2xl px-12 py-4 bg-cyan-600 text-xs font-black text-white hover:bg-cyan-700 shadow-xl shadow-cyan-100 transition-all uppercase tracking-[0.2em] leading-none disabled:opacity-50">
+                        <span wire:loading.remove wire:target="storeManual">Simpan Reservasi</span>
+                        <span wire:loading wire:target="storeManual">Memproses...</span>
                     </button>
                     <button type="button" wire:click="closeModal" class="inline-flex justify-center rounded-2xl px-8 py-4 bg-white text-xs font-black text-gray-400 hover:bg-gray-100 border border-gray-200 transition-all uppercase tracking-[0.2em] leading-none">
                         Batal
@@ -381,10 +391,10 @@
                                 <div class="px-5 py-4 flex justify-between items-center hover:bg-gray-50/50 transition-colors">
                                     <div>
                                         <div class="text-[10px] font-black text-gray-700 uppercase tracking-widest">{{ str_replace('_', ' ', $pay->tipe_transaksi) }}</div>
-                                        <div class="text-[9px] text-gray-400 mt-1 uppercase">{{ $pay->created_at->format('d M Y H:i') }} | ID: {{ $pay->midtrans_transaction_id }}</div>
+                                        <div class="text-[9px] text-gray-400 mt-1 uppercase">{{ $pay->created_at->format('d M Y H:i') }} | ID: {{ $pay->id_transaksi_midtrans }}</div>
                                     </div>
                                     <div class="text-right">
-                                        <div class="text-xs font-black text-gray-800">Rp {{ number_format($pay->amount, 0, ',', '.') }}</div>
+                                        <div class="text-xs font-black text-gray-800">Rp {{ number_format($pay->jumlah, 0, ',', '.') }}</div>
                                         <span class="text-[8px] font-black uppercase text-emerald-500 bg-emerald-50 px-1.5 py-0.5 rounded">{{ $pay->status }}</span>
                                     </div>
                                 </div>
@@ -398,7 +408,7 @@
                     <div class="pt-6 border-t border-dashed border-gray-200">
                         <label class="block text-[11px] font-black text-gray-400 uppercase tracking-[0.25em] mb-4">Ubah Status Operasional</label>
                         <select wire:model="status_peminjaman_edit" class="w-full h-14 rounded-2xl border-gray-100 bg-gray-900 text-white px-5 focus:border-cyan-500 font-black text-xs uppercase tracking-widest cursor-pointer transition-all">
-                            <option value="menunggu pembayaran">Menunggu Pembayaran</option>
+                            {{-- Option "Menunggu Pembayaran" Dihapus di sini --}}
                             <option value="pembayaran dp">Pembayaran DP</option>
                             <option value="sudah dibayar lunas">Pembayaran Lunas</option>
                             <option value="berlangsung">Sedang Berjalan (Jalan)</option>
@@ -413,8 +423,9 @@
                 </div>
 
                 <div class="bg-gray-50/80 px-10 py-8 flex flex-row-reverse gap-4 border-t border-gray-100 rounded-b-[2.5rem]">
-                    <button type="submit" class="inline-flex justify-center rounded-2xl px-12 py-4 bg-cyan-600 text-xs font-black text-white hover:bg-cyan-700 shadow-xl shadow-cyan-100 transition-all uppercase tracking-[0.2em] leading-none">
-                        Update Status
+                    <button type="submit" wire:loading.attr="disabled" wire:target="updateStatus" class="inline-flex justify-center rounded-2xl px-12 py-4 bg-cyan-600 text-xs font-black text-white hover:bg-cyan-700 shadow-xl shadow-cyan-100 transition-all uppercase tracking-[0.2em] leading-none disabled:opacity-50">
+                        <span wire:loading.remove wire:target="updateStatus">Update Status</span>
+                        <span wire:loading wire:target="updateStatus">Memproses...</span>
                     </button>
                     <button type="button" wire:click="closeModal" class="inline-flex justify-center rounded-2xl px-8 py-4 bg-white text-xs font-black text-gray-400 hover:bg-gray-100 border border-gray-200 transition-all uppercase tracking-[0.2em] leading-none">
                         Tutup
@@ -447,12 +458,12 @@
 
                 <div class="p-10 space-y-8">
                     <div class="bg-rose-50 border-2 border-rose-100 p-6 rounded-[2rem] text-center shadow-inner">
-                        <p class="text-[10px] font-black text-rose-400 uppercase tracking-[0.2em] mb-2">Tunggakan Pembayaran</p>
+                        <p class="text-[10px] font-black text-rose-400 uppercase tracking-[0.2em] mb-2">Tunggakan / Sisa Bayar</p>
                         <p class="text-3xl font-black text-rose-600">Rp {{ number_format($selectedPeminjaman->sisa_bayar ?? 0, 0, ',', '.') }}</p>
                     </div>
 
                     <div class="group">
-                        <label class="block text-[11px] font-black text-gray-400 uppercase tracking-widest mb-3">Nominal Setoran</label>
+                        <label class="block text-[11px] font-black text-gray-400 uppercase tracking-widest mb-3">Nominal Setoran Tunai / Transfer</label>
                         <div class="relative">
                             <div class="absolute inset-y-0 left-0 pl-5 flex items-center pointer-events-none text-gray-400 font-black">Rp</div>
                             <input wire:model="payment_amount" type="number" class="w-full h-16 pl-12 rounded-2xl border-gray-100 bg-gray-50 px-5 focus:border-emerald-500 font-black text-2xl text-gray-800 transition-all shadow-inner">
@@ -462,13 +473,14 @@
 
                     <div class="group">
                         <label class="block text-[11px] font-black text-gray-400 uppercase tracking-widest mb-3">Catatan Pembayaran</label>
-                        <input wire:model="payment_note" type="text" class="w-full h-14 rounded-2xl border-gray-100 bg-gray-50 px-5 focus:border-emerald-500 font-bold text-gray-700 transition-all" placeholder="Contoh: Pelunasan sisa sewa secara tunai">
+                        <input wire:model="payment_note" type="text" class="w-full h-14 rounded-2xl border-gray-100 bg-gray-50 px-5 focus:border-emerald-500 font-bold text-gray-700 transition-all" placeholder="Contoh: DP tunai via kasir atau Lunas Transfer BCA">
                     </div>
                 </div>
 
                 <div class="bg-gray-50/80 px-10 py-8 flex flex-row-reverse gap-4 border-t border-gray-100 rounded-b-[2.5rem]">
-                    <button type="submit" class="inline-flex justify-center rounded-2xl px-12 py-4 bg-emerald-600 text-xs font-black text-white hover:bg-emerald-700 shadow-xl shadow-emerald-100 transition-all uppercase tracking-[0.2em] leading-none">
-                        Proses Setoran
+                    <button type="submit" wire:loading.attr="disabled" wire:target="storePayment" class="inline-flex justify-center rounded-2xl px-12 py-4 bg-emerald-600 text-xs font-black text-white hover:bg-emerald-700 shadow-xl shadow-emerald-100 transition-all uppercase tracking-[0.2em] leading-none disabled:opacity-50">
+                        <span wire:loading.remove wire:target="storePayment">Proses Setoran</span>
+                        <span wire:loading wire:target="storePayment">Memproses...</span>
                     </button>
                     <button type="button" wire:click="closeModal" class="inline-flex justify-center rounded-2xl px-8 py-4 bg-white text-xs font-black text-gray-400 hover:bg-gray-100 border border-gray-200 transition-all uppercase tracking-[0.2em] leading-none">
                         Batal
@@ -516,8 +528,9 @@
                 </div>
 
                 <div class="bg-gray-50/80 px-10 py-8 flex flex-row-reverse gap-4 border-t border-gray-100 rounded-b-[2.5rem]">
-                    <button type="submit" class="inline-flex justify-center rounded-2xl px-12 py-4 bg-amber-500 text-xs font-black text-white hover:bg-amber-600 shadow-xl shadow-amber-100 transition-all uppercase tracking-[0.2em] leading-none">
-                        Simpan Catatan Awal
+                    <button type="submit" wire:loading.attr="disabled" wire:target="storeCheck" class="inline-flex justify-center rounded-2xl px-12 py-4 bg-amber-500 text-xs font-black text-white hover:bg-amber-600 shadow-xl shadow-amber-100 transition-all uppercase tracking-[0.2em] leading-none disabled:opacity-50">
+                        <span wire:loading.remove wire:target="storeCheck">Simpan Catatan Awal</span>
+                        <span wire:loading wire:target="storeCheck">Memproses...</span>
                     </button>
                     <button type="button" wire:click="closeModal" class="inline-flex justify-center rounded-2xl px-8 py-4 bg-white text-xs font-black text-gray-400 hover:bg-gray-100 border border-gray-200 transition-all uppercase tracking-[0.2em] leading-none">
                         Batal

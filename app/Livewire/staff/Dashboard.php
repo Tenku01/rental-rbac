@@ -22,7 +22,7 @@ class Dashboard extends Component
         abort_unless($isStaff, 403, 'Akses ditolak. Halaman khusus Staff Operasional.');
 
         // 1. Ambil data Metrik (Sesuai Controller Lama + Penyesuaian Status Baru)
-        $totalCompleted = Pengembalian::whereIn('status', ['selesai', 'selesai pengecekan', 'sudah dicek'])->count();
+        $totalCompleted = Pengembalian::whereIn('status', ['selesai', 'selesai pengecekan', 'selesai pengecekan'])->count();
         $needsReview = Pengembalian::where('status', 'menunggu pengecekan')->count();
         // 🔹 Metrik Baru: Jumlah mobil yang menunggu inspeksi awal/penyerahan
         $needsHandover = Peminjaman::where('status', 'sudah dibayar lunas')->count();

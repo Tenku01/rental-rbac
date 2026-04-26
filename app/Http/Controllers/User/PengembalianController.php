@@ -10,6 +10,10 @@ use App\Models\TransaksiPembayaran; // 🔹 Diperbarui dari PaymentTransaction
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Auth;
 
+// 🔹 Import library Midtrans
+use Midtrans\Config;
+use Midtrans\Snap;
+
 class PengembalianController extends Controller
 {
     /**
@@ -80,7 +84,7 @@ class PengembalianController extends Controller
     }
 
     /**
-     * 🔹 Generate Snap Token Midtrans (SIMULASI)
+     * 🔹 Generate Snap Token Midtrans ASLI untuk Denda
      */
     public function generateSnapToken($kode_pengembalian)
     {
@@ -88,7 +92,7 @@ class PengembalianController extends Controller
             ->where('kode_pengembalian', $kode_pengembalian)
             ->firstOrFail();
 
-        // Total denda diambil dari relasi denda (Saya beri fallback nama Inggris jika Anda belum mengganti relasi Modelnya)
+        // Total denda diambil dari relasi denda
         $totalDenda = $pengembalian->total_outstanding_fine ?? 0;
 
         if ($totalDenda <= 0) {
@@ -99,14 +103,21 @@ class PengembalianController extends Controller
             return response()->json(['error' => 'Akses ditolak.'], 403);
         }
 
+        // 🔹 PEMBERSIHAN OTOMATIS: Hapus transaksi denda 'pending' sebelumnya agar tidak menumpuk di database
+        TransaksiPembayaran::where('peminjaman_id', $pengembalian->peminjaman_id)
+            ->where('tipe_transaksi', 'denda')
+            ->where('status', 'pending')
+            ->delete();
+
+        // Pastikan order_id unik setiap kali request agar Midtrans tidak menolak jika terjadi kegagalan sebelumnya
         $orderId = 'DND-' . $pengembalian->kode_pengembalian . '-' . time();
 
-        // Buat record transaksi pembayaran denda (🔹 Diperbarui sesuai schema baru)
+        // Buat record transaksi pembayaran denda yang baru
         TransaksiPembayaran::create([
             'peminjaman_id' => $pengembalian->peminjaman_id,
-            'id_transaksi_midtrans' => $orderId, // Diperbarui
+            'id_transaksi_midtrans' => $orderId,
             'status' => 'pending',
-            'jumlah' => $totalDenda,             // Diperbarui
+            'jumlah' => $totalDenda,
             'tipe_transaksi' => 'denda',
         ]);
 
@@ -115,10 +126,73 @@ class PengembalianController extends Controller
             'status' => 'menunggu_pembayaran_midtrans',
         ]);
 
-        // Token simulasi untuk pengujian frontend
-        $snapToken = 'simulasi-' . $orderId . '-token';
+        // =========================================================================
+        // 🔹 Konfigurasi Midtrans
+        // =========================================================================
+        Config::$serverKey = env('MIDTRANS_SERVER_KEY');
+        Config::$isProduction = env('MIDTRANS_IS_PRODUCTION', false);
+        Config::$isSanitized = true;
+        Config::$is3ds = true;
 
-        return response()->json(['snap_token' => $snapToken]);
+        $user = $pengembalian->peminjaman->user;
+
+        // Siapkan parameter transaksi untuk Midtrans
+        $params = [
+            'transaction_details' => [
+                'order_id' => $orderId,
+                'gross_amount' => (int) $totalDenda, // Pastikan dikonversi menjadi integer
+            ],
+            'customer_details' => [
+                'first_name' => $user->name ?? 'User',
+                'email' => $user->email ?? 'no-reply@example.com',
+                'phone' => $user->no_telp ?? $user->phone ?? '08123456789',
+            ],
+            'item_details' => [
+                [
+                    'id' => 'DENDA-' . $pengembalian->kode_pengembalian,
+                    'price' => (int) $totalDenda,
+                    'quantity' => 1,
+                    'name' => 'Pembayaran Denda Pengembalian',
+                ]
+            ],
+        ];
+
+        try {
+            // Meminta Snap Token asli ke server Midtrans
+            $snapToken = Snap::getSnapToken($params);
+            
+            return response()->json(['snap_token' => $snapToken]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'error' => 'Gagal membuat transaksi Midtrans: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * 🔹 Dijalankan saat user menutup popup Midtrans tanpa membayar (onClose)
+     * Menghapus transaksi yang batal / di-close agar tidak menjadi sampah data.
+     */
+    public function cancelMidtransPayment($kode_pengembalian)
+    {
+        $pengembalian = Pengembalian::where('kode_pengembalian', $kode_pengembalian)->first();
+        
+        if ($pengembalian) {
+            // Hapus transaksi pembayaran denda yang masih pending
+            TransaksiPembayaran::where('peminjaman_id', $pengembalian->peminjaman_id)
+                ->where('tipe_transaksi', 'denda')
+                ->where('status', 'pending')
+                ->delete();
+
+            // Kembalikan status pengembalian agar proses pembayaran bisa diulang nanti
+            $pengembalian->update([
+                'status' => 'selesai pengecekan'
+            ]);
+
+            return response()->json(['success' => true, 'message' => 'Transaksi Midtrans dibatalkan dan dihapus.']);
+        }
+        
+        return response()->json(['error' => 'Data tidak ditemukan'], 404);
     }
 
     /**

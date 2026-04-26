@@ -24,25 +24,22 @@ class MobilIndex extends Component
     public $showModal = false;
     public $search = '';
 
-    // --- Properti Khusus Modal Ubah Status (Untuk Staff) ---
     public $showStatusModal = false;
     public $status_edit = '';
 
-
- public function mount()
+    public function mount()
     {
-        if (Gate::denies('read-mobils')) {
+        if (Gate::denies('read-mobil')) {
             return redirect()->route('unauthorized');
         }
     }
+
     // --- Validasi Realtime ---
     public function updated($propertyName)
     {
         $this->validateOnly($propertyName);
     }
     
-
-
     // --- Validation Rules ---
     protected function rules()
     {
@@ -94,14 +91,14 @@ class MobilIndex extends Component
     #[Layout('layouts.admin')]
     public function render()
     {
-        abort_if(Gate::denies('read-mobils'), 403);
+        abort_if(Gate::denies('read-mobil'), 403);
 
         $mobils = Mobil::query()
             ->where('id', 'like', '%' . $this->search . '%')
             ->orWhere('merek', 'like', '%' . $this->search . '%')
             ->orWhere('tipe', 'like', '%' . $this->search . '%')
             ->orderBy('created_at', 'desc')
-            ->paginate(10);
+            ->paginate(10)->withPath(url()->current());
 
         return view('livewire.menu.master.mobil-index', [
             'mobils' => $mobils
@@ -114,14 +111,14 @@ class MobilIndex extends Component
 
     public function create()
     {
-        $this->resetInputFields();
+        $this->resetForm();
         $this->isEditMode = false;
         $this->showModal = true;
     }
 
     public function store()
     {
-        abort_if(Gate::denies('create-mobils'), 403); 
+        abort_if(Gate::denies('create-mobil'), 403); 
 
         $this->plat_nomor = strtoupper(trim($this->plat_nomor));
         $this->validate();
@@ -143,10 +140,7 @@ class MobilIndex extends Component
             'status' => $this->status,
         ]);
 
-        $this->showModal = false;
-        $this->resetInputFields();
-        
-        // Menggunakan Toast Notification
+        $this->closeModal();
         $this->dispatch('show-toast', type: 'success', message: 'Mobil baru berhasil ditambahkan.');
     }
 
@@ -171,7 +165,7 @@ class MobilIndex extends Component
 
     public function update()
     {
-        abort_if(Gate::denies('update-mobils'), 403); 
+        abort_if(Gate::denies('update-mobil'), 403); 
 
         $this->plat_nomor = strtoupper(trim($this->plat_nomor));
         $this->validate();
@@ -198,16 +192,13 @@ class MobilIndex extends Component
             'status' => $this->status,
         ]);
 
-        $this->showModal = false;
-        $this->resetInputFields();
-        
-        // Menggunakan Toast Notification
+        $this->closeModal();
         $this->dispatch('show-toast', type: 'success', message: 'Data mobil berhasil diperbarui.');
     }
 
     public function delete($id)
     {
-        abort_if(Gate::denies('delete-mobils'), 403); 
+        abort_if(Gate::denies('delete-mobil'), 403); 
 
         try {
             $mobil = Mobil::findOrFail($id);
@@ -250,23 +241,31 @@ class MobilIndex extends Component
         $mobil = Mobil::findOrFail($this->id_asli);
         $mobil->update(['status' => $this->status_edit]);
 
-        $this->showStatusModal = false;
-        $this->resetInputFields();
+        $this->closeModal();
         $this->dispatch('show-toast', type: 'success', message: "Status {$mobil->id} berhasil diubah ke " . strtoupper($this->status_edit));
     }
 
     // =========================================================
     // UTILITIES
     // =========================================================
-
-    private function resetInputFields()
+    
+    public function closeModal()
     {
-        $this->plat_nomor = '';
-        $this->tipe = ''; $this->merek = ''; $this->warna = '';
-        $this->transmisi = ''; $this->kursi = ''; $this->harga = '';
-        $this->foto = null; $this->status = 'tersedia';
-        $this->id_asli = null; $this->foto_lama = null;
-        $this->status_edit = '';
+        $this->showModal = false;
+        $this->showStatusModal = false;
+        $this->resetForm();
+    }
+
+    private function resetForm()
+    {
+        $this->reset([
+            'plat_nomor', 'tipe', 'merek', 'warna',
+            'transmisi', 'kursi', 'harga', 'foto',
+            'id_asli', 'foto_lama', 'status_edit'
+        ]);
+        
+        $this->status = 'tersedia';
+        $this->resetErrorBag();
         $this->resetValidation();
     }
 }

@@ -4,7 +4,7 @@ namespace App\Livewire\Menu\Operasional;
 
 use Livewire\Component;
 use Livewire\WithPagination;
-use Livewire\WithFileUploads; 
+use Livewire\WithFileUploads;
 use Livewire\Attributes\Layout;
 use App\Models\User;
 use Illuminate\Support\Facades\Gate;
@@ -14,10 +14,10 @@ use Illuminate\Support\Facades\Auth;
 class VerifikasiUserIndex extends Component
 {
     use WithPagination;
-    use WithFileUploads; 
+    use WithFileUploads;
 
     // State Filter & Search
-    public $filterStatus = 'menunggu'; 
+    public $filterStatus = 'menunggu';
     public $search = '';
 
     // Modal State (Form)
@@ -35,7 +35,7 @@ class VerifikasiUserIndex extends Component
     public $ktp_file;
     public $sim_file;
     public $status_verifikasi = 'menunggu'; // Disesuaikan dari status_approval
-    
+
     // Preview file lama saat edit
     public $existing_ktp;
     public $existing_sim;
@@ -45,14 +45,20 @@ class VerifikasiUserIndex extends Component
     public function mount()
     {
         // Tetap menggunakan permission lama agar tidak merusak database Spatie
-        if (Gate::denies('read-user_identifications')) {
+        if (Gate::denies('read-identitas_pengguna')) {
             return redirect()->route('unauthorized');
         }
     }
 
     // Reset pagination saat filter berubah
-    public function updatedFilterStatus() { $this->resetPage(); }
-    public function updatedSearch() { $this->resetPage(); }
+    public function updatedFilterStatus()
+    {
+        $this->resetPage();
+    }
+    public function updatedSearch()
+    {
+        $this->resetPage();
+    }
 
     // Standar: Validasi dinamis
     protected function rules()
@@ -68,7 +74,7 @@ class VerifikasiUserIndex extends Component
         } else {
             $rules['user_id'] = 'required|exists:users,id';
             $rules['ktp_file'] = 'required|image|max:5120';
-            $rules['sim_file'] = 'required|image|max:5120'; 
+            $rules['sim_file'] = 'required|image|max:5120';
         }
 
         return $rules;
@@ -102,21 +108,21 @@ class VerifikasiUserIndex extends Component
     {
         // Langsung query dari model User (role pelanggan)
         $identitas = User::role('pelanggan')
-            ->when($this->search, function($q) {
-                $q->where(function($sq) {
+            ->when($this->search, function ($q) {
+                $q->where(function ($sq) {
                     $sq->where('name', 'like', '%' . $this->search . '%')
-                       ->orWhere('email', 'like', '%' . $this->search . '%');
+                        ->orWhere('email', 'like', '%' . $this->search . '%');
                 });
             })
-            ->when($this->filterStatus, function($q) {
+            ->when($this->filterStatus, function ($q) {
                 // Filter berdasarkan status
                 return $q->where('status_verifikasi', $this->filterStatus);
-            }, function($q) {
+            }, function ($q) {
                 // Jika tidak ada filter status yang dipilih, sembunyikan yang 'belum_upload'
                 return $q->where('status_verifikasi', '!=', 'belum_upload');
             })
             ->orderBy('updated_at', 'desc') // Pakai updated_at karena user baru saja mengupload
-            ->paginate(10);
+            ->paginate(10)->withPath(url()->current());
 
         // Filter user berdasarkan id pelanggan untuk opsi pilihan di form (Hanya yang belum upload)
         $users = User::role('pelanggan')
@@ -134,7 +140,7 @@ class VerifikasiUserIndex extends Component
 
     public function approve($id)
     {
-        abort_if(Gate::denies('update-user_identifications'), 403, 'Akses ditolak.');
+        abort_if(Gate::denies('update-identitas_pengguna'), 403, 'Akses ditolak.');
         $user = User::findOrFail($id);
         $user->update([
             'status_verifikasi' => 'disetujui',
@@ -145,7 +151,7 @@ class VerifikasiUserIndex extends Component
 
     public function reject($id)
     {
-        abort_if(Gate::denies('update-user_identifications'), 403, 'Akses ditolak.');
+        abort_if(Gate::denies('update-identitas_pengguna'), 403, 'Akses ditolak.');
         $user = User::findOrFail($id);
         $user->update([
             'status_verifikasi' => 'ditolak',
@@ -159,8 +165,8 @@ class VerifikasiUserIndex extends Component
 
     public function create()
     {
-        abort_if(Gate::denies('create-user_identifications'), 403, 'Akses ditolak.');
-        
+        abort_if(Gate::denies('create-identitas_pengguna'), 403, 'Akses ditolak.');
+
         $this->resetForm();
         $this->modalTitle = 'Upload Dokumen Identitas Baru';
         $this->isEditMode = false;
@@ -169,8 +175,8 @@ class VerifikasiUserIndex extends Component
 
     public function store()
     {
-        abort_if(Gate::denies('create-user_identifications'), 403);
-        $this->validate(); 
+        abort_if(Gate::denies('create-identitas_pengguna'), 403);
+        $this->validate();
 
         $user = User::findOrFail($this->user_id);
         $user->update([
@@ -186,10 +192,10 @@ class VerifikasiUserIndex extends Component
 
     public function edit($id)
     {
-        abort_if(Gate::denies('update-user_identifications'), 403, 'Akses ditolak.');
+        abort_if(Gate::denies('update-identitas_pengguna'), 403, 'Akses ditolak.');
 
         $user = User::findOrFail($id);
-        
+
         $this->editingId = $id;
         $this->user_id = $user->id;
         $this->status_verifikasi = $user->status_verifikasi;
@@ -203,8 +209,8 @@ class VerifikasiUserIndex extends Component
 
     public function update()
     {
-        abort_if(Gate::denies('update-user_identifications'), 403);
-        $this->validate(); 
+        abort_if(Gate::denies('update-identitas_pengguna'), 403);
+        $this->validate();
 
         $user = User::findOrFail($this->editingId);
 
@@ -236,14 +242,14 @@ class VerifikasiUserIndex extends Component
     // Standar: Fungsi detail dokumen/user
     public function showDetail($id)
     {
-        abort_if(Gate::denies('read-user_identifications'), 403, 'Akses ditolak.');
+        abort_if(Gate::denies('read-identitas_pengguna'), 403, 'Akses ditolak.');
         $this->detailData = User::findOrFail($id);
         $this->showDetailModal = true;
     }
 
     public function delete($id)
     {
-        abort_if(Gate::denies('delete-user_identifications'), 403, 'Akses ditolak.');
+        abort_if(Gate::denies('delete-identitas_pengguna'), 403, 'Akses ditolak.');
 
         $user = User::findOrFail($id);
 
@@ -280,8 +286,13 @@ class VerifikasiUserIndex extends Component
     private function resetForm()
     {
         $this->reset([
-            'user_id', 'ktp_file', 'sim_file', 'status_verifikasi', 
-            'editingId', 'existing_ktp', 'existing_sim'
+            'user_id',
+            'ktp_file',
+            'sim_file',
+            'status_verifikasi',
+            'editingId',
+            'existing_ktp',
+            'existing_sim'
         ]);
         $this->resetErrorBag();
     }

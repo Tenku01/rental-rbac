@@ -8,10 +8,9 @@ use Livewire\WithFileUploads;
 use Livewire\Attributes\Layout;
 use App\Models\Pengembalian;
 use App\Models\Peminjaman;
-use App\Models\Mobil;
+use App\Models\Denda;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Auth;
 
 class PengembalianIndex extends Component
@@ -27,21 +26,72 @@ class PengembalianIndex extends Component
     public $showCreateModal = false;
     public $showDetailModal = false;
     public $isEditMode = false;
+    
+    // --- Data Properties ---
     public $selectedPengembalian = null;
+    public $selectedDenda = null; 
 
     // --- Form Fields ---
-    public $editingId = null;
+    public $editingKode = null; // 🔹 Diubah dari editingId ke editingKode
     public $peminjaman_id;
     public $tanggal_pengembalian;
     public $kondisi_mobil_kembali;
-    public $denda = 0;
     public $catatan_pengembalian;
-    public $bukti_foto; // Opsional
+    public $bukti_foto; 
 
     protected $paginationTheme = 'tailwind';
 
+    // =========================================================================
+    // VALIDASI REALTIME & RULES
+    // =========================================================================
+    
     public function updatedSearch() { $this->resetPage(); }
     public function updatedFilterStatus() { $this->resetPage(); }
+
+    public function updated($propertyName)
+    {
+        $this->validateOnly($propertyName);
+    }
+
+    protected function rules()
+    {
+        return [
+            'peminjaman_id' => 'required|exists:peminjaman,id',
+            'tanggal_pengembalian' => 'required|date|before_or_equal:today',
+            'kondisi_mobil_kembali' => [
+                'required', 
+                'string', 
+                'min:5', 
+                'max:1000',
+                'regex:/[a-zA-Z]{3,}/', 
+                'not_regex:/[@#\^{}|<>\~]/' 
+            ],
+            'catatan_pengembalian' => [
+                'nullable', 
+                'string', 
+                'max:500',
+                'regex:/[a-zA-Z]{3,}/', 
+                'not_regex:/[@#\^{}|<>\~]/'
+            ],
+        ];
+    }
+
+    protected $messages = [
+        'peminjaman_id.required' => 'Silakan pilih data transaksi peminjaman.',
+        'peminjaman_id.exists' => 'Data peminjaman tidak valid.',
+        'tanggal_pengembalian.required' => 'Tanggal pengembalian wajib diisi.',
+        'tanggal_pengembalian.before_or_equal' => 'Tanggal pengembalian tidak masuk akal (melebihi hari ini).',
+        
+        'kondisi_mobil_kembali.required' => 'Kondisi mobil wajib dijelaskan secara detail.',
+        'kondisi_mobil_kembali.min' => 'Deskripsi terlalu singkat (minimal 5 karakter).',
+        'kondisi_mobil_kembali.max' => 'Deskripsi maksimal 1000 karakter.',
+        'kondisi_mobil_kembali.regex' => 'Harus mengandung kalimat bermakna, tidak boleh hanya angka atau simbol.',
+        'kondisi_mobil_kembali.not_regex' => 'Mengandung simbol yang tidak valid (@, #, <, >, dll).',
+        
+        'catatan_pengembalian.max' => 'Catatan maksimal 500 karakter.',
+        'catatan_pengembalian.regex' => 'Harus mengandung kalimat bermakna, tidak boleh hanya angka atau simbol.',
+        'catatan_pengembalian.not_regex' => 'Mengandung simbol yang tidak valid.',
+    ];
 
     #[Layout('layouts.admin')]
     public function render()
@@ -50,22 +100,27 @@ class PengembalianIndex extends Component
 
         $query = Pengembalian::with(['peminjaman.user', 'peminjaman.mobil'])
             ->when($this->search, function($q) {
-                $q->where('id', 'like', '%'.$this->search.'%')
+                $q->where('kode_pengembalian', 'like', '%'.$this->search.'%')
                   ->orWhereHas('peminjaman.user', fn($sq) => $sq->where('name', 'like', '%'.$this->search.'%'))
-                  // 🔹 Diperbarui: plat_nomor diubah menjadi id sesuai dengan relasi tabel mobils yang baru
                   ->orWhereHas('peminjaman.mobil', fn($sq) => $sq->where('id', 'like', '%'.$this->search.'%'));
             })
-            // 🔹 Diperbarui: status_kondisi diubah menjadi status agar sinkron dengan field di database
-            ->when($this->filterStatus, fn($q) => $q->where('status', $this->filterStatus))
             ->orderBy('tanggal_pengembalian', 'desc');
 
-        // Ambil daftar peminjaman yang SEDANG BERJALAN untuk form Create
+        $pengembalianData = $query->paginate(10)->withPath(url()->current());
+
+        // LOGIKA CEK DENDA
+        $peminjamanIds = $pengembalianData->pluck('peminjaman_id')->toArray();
+        $dendaList = Denda::whereIn('peminjaman_id', $peminjamanIds)
+            ->get()
+            ->keyBy('peminjaman_id');
+
         $activeRentals = Peminjaman::with(['user', 'mobil'])
             ->where('status', 'berlangsung')
             ->get();
 
         return view('livewire.menu.transaksi.pengembalian-index', [
-            'pengembalian' => $query->paginate(10),
+            'pengembalian' => $pengembalianData,
+            'dendaList' => $dendaList, 
             'active_rentals' => $activeRentals
         ]);
     }
@@ -86,35 +141,26 @@ class PengembalianIndex extends Component
     {
         abort_if(Gate::denies('create-pengembalian'), 403);
 
-        $this->validate([
-            'peminjaman_id' => 'required|exists:peminjaman,id',
-            'tanggal_pengembalian' => 'required|date',
-            'kondisi_mobil_kembali' => 'required|string',
-            'denda' => 'required|numeric|min:0',
-            'bukti_foto' => 'nullable|image|max:2048'
-        ]);
+        $this->validate();
 
         DB::beginTransaction();
         try {
             $peminjaman = Peminjaman::findOrFail($this->peminjaman_id);
             
-            // 1. Simpan Data Pengembalian
-            $path = $this->bukti_foto ? $this->bukti_foto->store('pengembalian', 'public') : null;
+            $platNomor = str_replace(' ', '', $peminjaman->mobil_id);
+            $kodePengembalian = 'RET-' . strtoupper($platNomor) . '-' . $peminjaman->id;
 
             Pengembalian::create([
+                'kode_pengembalian' => $kodePengembalian,
                 'peminjaman_id' => $this->peminjaman_id,
                 'tanggal_pengembalian' => $this->tanggal_pengembalian,
-                'kondisi_mobil' => $this->kondisi_mobil_kembali,
-                'denda' => $this->denda,
-                'catatan' => $this->catatan_pengembalian,
-                'foto_kondisi' => $path,
+                'kondisi_mobil' => trim($this->kondisi_mobil_kembali),
+                'denda' => 0, 
+                'catatan' => trim($this->catatan_pengembalian),
                 'admin_id' => Auth::id()
             ]);
 
-            // 2. Update Status Peminjaman jadi SELESAI
             $peminjaman->update(['status' => 'selesai']);
-
-            // 3. Update Status Mobil jadi TERSEDIA (atau Dibersihkan)
             $peminjaman->mobil()->update(['status' => 'tersedia']);
 
             DB::commit();
@@ -131,22 +177,28 @@ class PengembalianIndex extends Component
     // CRUD: UPDATE & DETAIL
     // =========================================================================
 
-    public function showDetail($id)
+    // 🔹 Diperbarui: Pencarian menggunakan parameter $kode_pengembalian
+    public function showDetail($kode_pengembalian)
     {
-        $this->selectedPengembalian = Pengembalian::with(['peminjaman.user', 'peminjaman.mobil'])->findOrFail($id);
+        $this->selectedPengembalian = Pengembalian::with(['peminjaman.user', 'peminjaman.mobil'])
+            ->where('kode_pengembalian', $kode_pengembalian)
+            ->firstOrFail();
+        
+        $this->selectedDenda = Denda::where('peminjaman_id', $this->selectedPengembalian->peminjaman_id)->first();
+        
         $this->showDetailModal = true;
     }
 
-    public function edit($id)
+    // 🔹 Diperbarui: Pencarian menggunakan parameter $kode_pengembalian
+    public function edit($kode_pengembalian)
     {
         abort_if(Gate::denies('update-pengembalian'), 403);
-        $p = Pengembalian::findOrFail($id);
+        $p = Pengembalian::where('kode_pengembalian', $kode_pengembalian)->firstOrFail();
         
-        $this->editingId = $id;
+        $this->editingKode = $kode_pengembalian;
         $this->peminjaman_id = $p->peminjaman_id;
         $this->tanggal_pengembalian = $p->tanggal_pengembalian;
         $this->kondisi_mobil_kembali = $p->kondisi_mobil;
-        $this->denda = $p->denda;
         $this->catatan_pengembalian = $p->catatan;
         
         $this->isEditMode = true;
@@ -157,27 +209,28 @@ class PengembalianIndex extends Component
     {
         abort_if(Gate::denies('update-pengembalian'), 403);
 
-        $p = Pengembalian::findOrFail($this->editingId);
+        $this->validate();
+
+        $p = Pengembalian::where('kode_pengembalian', $this->editingKode)->firstOrFail();
         $p->update([
             'tanggal_pengembalian' => $this->tanggal_pengembalian,
-            'kondisi_mobil' => $this->kondisi_mobil_kembali,
-            'denda' => $this->denda,
-            'catatan' => $this->catatan_pengembalian,
+            'kondisi_mobil' => trim($this->kondisi_mobil_kembali),
+            'catatan' => trim($this->catatan_pengembalian),
         ]);
 
         $this->closeModal();
         $this->dispatch('notify', message: 'Data pengembalian diperbarui.', type: 'success');
     }
 
-    public function delete($id)
+    // 🔹 Diperbarui: Pencarian menggunakan parameter $kode_pengembalian
+    public function delete($kode_pengembalian)
     {
         abort_if(Gate::denies('delete-pengembalian'), 403);
         
         DB::beginTransaction();
         try {
-            $p = Pengembalian::findOrFail($id);
+            $p = Pengembalian::where('kode_pengembalian', $kode_pengembalian)->firstOrFail();
             
-            // Rollback status mobil & peminjaman jika data dihapus (opsional, tergantung kebijakan)
             $p->peminjaman()->update(['status' => 'berlangsung']);
             $p->peminjaman->mobil()->update(['status' => 'disewa']);
             
@@ -186,6 +239,7 @@ class PengembalianIndex extends Component
             $this->dispatch('notify', message: 'Data pengembalian dihapus, status mobil dikembalikan ke Disewa.', type: 'warning');
         } catch (\Exception $e) {
             DB::rollBack();
+            $this->dispatch('notify', message: 'Gagal menghapus data.', type: 'error');
         }
     }
 
@@ -200,7 +254,8 @@ class PengembalianIndex extends Component
     {
         $this->reset([
             'peminjaman_id', 'tanggal_pengembalian', 'kondisi_mobil_kembali', 
-            'denda', 'catatan_pengembalian', 'bukti_foto', 'editingId', 'isEditMode'
+            'catatan_pengembalian', 'bukti_foto', 'editingKode', 'isEditMode',
+            'selectedPengembalian', 'selectedDenda'
         ]);
         $this->resetErrorBag();
     }

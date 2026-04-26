@@ -6,6 +6,12 @@
         .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 20px; }
         .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #0891b2; }
+
+        @keyframes fadeInDown {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .animate-fade-in-down { animation: fadeInDown 0.3s ease-out; }
     </style>
 
     {{-- 1. HEADER --}}
@@ -34,7 +40,7 @@
             @foreach(['' => 'Semua Riwayat'] as $key => $label)
             <button wire:click="$set('filterStatus', '{{ $key }}')"
                 class="px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all shadow-sm
-                {{ $filterStatus === $key ? 'bg-white text-cyan-600 shadow-md' : 'text-gray-400' }}">
+                {{ $filterStatus === $key ? 'bg-white text-cyan-600 shadow-md' : 'text-gray-400 hover:bg-gray-100' }}">
                 {{ $label }}
             </button>
             @endforeach
@@ -46,7 +52,7 @@
             </span>
             <input wire:model.live.debounce.300ms="search" type="text" 
                 class="w-full h-12 pl-12 pr-6 rounded-2xl border-gray-100 bg-gray-50 focus:border-cyan-500 focus:ring-4 focus:ring-cyan-500/10 font-bold text-xs transition-all placeholder:text-gray-300" 
-                placeholder="Cari Pengembalian...">
+                placeholder="Cari Kode atau Plat...">
         </div>
     </div>
 
@@ -60,7 +66,7 @@
                         <th class="px-8 py-5 text-[11px] font-extrabold text-gray-400 uppercase tracking-[0.15em]">Pelanggan</th>
                         <th class="px-8 py-5 text-[11px] font-extrabold text-gray-400 uppercase tracking-[0.15em]">Unit Mobil</th>
                         <th class="px-8 py-5 text-[11px] font-extrabold text-gray-400 uppercase tracking-[0.15em]">Tanggal Kembali</th>
-                        <th class="px-8 py-5 text-[11px] font-extrabold text-gray-400 uppercase tracking-[0.15em] text-center">Denda</th>
+                        <th class="px-8 py-5 text-[11px] font-extrabold text-gray-400 uppercase tracking-[0.15em] text-center">Status Denda</th>
                         <th class="px-8 py-5 text-[11px] font-extrabold text-gray-400 uppercase tracking-[0.15em] text-right">Aksi</th>
                     </tr>
                 </thead>
@@ -68,8 +74,8 @@
                     @forelse($pengembalian as $item)
                     <tr class="hover:bg-cyan-50/20 transition-colors group">
                         <td class="px-8 py-6">
-                            <div class="font-black text-gray-900 text-sm tracking-tight">{{ $item->kode_pengembalian }}</div>
-                            <div class="text-[9px] font-bold text-gray-400 mt-1">ID DB: #{{ $item->id }}</div>
+                            <div class="font-black text-cyan-700 text-sm tracking-tight">{{ $item->kode_pengembalian }}</div>
+                            {{-- 🔹 Teks ID DB dihapus dari sini --}}
                         </td>
                         <td class="px-8 py-6">
                             <div class="font-bold text-gray-800 text-xs">{{ $item->peminjaman->user->name ?? 'N/A' }}</div>
@@ -77,27 +83,33 @@
                         </td>
                         <td class="px-8 py-6">
                             <div class="font-bold text-gray-800 text-xs">{{ $item->peminjaman->mobil->merek ?? '?' }}</div>
-                            <!-- 🔹 Diperbarui: mobil->plat_nomor diganti mobil->id -->
                             <div class="text-[10px] font-mono text-cyan-600 font-bold mt-1">{{ $item->peminjaman->mobil->id ?? 'N/A' }}</div>
                         </td>
                         <td class="px-8 py-6">
                             <div class="text-xs font-black text-gray-700">{{ \Carbon\Carbon::parse($item->tanggal_pengembalian)->format('d M Y') }}</div>
                         </td>
                         <td class="px-8 py-6 text-center">
-                            @if($item->denda > 0)
-                                <span class="px-3 py-1 bg-rose-50 text-rose-600 text-[10px] font-black rounded-lg border border-rose-100 uppercase tracking-tighter">Rp {{ number_format($item->denda) }}</span>
+                            @if($dendaList->has($item->peminjaman_id))
+                                <span class="px-3 py-1 bg-rose-50 text-rose-600 text-[10px] font-black rounded-lg border border-rose-100 uppercase tracking-tighter">
+                                    Ada Denda
+                                </span>
+                                <div class="text-[9px] text-rose-500 font-bold mt-1">Rp {{ number_format($dendaList[$item->peminjaman_id]->total_denda ?? 0, 0, ',', '.') }}</div>
                             @else
-                                <span class="text-[10px] font-black text-gray-300 uppercase tracking-widest leading-none">Nihil</span>
+                                <span class="px-3 py-1 bg-emerald-50 text-emerald-600 text-[10px] font-black rounded-lg border border-emerald-100 uppercase tracking-widest leading-none">
+                                    Aman (Clear)
+                                </span>
                             @endif
                         </td>
                         <td class="px-8 py-6 text-right">
                             <div class="flex justify-end gap-2">
-                                <button wire:click="showDetail({{ $item->id }})" class="p-2.5 text-cyan-600 bg-cyan-50 hover:bg-cyan-600 hover:text-white rounded-xl transition-all border border-cyan-100 shadow-sm" title="Detail">
+                                {{-- 🔹 Passing Parameter Menggunakan String --}}
+                                <button wire:click="showDetail('{{ $item->kode_pengembalian }}')" class="p-2.5 text-cyan-600 bg-cyan-50 hover:bg-cyan-600 hover:text-white rounded-xl transition-all border border-cyan-100 shadow-sm" title="Detail">
                                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path></svg>
                                 </button>
                                 
                                 @can('delete-pengembalian')
-                                <button wire:confirm="Hapus data pengembalian? Status mobil akan kembali jadi 'Disewa'." wire:click="delete({{ $item->id }})" class="p-2.5 text-rose-600 bg-rose-50 hover:bg-rose-600 hover:text-white rounded-xl transition-all border border-rose-100 shadow-sm">
+                                {{-- 🔹 Passing Parameter Menggunakan String --}}
+                                <button wire:confirm="Hapus data pengembalian? Status mobil akan kembali jadi 'Disewa'." wire:click="delete('{{ $item->kode_pengembalian }}')" class="p-2.5 text-rose-600 bg-rose-50 hover:bg-rose-600 hover:text-white rounded-xl transition-all border border-rose-100 shadow-sm">
                                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
                                 </button>
                                 @endcan
@@ -143,8 +155,7 @@
                         <div class="group" x-data="{
                             open: false,
                             search: '',
-                            selected: @entangle('peminjaman_id'),
-                            // 🔹 Diperbarui: mobil->plat_nomor diganti mobil->id
+                            selected: @entangle('peminjaman_id').live, 
                             rentals: {{ $active_rentals->map(fn($r) => ['id' => $r->id, 'text' => strtoupper($r->user->name).' - '.$r->mobil->id])->values()->toJson() }},
                             get filteredRentals() {
                                 if (this.search === '') return this.rentals;
@@ -157,7 +168,7 @@
                         }">
                             <label class="block text-[11px] font-black text-gray-400 uppercase tracking-widest mb-3">Pilih Booking Berjalan</label>
                             <div class="relative">
-                                <button type="button" @click="open = !open" class="w-full h-14 rounded-2xl border border-gray-100 bg-gray-50 px-5 text-left font-bold text-gray-800 text-sm flex items-center justify-between transition-all focus:border-cyan-500 focus:ring-4 focus:ring-cyan-500/10">
+                                <button type="button" @click="open = !open" class="w-full h-14 rounded-2xl border bg-gray-50 px-5 text-left font-bold text-sm flex items-center justify-between transition-all focus:outline-none @error('peminjaman_id') border-rose-500 bg-rose-50 text-rose-900 focus:ring-4 focus:ring-rose-500/10 @else border-gray-100 text-gray-800 focus:border-cyan-500 focus:ring-4 focus:ring-cyan-500/10 @enderror">
                                     <span x-text="selectedText"></span>
                                     <svg class="w-5 h-5 text-gray-400" :class="{'rotate-180': open}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
                                 </button>
@@ -182,35 +193,30 @@
                         @endif
 
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
-                            <div class="group">
+                            <div class="md:col-span-2 group">
                                 <label class="block text-[11px] font-black text-gray-400 uppercase tracking-widest mb-3">Tanggal Fisik Kembali</label>
-                                <input wire:model="tanggal_pengembalian" type="date" class="w-full h-14 rounded-2xl border-gray-100 bg-gray-50 px-5 focus:border-cyan-500 font-bold text-gray-700 transition-all">
-                            </div>
-
-                            <div class="group">
-                                <label class="block text-[11px] font-black text-gray-400 uppercase tracking-widest mb-3">Total Denda (Jika Ada)</label>
-                                <div class="relative">
-                                    <div class="absolute inset-y-0 left-0 pl-5 flex items-center pointer-events-none text-gray-400 font-black">Rp</div>
-                                    <input wire:model="denda" type="number" class="w-full h-14 pl-12 rounded-2xl border-gray-100 bg-gray-50 px-5 focus:border-rose-500 font-black text-lg text-gray-800 transition-all shadow-inner">
-                                </div>
+                                <input wire:model.live="tanggal_pengembalian" type="date" class="w-full h-14 rounded-2xl px-5 focus:outline-none transition-all font-bold @error('tanggal_pengembalian') border border-rose-500 bg-rose-50 text-rose-900 focus:border-rose-500 focus:ring-4 focus:ring-rose-500/10 @else border border-gray-100 bg-gray-50 text-gray-700 focus:border-cyan-500 focus:ring-4 focus:ring-cyan-500/10 @enderror">
+                                @error('tanggal_pengembalian') <span class="text-rose-500 text-[10px] font-black mt-2 block tracking-widest">{{ $message }}</span> @enderror
                             </div>
 
                             <div class="md:col-span-2 group">
                                 <label class="block text-[11px] font-black text-gray-400 uppercase tracking-widest mb-3">Status Kondisi Armada</label>
-                                <textarea wire:model="kondisi_mobil_kembali" class="w-full h-32 rounded-[2rem] border-gray-100 bg-gray-50 p-6 focus:border-cyan-500 font-bold text-gray-700 transition-all" placeholder="Contoh: Mobil dalam kondisi bersih, tidak ada lecet baru."></textarea>
+                                <textarea wire:model.live.debounce.500ms="kondisi_mobil_kembali" minlength="5" maxlength="1000" class="w-full h-32 rounded-[2rem] p-6 focus:outline-none transition-all font-bold custom-scrollbar @error('kondisi_mobil_kembali') border border-rose-500 bg-rose-50 text-rose-900 focus:border-rose-500 focus:ring-4 focus:ring-rose-500/10 @else border border-gray-100 bg-gray-50 text-gray-700 focus:border-cyan-500 focus:ring-4 focus:ring-cyan-500/10 @enderror" placeholder="Contoh: Mobil dalam kondisi bersih, tidak ada lecet baru."></textarea>
                                 @error('kondisi_mobil_kembali') <span class="text-rose-500 text-[10px] font-black mt-2 block tracking-widest">{{ $message }}</span> @enderror
                             </div>
 
                             <div class="md:col-span-2 group">
                                 <label class="block text-[11px] font-black text-gray-400 uppercase tracking-widest mb-3">Catatan Opsional</label>
-                                <input wire:model="catatan_pengembalian" type="text" class="w-full h-14 rounded-2xl border-gray-100 bg-gray-50 px-5 focus:border-cyan-500 font-bold text-gray-700 transition-all" placeholder="Misal: Denda keterlambatan 2 jam">
+                                <input wire:model.live.debounce.500ms="catatan_pengembalian" maxlength="500" type="text" class="w-full h-14 rounded-2xl px-5 focus:outline-none transition-all font-bold @error('catatan_pengembalian') border border-rose-500 bg-rose-50 text-rose-900 focus:border-rose-500 focus:ring-4 focus:ring-rose-500/10 @else border border-gray-100 bg-gray-50 text-gray-700 focus:border-cyan-500 focus:ring-4 focus:ring-cyan-500/10 @enderror" placeholder="Misal: Mobil kembali dengan aman tanpa kendala">
+                                @error('catatan_pengembalian') <span class="text-rose-500 text-[10px] font-black mt-2 block tracking-widest">{{ $message }}</span> @enderror
                             </div>
                         </div>
                     </div>
 
                     <div class="bg-gray-50/80 px-10 py-8 flex flex-row-reverse gap-4 border-t border-gray-100 rounded-b-[2.5rem]">
-                        <button type="submit" class="inline-flex justify-center rounded-2xl px-12 py-4 bg-cyan-600 text-xs font-black text-white hover:bg-cyan-700 shadow-xl shadow-cyan-100 transition-all uppercase tracking-[0.2em] leading-none">
-                            {{ $isEditMode ? 'Simpan Perubahan' : 'Selesaikan Transaksi' }}
+                        <button type="submit" wire:loading.attr="disabled" class="inline-flex justify-center rounded-2xl px-12 py-4 bg-cyan-600 text-xs font-black text-white hover:bg-cyan-700 shadow-xl shadow-cyan-100 transition-all uppercase tracking-[0.2em] leading-none disabled:opacity-50">
+                            <span wire:loading.remove>{{ $isEditMode ? 'Simpan Perubahan' : 'Selesaikan Transaksi' }}</span>
+                            <span wire:loading>Memproses...</span>
                         </button>
                         <button type="button" wire:click="closeModal" class="inline-flex justify-center rounded-2xl px-8 py-4 bg-white text-xs font-black text-gray-400 hover:bg-gray-100 border border-gray-200 transition-all uppercase tracking-[0.2em] leading-none">
                             Batal
@@ -223,7 +229,7 @@
     @endif
 
     {{-- 5. MODAL DETAIL --}}
-    @if($showDetailModal)
+    @if($showDetailModal && $selectedPengembalian)
     <div class="fixed inset-0 z-50 overflow-y-auto" role="dialog" aria-modal="true">
         <div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
             <div class="fixed inset-0 bg-gray-900/40 backdrop-blur-md transition-opacity" wire:click="closeModal"></div>
@@ -232,8 +238,8 @@
             <div class="inline-block align-bottom bg-white rounded-[2.5rem] text-left overflow-hidden shadow-2xl transform transition-all sm:my-8 sm:align-middle sm:max-w-xl w-full border border-gray-100">
                 <div class="px-10 py-6 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
                     <div>
-                        <h3 class="text-xl font-black text-gray-900 uppercase tracking-tight">Resume Pengembalian: {{ $selectedPengembalian->kode_pengembalian }}</h3>
-                        <p class="text-[10px] text-cyan-600 font-bold uppercase tracking-[0.25em] mt-1">Audit Kelayakan & Kondisi Akhir Armada</p>
+                        <h3 class="text-xl font-black text-gray-900 uppercase tracking-tight">Resume Pengembalian</h3>
+                        <p class="text-[10px] text-cyan-600 font-bold uppercase tracking-[0.25em] mt-1">{{ $selectedPengembalian->kode_pengembalian }}</p>
                     </div>
                     <button wire:click="closeModal" class="h-10 w-10 flex items-center justify-center text-gray-400 hover:bg-rose-50 hover:text-rose-500 rounded-2xl transition-all">
                         <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"></path></svg>
@@ -249,7 +255,6 @@
                         <div class="bg-gray-50 p-5 rounded-2xl border border-gray-100">
                             <p class="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1">Armada</p>
                             <p class="font-black text-gray-800 text-sm uppercase">{{ $selectedPengembalian->peminjaman->mobil->merek }}</p>
-                            <!-- 🔹 Diperbarui: mobil->plat_nomor diganti mobil->id -->
                             <p class="text-[10px] font-mono text-cyan-600 font-bold mt-1">{{ $selectedPengembalian->peminjaman->mobil->id }}</p>
                         </div>
                     </div>
@@ -261,16 +266,20 @@
                         </div>
                     </div>
 
-                    @if($selectedPengembalian->denda > 0)
-                    <div class="p-6 bg-rose-50 rounded-[2rem] border border-rose-100 flex justify-between items-center">
-                        <p class="text-xs font-black text-rose-500 uppercase tracking-widest">Denda Ditetapkan</p>
-                        <p class="text-lg font-black text-rose-600">Rp {{ number_format($selectedPengembalian->denda) }}</p>
+                    {{-- Menampilkan informasi dari tabel Denda jika data tersebut exist --}}
+                    @if($selectedDenda)
+                    <div class="p-6 bg-rose-50 rounded-[2rem] border border-rose-100 flex justify-between items-center shadow-inner mt-4">
+                        <div>
+                            <p class="text-xs font-black text-rose-500 uppercase tracking-widest">Denda Ditetapkan</p>
+                            <p class="text-[10px] font-black text-rose-400 mt-1.5 uppercase bg-white px-2 py-0.5 rounded border border-rose-100 inline-block">{{ str_replace('_', ' ', $selectedDenda->status) }}</p>
+                        </div>
+                        <p class="text-xl font-black text-rose-600">Rp {{ number_format($selectedDenda->total_denda ?? 0, 0, ',', '.') }}</p>
                     </div>
                     @endif
                 </div>
 
                 <div class="bg-gray-50/80 px-10 py-8 text-right border-t border-gray-100">
-                    <button wire:click="closeModal" class="px-10 py-4 bg-gray-900 text-white text-[10px] font-black uppercase tracking-widest rounded-2xl hover:bg-gray-800 transition-all">Tutup Resume</button>
+                    <button wire:click="closeModal" class="px-10 py-4 bg-cyan-600 text-white text-[10px] font-black uppercase tracking-widest rounded-2xl hover:bg-cyan-700 transition-all shadow-xl">Tutup Resume</button>
                 </div>
             </div>
         </div>

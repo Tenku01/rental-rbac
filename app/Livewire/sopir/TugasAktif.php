@@ -8,8 +8,9 @@ use Livewire\Attributes\Layout;
 use App\Models\Peminjaman;
 use App\Models\LogbookSopir; // 🔹 Diperbarui dari DriverLogbook
 use App\Models\Sopir;
+use App\Models\Pengembalian; // 🔹 Ditambahkan agar otomatis masuk antrean cek
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Gate; 
+use Illuminate\Support\Facades\Gate;
 use Carbon\Carbon;
 
 class TugasAktif extends Component
@@ -18,7 +19,7 @@ class TugasAktif extends Component
 
     // State Navigasi UX
     public $viewMode = 'index'; // 'index' atau 'form'
-    
+
     // State Data
     public $sopir;
     public $selectedTask;
@@ -38,7 +39,7 @@ class TugasAktif extends Component
     public function render()
     {
         // RBAC: Read Permission
-        abort_if(Gate::denies('read-driver_logbooks'), 403, 'Akses ditolak.');
+        abort_if(Gate::denies('read-logbook_sopir'), 403, 'Akses ditolak.');
 
         $tasks = collect();
         $stats = [
@@ -49,15 +50,15 @@ class TugasAktif extends Component
 
         if ($this->sopir && $this->viewMode === 'index') {
             // 🔹 Diperbarui: Hapus relasi 'user.pelanggan' menjadi 'user' karena tabel pelanggans sudah di-drop
-            $tasks = Peminjaman::with(['mobil', 'user', 'logbooks' => function($q) {
+            $tasks = Peminjaman::with(['mobil', 'user', 'logbooks' => function ($q) {
                 // PERBAIKAN: Gunakan waktu_log, bukan created_at
                 $q->whereDate('waktu_log', Carbon::today());
             }])
-            ->where('sopir_id', $this->sopir->id)
-            ->whereIn('status', ['disetujui', 'pembayaran dp', 'sudah dibayar lunas', 'berlangsung'])
-            // created_at di bawah ini milik tabel Peminjaman (jadi tidak apa-apa)
-            ->orderBy('created_at', 'desc') 
-            ->get();
+                ->where('sopir_id', $this->sopir->id)
+                ->whereIn('status', ['disetujui', 'pembayaran dp', 'sudah dibayar lunas', 'berlangsung'])
+                // created_at di bawah ini milik tabel Peminjaman (jadi tidak apa-apa)
+                ->orderBy('created_at', 'desc')
+                ->get();
 
             $stats['total'] = $tasks->count();
             $stats['sudah_hari_ini'] = $tasks->filter(fn($task) => $task->logbooks->count() > 0)->count();
@@ -73,12 +74,12 @@ class TugasAktif extends Component
     public function openLogbookForm($peminjamanId)
     {
         // RBAC: Read Permission
-        abort_if(Gate::denies('read-driver_logbooks'), 403, 'Akses ditolak.');
+        abort_if(Gate::denies('read-logbook_sopir'), 403, 'Akses ditolak.');
 
         // 🔹 Diperbarui: Hapus relasi 'user.pelanggan' menjadi 'user'
         $this->selectedTask = Peminjaman::with(['mobil', 'user'])->findOrFail($peminjamanId);
         $this->loadLogHistory();
-        
+
         $this->resetForm();
         $this->viewMode = 'form';
     }
@@ -104,12 +105,12 @@ class TugasAktif extends Component
     public function saveLog()
     {
         // RBAC: Create/Update Permission
-        abort_if(Gate::denies('create-driver_logbooks'), 403, 'Akses ditolak.');
+        abort_if(Gate::denies('create-logbook_sopir'), 403, 'Akses ditolak.');
 
         $this->validate([
             'status_log' => 'required|string',
             'deskripsi_aktivitas' => 'required|string|min:10|max:500',
-            'foto_bukti' => 'nullable|image|max:2048', 
+            'foto_bukti' => 'nullable|image|max:2048',
         ]);
 
         $path = null;
@@ -124,23 +125,46 @@ class TugasAktif extends Component
             'deskripsi_aktivitas' => $this->deskripsi_aktivitas,
             'foto_bukti' => $path,
             'tanggal_aktivitas' => Carbon::today(), // Sesuaikan agar tanggal terisi
-            'waktu_log' => now(), 
+            'waktu_log' => now(),
         ]);
 
-        if ($this->status_log === 'selesai_peminjaman') {
+        // 🔹 PERBAIKAN: Menangani "Selesai Tugas" & Integrasi ke modul Pengembalian
+        if (in_array($this->status_log, ['selesai_peminjaman', 'selesai tugas'])) {
+
+            // 1. Ubah status peminjaman jadi selesai
             $this->selectedTask->update(['status' => 'selesai']);
-            
+
+            // 2. Bebaskan sopir agar bisa ambil tugas lain
             if ($this->sopir) {
                 $this->sopir->update(['status' => 'tersedia']);
             }
 
-            $this->dispatch('notify', message: 'Tugas diselesaikan! Status Anda kembali Tersedia.', type: 'success');
-            $this->backToIndex(); 
+            // 3. Ubah status mobil menjadi dibersihkan
+            if ($this->selectedTask->mobil) {
+                $this->selectedTask->mobil->update(['status' => 'dibersihkan']);
+            }
+
+            // 4. OTOMATIS BUAT DATA PENGEMBALIAN agar Staff bisa mengecek kondisi mobil
+            $existingPengembalian = Pengembalian::where('peminjaman_id', $this->selectedTask->id)->first();
+            if (!$existingPengembalian) {
+                $platNomor = str_replace(' ', '', $this->selectedTask->mobil_id);
+                $kodePengembalian = 'RET-' . strtoupper($platNomor) . '-' . $this->selectedTask->id;
+
+                Pengembalian::create([
+                    'kode_pengembalian'   => $kodePengembalian,
+                    'peminjaman_id'       => $this->selectedTask->id,
+                    'tanggal_pengembalian' => Carbon::now(),
+                    'status'              => 'menunggu pengecekan',
+                ]);
+            }
+
+            $this->dispatch('notify', message: 'Tugas diselesaikan! Mobil masuk ke antrean pengecekan Staff.', type: 'success');
+            $this->backToIndex();
             return;
         }
 
         $this->dispatch('notify', message: 'Logbook berhasil dicatat!', type: 'success');
-        $this->loadLogHistory(); 
+        $this->loadLogHistory();
         $this->resetForm();
     }
 

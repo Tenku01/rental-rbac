@@ -68,7 +68,7 @@ class PembatalanPesananIndex extends Component
             })
             ->when($this->filterStatus, fn($q) => $q->where('status_pengembalian_dana', $this->filterStatus))
             ->orderBy('created_at', 'desc')
-            ->paginate(10);
+            ->paginate(10)->withPath(url()->current());
 
         $cancellableTransactions = Peminjaman::with(['user', 'mobil'])
             ->whereNotIn('status', ['dibatalkan', 'ditolak', 'selesai'])

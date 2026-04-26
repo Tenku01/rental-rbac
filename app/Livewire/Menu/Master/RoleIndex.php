@@ -7,6 +7,7 @@ use Livewire\WithPagination;
 use Livewire\Attributes\Layout;
 use Spatie\Permission\Models\Role;
 use Spatie\Permission\Models\Permission;
+use App\Models\User; 
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\Rule;
 
@@ -15,8 +16,13 @@ class RoleIndex extends Component
     use WithPagination;
 
     // State untuk Form & Modal
+    public $targetType = 'role'; // 'role' atau 'user'
     public $roleId;
     public $role_name;
+    
+    public $userId;
+    public $user_name;
+
     public $selectedPermissions = []; 
     public $showModal = false;
     public $isEditMode = false;
@@ -25,7 +31,7 @@ class RoleIndex extends Component
 
     protected $paginationTheme = 'tailwind';
 
- public function mount()
+    public function mount()
     {
         if (Gate::denies('read-roles')) {
             return redirect()->route('unauthorized');
@@ -38,10 +44,15 @@ class RoleIndex extends Component
         $this->validateOnly($propertyName);
     }
 
-    
-
     protected function rules()
     {
+        // Pisahkan rule berdasarkan target yang sedang diedit
+        if ($this->targetType === 'user') {
+            return [
+                'selectedPermissions' => 'array' // User boleh tidak punya izin spesifik (kosong)
+            ];
+        }
+
         return [
             'role_name' => [
                 'required',
@@ -74,6 +85,14 @@ class RoleIndex extends Component
             ->orderBy('id', 'asc')
             ->get();
 
+        // 🔹 PERBAIKAN: Mengecualikan pengguna yang memiliki role 'pelanggan'
+        $users = User::whereDoesntHave('roles', function ($query) {
+                $query->where('name', 'pelanggan');
+            })
+            ->with(['roles', 'permissions'])
+            ->orderBy('name', 'asc')
+            ->get();
+
         $permissions = Permission::where('name', 'like', '%' . $this->searchPermission . '%')
             ->orderBy('name', 'asc')
             ->get();
@@ -85,6 +104,7 @@ class RoleIndex extends Component
 
         return view('livewire.menu.master.role-index', [
             'roles' => $roles,
+            'users' => $users,
             'groupedPermissions' => $groupedPermissions
         ]);
     }
@@ -93,6 +113,7 @@ class RoleIndex extends Component
     {
         abort_if(Gate::denies('create-roles'), 403);
         $this->resetForm();
+        $this->targetType = 'role';
         $this->isEditMode = false;
         $this->modalTitle = 'Tambah Peranan Baru';
         $this->showModal = true;
@@ -123,12 +144,37 @@ class RoleIndex extends Component
         }
         
         $this->resetForm();
+        $this->targetType = 'role';
         $this->roleId = $role->id;
         $this->role_name = $role->name;
         $this->selectedPermissions = $role->permissions->pluck('name')->toArray();
         
         $this->isEditMode = true;
-        $this->modalTitle = 'Konfigurasi Otoritas';
+        $this->modalTitle = 'Konfigurasi Otoritas Role';
+        $this->showModal = true;
+    }
+
+    public function editUserPermissions($id)
+    {
+        abort_if(Gate::denies('update-roles'), 403);
+        
+        $user = User::find($id);
+
+        if (!$user) {
+            $this->dispatch('show-toast', message: 'Data User tidak ditemukan.', type: 'error');
+            return;
+        }
+        
+        $this->resetForm();
+        $this->targetType = 'user';
+        $this->userId = $user->id;
+        $this->user_name = $user->name;
+        
+        // Ambil hanya Izin Langsung (Direct Permissions), bukan yang dari Role
+        $this->selectedPermissions = $user->getDirectPermissions()->pluck('name')->toArray();
+        
+        $this->isEditMode = true;
+        $this->modalTitle = 'Konfigurasi Izin Spesifik User';
         $this->showModal = true;
     }
 
@@ -137,18 +183,27 @@ class RoleIndex extends Component
         abort_if(Gate::denies('update-roles'), 403);
         $this->validate();
 
-        $role = Role::find($this->roleId);
+        if ($this->targetType === 'role') {
+            $role = Role::find($this->roleId);
 
-        if ($role->id === 1 && $this->role_name !== 'admin') {
-            $this->dispatch('show-toast', message: 'Nama Role Admin Utama tidak boleh diubah!', type: 'error');
-            return;
+            if ($role->id === 1 && $this->role_name !== 'admin') {
+                $this->dispatch('show-toast', message: 'Nama Role Admin Utama tidak boleh diubah!', type: 'error');
+                return;
+            }
+
+            $role->update(['name' => strtolower(trim($this->role_name))]);
+            $role->syncPermissions($this->selectedPermissions);
+            $pesan = 'Otoritas peranan berhasil diperbarui.';
+
+        } else if ($this->targetType === 'user') {
+            $user = User::find($this->userId);
+            // syncPermissions pada User akan menimpa Direct Permissions yang ada
+            $user->syncPermissions($this->selectedPermissions);
+            $pesan = 'Izin spesifik user berhasil diperbarui.';
         }
 
-        $role->update(['name' => strtolower(trim($this->role_name))]);
-        $role->syncPermissions($this->selectedPermissions);
-
         $this->showModal = false;
-        $this->dispatch('show-toast', message: 'Otoritas peranan berhasil diperbarui.', type: 'success');
+        $this->dispatch('show-toast', message: $pesan, type: 'success');
         $this->forgetCache();
     }
 
@@ -187,7 +242,7 @@ class RoleIndex extends Component
 
     private function resetForm()
     {
-        $this->reset(['roleId', 'role_name', 'selectedPermissions', 'searchPermission', 'isEditMode', 'modalTitle']);
+        $this->reset(['roleId', 'role_name', 'userId', 'user_name', 'selectedPermissions', 'searchPermission', 'isEditMode', 'modalTitle', 'targetType']);
         $this->resetErrorBag();
     }
 }

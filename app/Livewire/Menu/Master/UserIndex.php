@@ -155,7 +155,7 @@ class UserIndex extends Component
                 $q->role($this->filterRole);
             })
             ->orderBy('created_at', 'desc')
-            ->paginate(10);
+            ->paginate(10)->withPath(route('users'));
 
         $roles = Role::orderBy('name', 'asc')->get();
 

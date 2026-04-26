@@ -7,7 +7,9 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 use App\Models\Peminjaman;
-use App\Models\TransaksiPembayaran; // Diperbarui dari PaymentTransaction
+use App\Models\Pengembalian; 
+use App\Models\Denda; // 🔹 Ditambahkan untuk mengupdate langsung tabel denda
+use App\Models\TransaksiPembayaran; 
 use Midtrans\Config;
 use Midtrans\Snap;
 use App\Mail\PaymentSuccessMail;
@@ -43,7 +45,7 @@ class MidtransController extends Controller
                 'email' => Auth::user()->email,
             ],
             'enabled_payments' => [
-                'qris',            // <-- QRIS DITAMBAHKAN DI SINI
+                'qris',            
                 'bank_transfer',
                 'credit_card',
             ],
@@ -60,11 +62,11 @@ class MidtransController extends Controller
 
             TransaksiPembayaran::create([
                 'peminjaman_id' => $peminjaman->id,
-                'id_transaksi_midtrans' => $orderId, // Diperbarui
+                'id_transaksi_midtrans' => $orderId, 
                 'status' => 'pending',
-                'jumlah' => $grossAmount,            // Diperbarui
+                'jumlah' => $grossAmount,            
                 'tipe_transaksi' => $isDP ? 'dp' : 'lunas',
-                'respon_midtrans' => json_encode($midtransParams), // Diperbarui
+                'respon_midtrans' => json_encode($midtransParams), 
             ]);
 
             return response()->json(['snap_token' => $snapToken]);
@@ -101,11 +103,11 @@ class MidtransController extends Controller
 
             TransaksiPembayaran::create([
                 'peminjaman_id' => $peminjaman->id,
-                'id_transaksi_midtrans' => $orderId, // Diperbarui
+                'id_transaksi_midtrans' => $orderId, 
                 'status' => 'pending',
-                'jumlah' => $grossAmount,            // Diperbarui
-                'tipe_transaksi' => 'sisa', // 🔹 tandai sebagai pelunasan
-                'respon_midtrans' => json_encode($midtransParams), // Diperbarui
+                'jumlah' => $grossAmount,            
+                'tipe_transaksi' => 'sisa', 
+                'respon_midtrans' => json_encode($midtransParams), 
             ]);
 
             return response()->json(['snap_token' => $snapToken]);
@@ -127,24 +129,59 @@ class MidtransController extends Controller
         $transactionStatus = $request->transaction_status;
         $orderId = $request->order_id;
 
-        $payment = TransaksiPembayaran::where('id_transaksi_midtrans', $orderId)->first(); // Diperbarui
+        $payment = TransaksiPembayaran::where('id_transaksi_midtrans', $orderId)->first(); 
         if (!$payment) return response()->json(['message' => 'Payment not found'], 404);
 
         $peminjaman = $payment->peminjaman;
         if (!$peminjaman) return response()->json(['message' => 'Peminjaman not found'], 404);
+
+        // 🔹 Normalisasi tipe transaksi (Anti spasi / huruf kapital)
+        $tipeTransaksi = strtolower(trim($payment->tipe_transaksi));
 
         switch ($transactionStatus) {
             case 'capture':
             case 'settlement':
                 $payment->update(['status' => 'success']);
 
-                if ($payment->tipe_transaksi === 'dp') {
+                if ($tipeTransaksi === 'dp') {
                     $peminjaman->update([
                         'status' => 'pembayaran dp',
-                        'dp_dibayarkan' => $payment->jumlah,       // Diperbarui
-                        'total_dibayarkan' => $payment->jumlah,    // Diperbarui
+                        'dp_dibayarkan' => $payment->jumlah,       
+                        'total_dibayarkan' => $payment->jumlah,    
                     ]);
-                } else {
+                } elseif ($tipeTransaksi === 'denda') {
+                    // 1. Update Tabel Pengembalian
+                    $pengembalian = Pengembalian::where('peminjaman_id', $peminjaman->id)->first();
+                    if ($pengembalian) {
+                        // Status disesuaikan persis seperti permintaan ENUM Anda
+                        $pengembalian->status = 'sudah di cek dan denda dibayarkan';
+                        $pengembalian->save(); 
+                    }
+
+                    // 2. 🔹 Update Tabel Denda (Bypass $fillable dengan save())
+                    $denda = Denda::where('peminjaman_id', $peminjaman->id)
+                        ->where('status', 'belum dibayar')
+                        ->first();
+                    
+                    if ($denda) {
+                        $denda->status = 'sudah dibayar';
+                        $denda->tanggal_pembayaran = now();
+                        $denda->metode_pembayaran = 'midtrans';
+                        $denda->save();
+                    }
+
+                    // 3. Kunci status peminjaman agar TETAP "selesai" (mencegah bug berubah jadi lunas)
+                    $peminjaman->update([
+                        'status' => 'selesai'
+                    ]);
+
+                } elseif ($tipeTransaksi === 'sisa') {
+                    $peminjaman->update([
+                        'status' => 'sudah dibayar lunas',
+                        'sisa_bayar' => 0,
+                        'total_dibayarkan' => $peminjaman->dp_dibayarkan + $payment->jumlah,
+                    ]);
+                } elseif ($tipeTransaksi === 'lunas') {
                     $peminjaman->update([
                         'status' => 'sudah dibayar lunas',
                         'dp_dibayarkan' => $peminjaman->total_harga,
@@ -160,7 +197,7 @@ class MidtransController extends Controller
                     Log::error("Gagal mengirim email: " . $e->getMessage());
                 }
 
-                break; // Break yang dobel sudah dihapus
+                break; 
 
             case 'pending':
                 $payment->update(['status' => 'pending']);
@@ -171,10 +208,10 @@ class MidtransController extends Controller
             case 'expire':
                 $payment->update(['status' => 'failed']);
 
-                // 🔥 Hapus data peminjaman yang masih menunggu pembayaran
-                if ($peminjaman->status === 'menunggu pembayaran') {
+                // Hapus data peminjaman yang masih menunggu pembayaran (Kecuali jika ini transaksi sisa atau denda)
+                if ($peminjaman->status === 'menunggu pembayaran' && in_array($tipeTransaksi, ['dp', 'lunas'])) {
                     $peminjaman->delete();
-                    Log::info("Peminjaman {$peminjaman->id} dihapus karena pembayaran gagal/batal.");
+                    Log::info("Peminjaman {$peminjaman->id} dihapus karena pembayaran awal gagal/batal.");
                 }
                 break;
         }
@@ -186,12 +223,9 @@ class MidtransController extends Controller
     {
         try {
             // Hapus payment transaction yang masih pending
-            TransaksiPembayaran::where('peminjaman_id', $peminjaman->id) // Diperbarui
+            TransaksiPembayaran::where('peminjaman_id', $peminjaman->id) 
                 ->where('status', 'pending')
                 ->delete();
-
-            // Jika kamu mau, bisa juga update status peminjaman:
-            // $peminjaman->update(['status' => 'dibatalkan']);
 
             return response()->json(['message' => 'Transaksi dibatalkan.'], 200);
         } catch (\Exception $e) {
@@ -208,31 +242,59 @@ class MidtransController extends Controller
 
         if (!$orderId) return response()->json(['message' => 'Invalid payload'], 400);
 
-        $payment = TransaksiPembayaran::where('id_transaksi_midtrans', $orderId)->first(); // Diperbarui
+        $payment = TransaksiPembayaran::where('id_transaksi_midtrans', $orderId)->first(); 
         
-        // Memperbaiki syntax struktur if-else yang error dari kode asli
         if ($payment && $payment->peminjaman) {
             $peminjaman = $payment->peminjaman;
+            
+            // 🔹 Normalisasi tipe transaksi
+            $tipeTransaksi = strtolower(trim($payment->tipe_transaksi));
 
             $payment->update([
                 'status' => $status,
-                'respon_midtrans' => json_encode($data), // Diperbarui
+                'respon_midtrans' => json_encode($data), 
             ]);
 
             if ($status === 'settlement') {
-                if ($payment->tipe_transaksi === 'dp') {
+                if ($tipeTransaksi === 'dp') {
                     $peminjaman->update([
                         'status' => 'pembayaran dp',
-                        'dp_dibayarkan' => $payment->jumlah,        // Diperbarui
-                        'total_dibayarkan' => $payment->jumlah,     // Diperbarui
+                        'dp_dibayarkan' => $payment->jumlah,        
+                        'total_dibayarkan' => $payment->jumlah,     
                     ]);
-                } elseif ($payment->tipe_transaksi === 'sisa') {
+                } elseif ($tipeTransaksi === 'denda') {
+                    // Update Tabel Pengembalian
+                    $pengembalian = Pengembalian::where('peminjaman_id', $peminjaman->id)->first();
+                    if ($pengembalian) {
+                        // Status disesuaikan persis seperti permintaan ENUM Anda
+                        $pengembalian->status = 'sudah di cek dan denda dibayarkan';
+                        $pengembalian->save();
+                    }
+
+                    // Update Tabel Denda (Bypass $fillable)
+                    $denda = Denda::where('peminjaman_id', $peminjaman->id)
+                        ->where('status', 'belum dibayar')
+                        ->first();
+                    
+                    if ($denda) {
+                        $denda->status = 'sudah dibayar';
+                        $denda->tanggal_pembayaran = now();
+                        $denda->metode_pembayaran = 'midtrans';
+                        $denda->save();
+                    }
+
+                    // Kunci status peminjaman agar TETAP "selesai"
+                    $peminjaman->update([
+                        'status' => 'selesai'
+                    ]);
+
+                } elseif ($tipeTransaksi === 'sisa') {
                     $peminjaman->update([
                         'status' => 'sudah dibayar lunas',
                         'sisa_bayar' => 0,
-                        'total_dibayarkan' => $peminjaman->dp_dibayarkan + $payment->jumlah, // Diperbarui
+                        'total_dibayarkan' => $peminjaman->dp_dibayarkan + $payment->jumlah, 
                     ]);
-                } else { // transaksi langsung lunas
+                } elseif ($tipeTransaksi === 'lunas') { 
                     $peminjaman->update([
                         'status' => 'sudah dibayar lunas',
                         'dp_dibayarkan' => $peminjaman->total_harga,
@@ -249,14 +311,12 @@ class MidtransController extends Controller
     // 🔹 Redirect URLs untuk Frontend
     public function success(Request $request) 
     { 
-        // Ambil 1 transaksi pembayaran yang PALING BARU milik user yang sedang login
-        $payment = TransaksiPembayaran::with(['peminjaman', 'peminjaman.mobil']) // Diperbarui
+        $payment = TransaksiPembayaran::with(['peminjaman', 'peminjaman.mobil']) 
             ->whereHas('peminjaman', function($query) {
-                // Pastikan ini adalah transaksi milik user yang sedang login
-                $query->where('user_id', Auth::id()); // Diperbaiki capitalisasi 'Auth'
+                $query->where('user_id', Auth::id()); 
             })
-            ->latest('created_at') // Urutkan dari yang paling terakhir dibuat
-            ->first(); // Ambil satu data saja
+            ->latest('created_at') 
+            ->first(); 
 
         return view('user.pesanan.success-payment', compact('payment')); 
     }

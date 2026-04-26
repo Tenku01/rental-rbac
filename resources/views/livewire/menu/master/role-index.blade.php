@@ -1,4 +1,4 @@
-<div class="p-8 space-y-10 bg-[#f9fafb] min-h-screen font-inter">
+<div x-data="{ activeTab: 'roles' }" class="p-8 space-y-8 bg-[#f9fafb] min-h-screen font-inter">
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
         .font-inter { font-family: 'Inter', sans-serif; }
@@ -55,20 +55,39 @@
             </div>
             <div>
                 <h1 class="text-3xl font-extrabold text-gray-900 tracking-tight leading-none uppercase italic">Otoritas Sistem</h1>
-                <p class="text-sm text-gray-500 font-medium mt-2 font-inter">Konfigurasi hak akses operasional dan peranan personel.</p>
+                <p class="text-sm text-gray-500 font-medium mt-2 font-inter">Konfigurasi hak akses operasional, peranan, dan user spesifik.</p>
             </div>
         </div>
 
         @can('create-roles')
-        <button wire:click="create" class="bg-cyan-600 hover:bg-cyan-700 text-white font-black py-4 px-10 rounded-2xl shadow-xl shadow-cyan-100 flex items-center transition-all transform hover:scale-105 uppercase tracking-[0.2em] text-[11px] leading-none">
+        <!-- Tombol Tambah Role Hanya Muncul di Tab Roles -->
+        <button x-show="activeTab === 'roles'" wire:click="create" x-transition 
+            class="bg-cyan-600 hover:bg-cyan-700 text-white font-black py-4 px-10 rounded-2xl shadow-xl shadow-cyan-100 flex items-center transition-all transform hover:scale-105 uppercase tracking-[0.2em] text-[11px] leading-none">
             <svg class="w-4 h-4 mr-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4"></path></svg>
             Tambah Peranan
         </button>
         @endcan
     </div>
 
-    {{-- 2. TABEL ROLE --}}
-    <div class="bg-white rounded-[2rem] shadow-sm border border-gray-100 overflow-hidden mt-6">
+    {{-- TAB NAVIGATION --}}
+    <div class="flex gap-8 border-b border-gray-200">
+        <button @click="activeTab = 'roles'" 
+                :class="activeTab === 'roles' ? 'border-cyan-600 text-cyan-600' : 'border-transparent text-gray-400 hover:text-gray-600 hover:border-gray-300'"
+                class="pb-4 border-b-2 font-black uppercase tracking-widest text-[11px] transition-colors flex items-center gap-2">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>
+            Berdasarkan Peranan (Role)
+        </button>
+        
+        <button @click="activeTab = 'users'" 
+                :class="activeTab === 'users' ? 'border-cyan-600 text-cyan-600' : 'border-transparent text-gray-400 hover:text-gray-600 hover:border-gray-300'"
+                class="pb-4 border-b-2 font-black uppercase tracking-widest text-[11px] transition-colors flex items-center gap-2">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"></path></svg>
+            Berdasarkan Personel (User)
+        </button>
+    </div>
+
+    {{-- TAB CONTENT 1: ROLES --}}
+    <div x-show="activeTab === 'roles'" x-transition.opacity.duration.300ms class="bg-white rounded-[2rem] shadow-sm border border-gray-100 overflow-hidden">
         <div class="overflow-x-auto">
             <table class="w-full text-left">
                 <thead class="bg-gray-50/80 border-b border-gray-100">
@@ -127,7 +146,74 @@
         </div>
     </div>
 
-    {{-- 3. MODAL CONFIG --}}
+    {{-- TAB CONTENT 2: USERS --}}
+    <div x-show="activeTab === 'users'" style="display: none;" x-transition.opacity.duration.300ms class="bg-white rounded-[2rem] shadow-sm border border-gray-100 overflow-hidden">
+        <div class="overflow-x-auto">
+            <table class="w-full text-left">
+                <thead class="bg-gray-50/80 border-b border-gray-100">
+                    <tr>
+                        <th class="px-8 py-5 text-[11px] font-extrabold text-gray-400 uppercase tracking-[0.15em] italic">Identitas Personel</th>
+                        <th class="px-8 py-5 text-[11px] font-extrabold text-gray-400 uppercase tracking-[0.15em] italic">Role Utama</th>
+                        <th class="px-8 py-5 text-center text-[11px] font-extrabold text-gray-400 uppercase tracking-[0.15em] italic">Izin Spesifik (User)</th>
+                        <th class="px-8 py-5 text-right text-[11px] font-extrabold text-gray-400 uppercase tracking-[0.15em] italic">Opsi</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-50">
+                    @foreach($users as $user)
+                    <tr wire:key="user-row-{{ $user->id }}" class="hover:bg-cyan-50/30 transition-colors group">
+                        <td class="px-8 py-6">
+                            <div class="flex items-center gap-4">
+                                <div class="h-10 w-10 bg-cyan-100 rounded-xl flex items-center justify-center text-cyan-700 font-bold uppercase">
+                                    {{ substr($user->name, 0, 2) }}
+                                </div>
+                                <div class="flex flex-col">
+                                    <span class="text-sm font-black text-gray-900 uppercase italic">{{ $user->name }}</span>
+                                    <span class="text-[10px] text-gray-400 font-bold mt-0.5">{{ $user->email }}</span>
+                                </div>
+                            </div>
+                        </td>
+                        <td class="px-8 py-6">
+                            <div class="flex flex-wrap gap-2">
+                                @forelse($user->roles as $urole)
+                                    <span class="px-3 py-1 bg-gray-100 text-gray-600 text-[10px] font-black rounded-lg uppercase tracking-widest border border-gray-200">
+                                        {{ $urole->name }}
+                                    </span>
+                                @empty
+                                    <span class="text-[10px] text-gray-400 italic">Tidak ada Role</span>
+                                @endforelse
+                            </div>
+                        </td>
+                        <td class="px-8 py-6 text-center">
+                            @php $directCount = $user->getDirectPermissions()->count(); @endphp
+                            @if($directCount > 0)
+                                <span class="px-4 py-1.5 bg-cyan-100/50 text-cyan-700 text-[10px] font-black rounded-full uppercase tracking-tighter border border-cyan-100">
+                                    +{{ $directCount }} Izin Khusus
+                                </span>
+                            @else
+                                <span class="text-[10px] text-gray-400 font-bold uppercase tracking-widest">-</span>
+                            @endif
+                        </td>
+                        <td class="px-8 py-6 text-right">
+                            <div class="flex justify-end gap-3">
+                                @can('update-roles')
+                                <button 
+                                    wire:click="editUserPermissions({{ $user->id }})" 
+                                    class="p-2.5 text-cyan-600 bg-cyan-50 hover:bg-cyan-600 hover:text-white rounded-xl transition-all border border-cyan-100 shadow-sm"
+                                    title="Edit Izin Spesifik User"
+                                >
+                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"></path></svg>
+                                </button>
+                                @endcan
+                            </div>
+                        </td>
+                    </tr>
+                    @endforeach
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    {{-- 3. MODAL CONFIG (Universal untuk Role & User) --}}
     @if($showModal)
     <div class="fixed inset-0 z-50 overflow-y-auto" role="dialog" aria-modal="true">
         <div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
@@ -148,21 +234,32 @@
                         </div>
 
                         <div class="space-y-10">
-                            {{-- Field Nama --}}
-                            <div class="group">
-                                <label class="block text-[11px] font-black text-gray-400 uppercase tracking-[0.2em] mb-3 ml-1 italic group-focus-within:text-cyan-600 transition-colors">Identitas Peranan</label>
-                                <input wire:model.live.debounce.300ms="role_name" type="text" 
-                                    class="w-full h-14 rounded-2xl bg-gray-50/50 px-6 font-bold text-gray-800 transition-all
-                                    @error('role_name') border-rose-500 focus:border-rose-500 focus:ring-4 focus:ring-rose-500/10 @else border-gray-100 focus:border-cyan-500 focus:ring-4 focus:ring-cyan-500/10 @enderror
-                                    @if($isEditMode && $roleId === 1) opacity-50 cursor-not-allowed @endif"
-                                    placeholder="cth: manager_operasional" @if($isEditMode && $roleId === 1) readonly @endif>
-                                @error('role_name') 
-                                    <span class="text-rose-500 text-[10px] font-black uppercase mt-2 ml-1 flex items-center gap-1 tracking-widest">
-                                        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                                        {{ $message }}
+                            {{-- Field Input Dinamis: Role Name atau User Name --}}
+                            @if($targetType === 'role')
+                                <div class="group">
+                                    <label class="block text-[11px] font-black text-gray-400 uppercase tracking-[0.2em] mb-3 ml-1 italic group-focus-within:text-cyan-600 transition-colors">Identitas Peranan</label>
+                                    <input wire:model.live.debounce.300ms="role_name" type="text" 
+                                        class="w-full h-14 rounded-2xl bg-gray-50/50 px-6 font-bold text-gray-800 transition-all
+                                        @error('role_name') border-rose-500 focus:border-rose-500 focus:ring-4 focus:ring-rose-500/10 @else border-gray-100 focus:border-cyan-500 focus:ring-4 focus:ring-cyan-500/10 @enderror
+                                        @if($isEditMode && $roleId === 1) opacity-50 cursor-not-allowed @endif"
+                                        placeholder="cth: manager_operasional" @if($isEditMode && $roleId === 1) readonly @endif>
+                                    @error('role_name') 
+                                        <span class="text-rose-500 text-[10px] font-black uppercase mt-2 ml-1 flex items-center gap-1 tracking-widest">
+                                            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                                            {{ $message }}
+                                        </span> 
+                                    @enderror
+                                </div>
+                            @elseif($targetType === 'user')
+                                <div class="group">
+                                    <label class="block text-[11px] font-black text-gray-400 uppercase tracking-[0.2em] mb-3 ml-1 italic group-focus-within:text-cyan-600 transition-colors">Nama Personel (Read Only)</label>
+                                    <input wire:model="user_name" type="text" readonly
+                                        class="w-full h-14 rounded-2xl bg-gray-100 px-6 font-bold text-gray-500 border border-gray-200 cursor-not-allowed opacity-70 italic">
+                                    <span class="text-cyan-500 text-[10px] font-black uppercase mt-2 ml-1 flex items-center gap-1 tracking-widest">
+                                        * Izin yang dicentang di sini adalah izin KHUSUS user ini, tidak mempengaruhi izin dari Role.
                                     </span> 
-                                @enderror
-                            </div>
+                                </div>
+                            @endif
 
                             {{-- Checklist Section --}}
                             <div class="space-y-6">
@@ -180,7 +277,7 @@
                                     <div class="bg-gray-50/50 p-6 rounded-3xl border border-gray-100/50 shadow-inner">
                                         <div class="flex justify-between items-center mb-6">
                                             <h4 class="text-[11px] font-black text-cyan-700 uppercase tracking-[0.25em] flex items-center gap-3 italic">
-                                                <span class="w-3 h-3 bg-cyan-600 rounded-full ring-4 ring-cyan-100"></span>
+                                                <span class="w-3 h-3 bg-cyan-600 ring-cyan-100 rounded-full ring-4"></span>
                                                 Data: {{ strtoupper($group) }}
                                             </h4>
                                             
@@ -199,16 +296,16 @@
                                                             }
                                                        "
                                                        x-bind:checked="{{ $allGroupPermsJson }}.every(p => $wire.selectedPermissions.includes(p))"
-                                                       class="rounded border-gray-300 text-cyan-600 focus:ring-4 focus:ring-cyan-500/10 h-4 w-4 transition-all">
+                                                       class="rounded border-gray-300 text-cyan-600 focus:ring-cyan-500/10 focus:ring-4 h-4 w-4 transition-all">
                                                 <span class="text-[9px] font-black text-gray-400 uppercase tracking-widest group-hover/all:text-cyan-600 transition-colors italic leading-none">Pilih Semua</span>
                                             </label>
                                         </div>
 
                                         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                                             @foreach($items as $permission)
-                                            <label wire:key="perm-{{ $permission->id }}" class="relative flex items-center gap-4 p-4 bg-white rounded-2xl border border-gray-50 cursor-pointer hover:border-cyan-200 hover:shadow-md hover:shadow-cyan-100/50 transition-all group/item">
+                                            <label wire:key="perm-{{ $permission->id }}" class="relative flex items-center gap-4 p-4 bg-white rounded-2xl border border-gray-50 cursor-pointer hover:border-cyan-200 hover:shadow-cyan-100/50 hover:shadow-md transition-all group/item">
                                                 <input type="checkbox" wire:model.live="selectedPermissions" value="{{ $permission->name }}"
-                                                    class="rounded-lg border-gray-300 text-cyan-600 shadow-sm focus:ring-4 focus:ring-cyan-500/10 h-6 w-6 transition-all">
+                                                    class="rounded-lg border-gray-300 text-cyan-600 focus:ring-cyan-500/10 shadow-sm focus:ring-4 h-6 w-6 transition-all">
                                                 <div class="flex flex-col">
                                                     <span class="text-[11px] font-black text-gray-700 group-hover/item:text-cyan-700 transition-colors uppercase italic leading-tight">{{ str_replace('-', ' ', $permission->name) }}</span>
                                                 </div>
@@ -227,7 +324,7 @@
 
                     <div class="bg-gray-50/80 px-10 py-8 flex flex-row-reverse gap-4 border-t border-gray-100 rounded-b-[2.5rem]">
                         <button type="submit" wire:loading.attr="disabled"
-                            class="inline-flex justify-center rounded-2xl px-12 py-3.5 bg-cyan-600 text-xs font-black text-white hover:bg-cyan-700 shadow-xl shadow-cyan-100 transition-all uppercase tracking-[0.2em] italic disabled:opacity-50">
+                            class="inline-flex justify-center rounded-2xl px-12 py-3.5 bg-cyan-600 hover:bg-cyan-700 shadow-cyan-100 text-xs font-black text-white shadow-xl transition-all uppercase tracking-[0.2em] italic disabled:opacity-50">
                             <span wire:loading.remove>{{ $isEditMode ? 'Sinkronkan Izin' : 'Buat Peranan' }}</span>
                             <span wire:loading>Memproses...</span>
                         </button>

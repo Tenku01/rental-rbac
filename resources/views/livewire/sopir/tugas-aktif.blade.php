@@ -67,7 +67,6 @@
                         @php
                             $sudahCatat = $task->logbooks->count() > 0;
                             
-                            // 🔹 Diperbarui: Model Pesan, pengirim_id, sudah_dibaca
                             $unreadChat = \App\Models\Pesan::where('peminjaman_id', $task->id)
                                 ->where('pengirim_id', '!=', Auth::id())
                                 ->where('sudah_dibaca', false)
@@ -75,7 +74,7 @@
                         @endphp
                         
                         <div class="w-full text-left group hover:bg-cyan-50/30 transition-all duration-200">
-                            <div class="p-8 flex flex-col md:flex-row md:items-center justify-between gap-6">
+                            <div class="p-8 flex flex-col xl:flex-row xl:items-center justify-between gap-6">
                                 
                                 <div class="flex items-center gap-5">
                                     <div class="h-16 w-16 bg-cyan-100 rounded-2xl flex items-center justify-center text-cyan-600 group-hover:scale-110 transition-transform">
@@ -83,11 +82,9 @@
                                     </div>
                                     <div>
                                         <h3 class="text-lg font-black text-gray-900 tracking-tight">
-                                            <!-- 🔹 Diperbarui: mobil->plat_nomor diganti mobil->id -->
                                             {{ $task->mobil->merek ?? 'N/A' }} - {{ $task->mobil->id ?? 'N/A' }}
                                         </h3>
                                         <p class="text-sm font-bold text-gray-500 mt-1 uppercase tracking-widest text-[10px]">
-                                            <!-- 🔹 Diperbarui: pelanggan->nama_lengkap dihapus dan langsung ke user->name -->
                                             Pelanggan: <span class="text-cyan-600">{{ $task->user->name ?? 'N/A' }}</span>
                                         </p>
                                         <div class="flex items-center gap-4 mt-3">
@@ -103,6 +100,7 @@
                                     </div>
                                 </div>
 
+                                {{-- Barisan Status & Aksi --}}
                                 <div class="flex flex-wrap items-center gap-3">
                                     @if($sudahCatat)
                                         <span class="px-4 h-10 bg-emerald-50 text-emerald-600 rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center">
@@ -112,6 +110,28 @@
                                         <span class="px-4 h-10 bg-amber-50 text-amber-600 rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center">
                                             <span class="w-2 h-2 rounded-full bg-amber-500 mr-2 animate-pulse"></span> Draft
                                         </span>
+                                    @endif
+
+                                    {{-- 🔹 Tombol Pintasan ke Google Maps --}}
+                                    @php
+                                        $mapQuery = '';
+                                        if ($task->user && $task->user->latitude && $task->user->longitude) {
+                                            $mapQuery = $task->user->latitude . ',' . $task->user->longitude;
+                                        } elseif ($task->user && $task->user->alamat) {
+                                            $mapQuery = urlencode($task->user->alamat);
+                                        }
+                                    @endphp
+
+                                    @if($mapQuery)
+                                        <a href="https://www.google.com/maps/search/?api=1&query={{ $mapQuery }}" target="_blank" class="h-10 px-5 bg-emerald-50 border border-emerald-100 text-emerald-600 rounded-xl text-[11px] font-black uppercase tracking-widest flex items-center shadow-sm hover:bg-emerald-100 transition-colors">
+                                            <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+                                            Maps
+                                        </a>
+                                    @else
+                                        <button disabled class="h-10 px-5 bg-gray-50 border border-gray-100 text-gray-400 rounded-xl text-[11px] font-black uppercase tracking-widest flex items-center cursor-not-allowed">
+                                            <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+                                            No Lokasi
+                                        </button>
                                     @endif
 
                                     <!-- 🔹 Tombol Pintasan ke Live Chat -->
@@ -131,6 +151,7 @@
                                     </a>
 
                                     <button wire:click="openLogbookForm({{ $task->id }})" class="h-10 px-6 bg-cyan-600 text-white rounded-xl text-[11px] font-black uppercase tracking-widest flex items-center shadow-lg shadow-cyan-100 hover:bg-cyan-700 transition-colors">
+                                        <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path></svg>
                                         Isi Logbook
                                     </button>
                                 </div>
@@ -163,9 +184,7 @@
             </div>
             <div class="relative z-10">
                 <p class="text-[10px] font-black text-cyan-400 uppercase tracking-[0.2em]">Target Kendaraan</p>
-                <!-- 🔹 Diperbarui: mobil->plat_nomor -> mobil->id -->
                 <h1 class="text-3xl font-black tracking-tight mt-1">{{ $selectedTask->mobil->merek ?? 'N/A' }} ({{ $selectedTask->mobil->id ?? 'N/A' }})</h1>
-                <!-- 🔹 Diperbarui: pelanggan->nama_lengkap -> user->name -->
                 <p class="text-sm font-medium text-cyan-100 mt-2">Pelanggan: {{ $selectedTask->user->name ?? 'N/A' }} | Lokasi: {{ $selectedTask->lokasi_jemput ?? 'Pool' }}</p>
             </div>
         </div>
@@ -232,7 +251,7 @@
                                 </span>
                             </button>
 
-                        </form>
+                    </form>
                 </div>
             </div>
 
@@ -321,4 +340,4 @@
     @endif
 
     <x-toast-notification />
-</div>
+</div>d

@@ -15,7 +15,6 @@
         <!-- Status Overlay -->
         <div class="absolute top-3 right-3 px-3 py-1 rounded-full text-xs font-bold shadow-sm backdrop-blur-sm
             @if($item->status === 'pembayaran dp') bg-yellow-100/90 text-yellow-700 border border-yellow-200
-            @elseif($item->status === 'menunggu pembayaran') bg-blue-100/90 text-blue-700 border border-blue-200
             @else bg-gray-100/90 text-gray-700 border border-gray-200 @endif">
             {{ ucfirst($item->status) }}
         </div>
@@ -99,20 +98,6 @@
 
         <!-- Area Tombol Aksi (Otomatis ditarong ke bawah) -->
         <div class="mt-auto pt-2 flex flex-col gap-2.5">
-            
-            {{-- TAB: Menunggu Pembayaran --}}
-            @if($activeTab === 'menunggu pembayaran')
-                <div class="grid grid-cols-2 gap-2">
-                    <a href="{{ route('mobils.show', $item->mobil_id) }}" class="flex justify-center items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-lg text-gray-700 bg-white hover:bg-gray-50 focus:ring-2 focus:ring-gray-200 transition">
-                        Detail Mobil
-                    </a>
-                    @unless($isPendingCancel)
-                        <button onclick="bukaModalBatal({{ $item->id }})" class="flex justify-center items-center px-4 py-2 text-sm font-medium rounded-lg text-red-700 bg-red-50 border border-red-200 hover:bg-red-100 transition focus:ring-2 focus:ring-red-200">
-                            Batal Pesan
-                        </button>
-                    @endunless
-                </div>
-            @endif
 
             {{-- TAB: Pembayaran DP --}}
             @if($activeTab === 'pembayaran dp')

@@ -15,12 +15,11 @@
     <div class="py-8">
         <div class="max-w-7xl mx-auto sm:px-6 lg:px-8">
 
-            {{-- 隼 Tabs Filter Pesanan --}}
+            {{-- 🔹 Tabs Filter Pesanan --}}
             <div class="mb-6 flex flex-wrap gap-2 justify-center">
                 @php
                     $tabs = [
                         'semua' => 'Semua Pesanan',
-                        'menunggu pembayaran' => 'Menunggu Pembayaran',
                         'pembayaran dp' => 'Belum Lunas',
                         'sudah dibayar lunas' => 'Belum Diambil',
                         'berlangsung' => 'Berlangsung',
@@ -40,7 +39,7 @@
                 @endforeach
             </div>
 
-            {{-- 隼 Filter Berdasarkan Tab --}}
+            {{-- 🔹 Filter Berdasarkan Tab --}}
             @php
                 $filtered = $activeTab === 'semua'
                     ? $peminjaman
@@ -61,7 +60,7 @@
                     @foreach ($filtered as $item)
 
                         {{-- ========================================================= --}}
-                        {{-- 隼 TAB SELESAI --}}
+                        {{-- 🔹 TAB SELESAI --}}
                         {{-- ========================================================= --}}
                         @if ($activeTab === 'selesai')
                             <div class="bg-white shadow-sm hover:shadow-lg transition-shadow duration-300 rounded-xl overflow-hidden border border-gray-200 flex flex-col h-full"
@@ -83,6 +82,17 @@
                                 </div>
 
                                 <div class="p-5 flex flex-col flex-1">
+                                    @php
+                                        $pengembalian = $item->pengembalian;
+                                        // Pastikan menjadi float untuk mempermudah pengecekan lebih besar dari 0
+                                        $totalDenda = (float) ($pengembalian->total_outstanding_fine ?? 0); 
+                                        $statusPengembalian = $pengembalian ? strtolower(trim($pengembalian->status)) : null; 
+                                        $isAdaDenda = $totalDenda > 0;
+                                        
+                                        // Pengecekan denda sudah dilunasi HANYA dari status ENUM
+                                        $isSudahDibayar = ($statusPengembalian === 'sudah di cek dan denda dibayarkan');
+                                    @endphp
+
                                     <h3 class="text-xl font-bold text-gray-900 mb-4 leading-tight">
                                         {{ $item->mobil->merek ?? '-' }} 
                                         <span class="font-normal text-gray-500 text-lg">| {{ $item->mobil->tipe ?? '-' }}</span>
@@ -99,15 +109,9 @@
                                         </div>
                                     </div>
 
-                                    @if ($item->pengembalian)
+                                    @if ($pengembalian)
                                         <div class="mb-5 bg-gray-50 border border-gray-200 rounded-lg p-4 text-sm text-gray-700 shadow-sm">
-                                            @php
-                                                $totalDenda = $item->pengembalian->total_outstanding_fine ?? 0; 
-                                                $statusPengembalian = $item->pengembalian->status; 
-                                                $isAdaDenda = $totalDenda > 0;
-                                                $isSudahDibayar = $item->pengembalian->status_pembayaran_denda === 'dibayar';
-                                            @endphp
-
+                                            
                                             <div class="flex justify-between items-center mb-2 pb-2 border-b border-gray-200 border-dashed">
                                                 <span class="text-gray-500">Total Denda</span>
                                                 <span class="font-bold {{ $isAdaDenda ? 'text-red-600' : 'text-gray-900' }}">Rp {{ number_format($totalDenda, 0, ',', '.') }}</span>
@@ -115,27 +119,34 @@
 
                                             <div class="flex justify-between items-center">
                                                 <span class="text-gray-500">Status</span>
+                                                
+                                                {{-- 🔹 Tampilan Status Berdasarkan Nilai ENUM Baru --}}
                                                 @if ($statusPengembalian === 'menunggu pengecekan')
                                                     <span class="text-yellow-600 font-medium">Dalam Pengecekan</span>
                                                 @elseif($statusPengembalian === 'selesai pengecekan' && $isAdaDenda)
-                                                    <span class="text-red-600 font-bold">Dicek (Ada Denda)</span>
+                                                    <span class="text-red-600 font-bold">Dicek (Belum Bayar Denda)</span>
                                                 @elseif($statusPengembalian === 'selesai pengecekan' && !$isAdaDenda)
                                                     <span class="text-green-600 font-bold">Dicek (Aman)</span>
                                                 @elseif($statusPengembalian === 'menunggu_pembayaran_midtrans')
                                                     <span class="text-blue-600 font-medium">Menunggu Midtrans</span>
                                                 @elseif($statusPengembalian === 'menunggu_verifikasi_transfer' || $statusPengembalian === 'menunggu_pembayaran_tunai')
                                                     <span class="text-yellow-600 font-medium">Menunggu Verifikasi</span>
-                                                @elseif($statusPengembalian === 'completed' || $statusPengembalian === 'Selesai')
+                                                @elseif($statusPengembalian === 'sudah di cek dan denda dibayarkan')
+                                                    <span class="text-green-600 font-medium">Selesai & Denda Lunas</span>
+                                                @elseif($statusPengembalian === 'selesai')
                                                     <span class="text-green-600 font-medium">Selesai & Lunas</span>
                                                 @else
                                                     <span class="text-gray-600 font-medium">{{ ucfirst(str_replace('_', ' ', $statusPengembalian)) }}</span>
                                                 @endif
                                             </div>
 
-                                            @if($statusPengembalian === 'selesai pengecekan' && !$isAdaDenda)
+                                            {{-- Pesan Keterangan Tambahan --}}
+                                            @if($isAdaDenda && !$isSudahDibayar)
+                                                <p class="mt-3 text-xs text-red-600 font-medium flex items-center gap-1"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg> Harap selesaikan pembayaran denda.</p>
+                                            @elseif(!$isAdaDenda && in_array($statusPengembalian, ['selesai pengecekan', 'selesai']))
                                                 <p class="mt-3 text-xs text-green-600 font-medium flex items-center gap-1"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg> Tidak ada tagihan denda.</p>
                                             @elseif($isSudahDibayar)
-                                                <p class="mt-3 text-xs text-green-600 font-medium flex items-center gap-1"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg> Denda sudah dibayar ({{ ucfirst($item->pengembalian->metode_pembayaran) }}).</p>
+                                                <p class="mt-3 text-xs text-green-600 font-medium flex items-center gap-1"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg> Tagihan denda sudah dibayar lunas.</p>
                                             @endif
                                         </div>
                                     @endif
@@ -154,8 +165,9 @@
                                             </a>
                                         </div>
 
-                                        {{-- Tombol Bayar Denda --}}
-                                        @if (isset($statusPengembalian) && $statusPengembalian === 'selesai pengecekan' && isset($isAdaDenda) && $isAdaDenda && isset($isSudahDibayar) && !$isSudahDibayar)
+                                        {{-- 🔹 Tombol Bayar Denda --}}
+                                        {{-- Logika diperpendek: Muncul HANYA JIKA ada denda dan belum lunas! --}}
+                                        @if ($pengembalian && $isAdaDenda && !$isSudahDibayar)
                                             <button @click="openModalBayar = true" class="w-full flex justify-center items-center px-4 py-2.5 text-sm font-semibold rounded-lg text-white bg-red-600 hover:bg-red-700 transition shadow-sm focus:ring-2 focus:ring-red-500 animate-pulse">
                                                 Bayar Denda (Rp {{ number_format($totalDenda, 0, ',', '.') }})
                                             </button>
@@ -185,9 +197,9 @@
                                                 <button type="button" @click="openModalBayar = false" class="flex-1 bg-white border border-gray-300 text-gray-700 py-2 rounded-lg hover:bg-gray-50 transition font-medium">Batal</button>
                                                 <button type="button" @click="
                                                         if (metodePilihan === 'transfer') {
-                                                            callMidtransSnap('{{ $item->pengembalian->kode_pengembalian ?? '' }}');
+                                                            callMidtransSnap('{{ $pengembalian->kode_pengembalian ?? '' }}');
                                                         } else if (metodePilihan === 'tunai') {
-                                                            callManualPayment('{{ $item->pengembalian->kode_pengembalian ?? '' }}', 'tunai');
+                                                            callManualPayment('{{ $pengembalian->kode_pengembalian ?? '' }}', 'tunai');
                                                         }
                                                         openModalBayar = false; 
                                                     " class="flex-1 bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 transition font-medium shadow-sm">Konfirmasi</button>
@@ -198,7 +210,7 @@
                             </div>
 
                         {{-- ========================================================= --}}
-                        {{-- 隼 TAB DIBATALKAN --}}
+                        {{-- 🔹 TAB DIBATALKAN --}}
                         {{-- ========================================================= --}}
                         @elseif ($activeTab === 'dibatalkan')
                             <div class="bg-white shadow-sm hover:shadow-lg transition-shadow duration-300 rounded-xl overflow-hidden border border-gray-200 flex flex-col h-full">
@@ -273,7 +285,7 @@
                             </div>
 
                         {{-- ========================================================= --}}
-                        {{-- 隼 TAB LAIN (Default Card) --}}
+                        {{-- 🔹 TAB LAIN (Default Card) --}}
                         {{-- ========================================================= --}}
                         @else
                             @include('components.card-pesanan-lain', ['item' => $item, 'activeTab' => $activeTab])

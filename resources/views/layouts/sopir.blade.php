@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="h-full">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -24,22 +24,26 @@
     @livewireStyles
 </head>
 
-<body class="bg-gray-100 font-sans antialiased">
+<body class="h-full bg-gray-100 font-sans antialiased">
 
-<div x-data="{ sidebarOpen: true }" class="min-h-screen flex">
+<!-- ROOT -->
+<div x-data="{ sidebarOpen: true }" class="h-screen flex overflow-hidden">
 
-{{-- SIDEBAR --}}
+    {{-- SIDEBAR --}}
     <livewire:sidebar.sidebar />
 
     {{-- MAIN AREA --}}
-    <div class="flex-1 flex flex-col overflow-hidden">
+    <div class="flex-1 flex flex-col min-h-0 overflow-hidden">
 
         {{-- HEADER --}}
         <!-- Pastikan file components.admin-headbar ada -->
-       <livewire:sopir.headbar-sopir />
+        <livewire:sopir.headbar-sopir />
 
         {{-- MAIN CONTENT --}}
-        <main wire:transition class="flex-1 overflow-x-hidden overflow-y-auto bg-gray-100 p-4 sm:p-6">
+        <main 
+            wire:transition 
+            class="flex-1 min-h-0 overflow-y-auto overflow-x-hidden bg-gray-100 p-4 sm:p-6 custom-scrollbar"
+        >
            {{ $slot }}  
         </main>
 

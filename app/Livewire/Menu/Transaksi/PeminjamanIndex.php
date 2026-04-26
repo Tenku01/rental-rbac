@@ -31,9 +31,9 @@ class PeminjamanIndex extends Component
     // --- Modal States ---
     public $showCreateModal = false;
     public $showDetailModal = false;
-    public $showPaymentModal = false; 
+    public $showPaymentModal = false;
     public $showCheckModal = false;
-    
+
     // --- Data Properties ---
     public $selectedPeminjaman = null;
 
@@ -42,9 +42,9 @@ class PeminjamanIndex extends Component
     public $tanggal_sewa, $jam_sewa = '08:00', $tanggal_kembali;
     public $add_on_sopir = false;
     public $total_harga = 0;
-    public $bayar_awal = 0; 
+    public $bayar_awal = 0;
     public $bukti_bayar_awal;
-    public $return_notice = ''; 
+    public $return_notice = '';
 
     // --- Form Tambah Pembayaran ---
     public $payment_amount = 0;
@@ -59,13 +59,19 @@ class PeminjamanIndex extends Component
 
     protected $paginationTheme = 'tailwind';
 
-    public function updatedFilterStatus() { $this->resetPage(); }
-    public function updatedSearch() { $this->resetPage(); }
+    public function updatedFilterStatus()
+    {
+        $this->resetPage();
+    }
+    public function updatedSearch()
+    {
+        $this->resetPage();
+    }
 
     public function updated($propertyName)
     {
         $calcFields = ['mobil_id', 'tanggal_sewa', 'tanggal_kembali', 'jam_sewa', 'add_on_sopir'];
-        
+
         if (Str::contains($propertyName, $calcFields)) {
             $this->calculateTotal();
             $this->updateReturnNotice();
@@ -98,7 +104,7 @@ class PeminjamanIndex extends Component
 
             $start = Carbon::parse($this->tanggal_sewa . ' ' . $this->jam_sewa);
             $end = Carbon::parse($this->tanggal_kembali . ' ' . $this->jam_sewa);
-            
+
             if ($end->lte($start)) {
                 $this->total_harga = 0;
                 return;
@@ -108,7 +114,7 @@ class PeminjamanIndex extends Component
             $lama = max($lama, 1);
 
             $biayaSewa = $lama * $mobil->harga;
-            $biayaSopir = $this->add_on_sopir ? 150000 * $lama : 0; 
+            $biayaSopir = $this->add_on_sopir ? 150000 * $lama : 0;
 
             $this->total_harga = $biayaSewa + $biayaSopir;
         }
@@ -120,40 +126,42 @@ class PeminjamanIndex extends Component
         abort_if(Gate::denies('read-peminjaman'), 403);
 
         $query = Peminjaman::with(['user', 'mobil', 'TransaksiPembayaran'])
-            ->when($this->search, function($q) {
-                $q->where('id', 'like', '%'.$this->search.'%')
-                  ->orWhereHas('user', fn($sq) => $sq->where('name', 'like', '%'.$this->search.'%'))
-                  ->orWhereHas('mobil', fn($sq) => $sq->where('plat_nomor', 'like', '%'.$this->search.'%'));
-            })
-            ->when($this->filterStatus, fn($q) => $q->where('status', $this->filterStatus))
-            ->orderBy('created_at', 'desc');
+            ->when($this->search, function ($q) {
+                $q->where(function($sub) {
+                    $sub->where('id', 'like', '%' . $this->search . '%')
+                        ->orWhereHas('user', fn($u) => $u->where('name', 'like', '%' . $this->search . '%'))
+                        ->orWhereHas('mobil', fn($m) => $m->where('merek', 'like', '%' . $this->search . '%'));
+                });
+            });
 
-        // 🔹 LOGIKA PEMISAHAN TAB (Diperbarui untuk Validasi 2 Arah)
-        if ($this->activeTab === 'pengecekan') {
-            // Tab Tugas Pengecekan: Menunggu Serah Terima (Sudah Bayar, Menunggu Validasi Pelanggan)
-            $query->whereIn('status', ['pembayaran dp', 'sudah dibayar lunas']);
-        } else {
-            // Tab Data Biasa: Exclude data yg sedang antre diserahkan
-            $query->whereNotIn('status', ['pembayaran dp', 'sudah dibayar lunas']);
+        // 🔹 LOGIKA PEMISAHAN TAB
+        if ($this->activeTab === 'biasa') {
+            if ($this->filterStatus !== '') {
+                $query->where('status', $this->filterStatus);
+            } else {
+                $query->where('status', '!=', 'dibatalkan');
+            }
+        } else if ($this->activeTab === 'pengecekan') {
+            $query->whereIn('status', ['pembayaran dp', 'sudah dibayar lunas']); 
         }
 
         $sopirsQuery = Sopir::whereIn('status', ['tersedia', 'bekerja']);
-        
+
         if ($this->tanggal_sewa && $this->tanggal_kembali) {
             $start = Carbon::parse($this->tanggal_sewa)->format('Y-m-d');
             $end = Carbon::parse($this->tanggal_kembali)->format('Y-m-d');
 
-            $sopirsQuery->whereDoesntHave('peminjaman', function($q) use ($start, $end) {
-                $q->whereIn('status', ['menunggu pembayaran', 'pembayaran dp', 'sudah dibayar lunas', 'berlangsung'])
-                  ->where(function($sq) use ($start, $end) {
-                      $sq->where('tanggal_sewa', '<=', $end)
-                         ->where('tanggal_kembali', '>=', $start);
-                  });
+            $sopirsQuery->whereDoesntHave('peminjaman', function ($q) use ($start, $end) {
+                $q->whereIn('status', ['pembayaran dp', 'sudah dibayar lunas', 'berlangsung'])
+                    ->where(function ($sq) use ($start, $end) {
+                        $sq->where('tanggal_sewa', '<=', $end)
+                            ->where('tanggal_kembali', '>=', $start);
+                    });
             });
         }
 
         return view('livewire.menu.transaksi.peminjaman-index', [
-            'peminjaman' => $query->paginate(10),
+            'peminjaman' => $query->orderBy('created_at', 'desc')->paginate(10)->withPath(url()->current()),
             'users_list' => User::role('pelanggan')->orderBy('name')->get(),
             'mobils_list' => Mobil::where('status', 'tersedia')->orderBy('merek')->get(),
             'sopirs_list' => ($this->tanggal_sewa && $this->tanggal_kembali) ? $sopirsQuery->orderBy('nama')->get() : collect([]),
@@ -163,12 +171,16 @@ class PeminjamanIndex extends Component
     // =========================================================================
     // CRUD: CREATE & STORE (Hanya Admin)
     // =========================================================================
-    
-    public function openCreateModal() { $this->resetForm(); $this->showCreateModal = true; }
+
+    public function openCreateModal()
+    {
+        $this->resetForm();
+        $this->showCreateModal = true;
+    }
 
     public function storeManual()
     {
-        abort_if(Gate::denies('create-peminjaman'), 403); 
+        abort_if(Gate::denies('create-peminjaman'), 403);
 
         $this->validate([
             'user_id' => 'required|exists:users,id',
@@ -186,26 +198,22 @@ class PeminjamanIndex extends Component
 
             $bayar = $this->bayar_awal ?? 0;
             $sisa = $this->total_harga - $bayar;
-            
-            $status = 'menunggu pembayaran';
-            $tipe_bayar = 'dp'; 
+
+            $status = 'pembayaran dp';
+            $tipe_bayar = 'dp';
 
             if ($bayar >= $this->total_harga) {
                 $status = 'sudah dibayar lunas';
                 $tipe_bayar = 'lunas';
-            } elseif ($bayar > 0) {
-                $status = 'pembayaran dp';
-                $tipe_bayar = 'dp';
             }
 
             $peminjaman = Peminjaman::create([
                 'user_id' => $this->user_id,
                 'mobil_id' => $this->mobil_id,
                 'sopir_id' => $this->add_on_sopir ? $this->sopir_id : null,
-                'tanggal_sewa' => $this->tanggal_sewa,
-                'jam_sewa' => $this->jam_sewa,
-                'tanggal_kembali' => $this->tanggal_kembali,
-                'tambahan_sopir' => $this->add_on_sopir ? 1 : 0, // Diperbarui dari add_on_sopir
+                'tanggal_sewa' => $this->tanggal_sewa . ' ' . $this->jam_sewa,
+                'tanggal_kembali' => $this->tanggal_kembali . ' ' . $this->jam_sewa,
+                'tambahan_sopir' => $this->add_on_sopir ? 1 : 0,
                 'total_harga' => $this->total_harga,
                 'dp_dibayarkan' => ($tipe_bayar == 'dp') ? $bayar : 0,
                 'total_dibayarkan' => $bayar,
@@ -219,14 +227,14 @@ class PeminjamanIndex extends Component
             if ($bayar > 0) {
                 TransaksiPembayaran::create([
                     'peminjaman_id' => $peminjaman->id,
-                    'id_transaksi_midtrans' => 'MANUAL-' . strtoupper(Str::random(10)),
+                    'id_transaksi_midtrans' => 'MANUAL-DP-' . strtoupper(Str::random(10)), // Booking/DP awal menggunakan MANUAL-DP
                     'status' => 'settlement',
-                    'jumlah' => $bayar, // Diperbarui dari amount
+                    'jumlah' => $bayar,
                     'tipe_transaksi' => $tipe_bayar,
                     'respon_midtrans' => json_encode([
                         'channel' => 'manual_cash',
                         'admin_id' => Auth::id(),
-                        'note' => 'Pembayaran Offline Admin'
+                        'note' => 'Pembayaran Awal/DP Offline Admin'
                     ]),
                 ]);
             }
@@ -234,7 +242,6 @@ class PeminjamanIndex extends Component
             DB::commit();
             $this->closeModal();
             $this->dispatch('notify', message: 'Booking manual berhasil dibuat!', type: 'success');
-
         } catch (\Exception $e) {
             DB::rollBack();
             $this->dispatch('notify', message: 'Error: ' . $e->getMessage(), type: 'error');
@@ -248,13 +255,41 @@ class PeminjamanIndex extends Component
     public function openPaymentModal($id)
     {
         $this->selectedPeminjaman = Peminjaman::with(['TransaksiPembayaran'])->findOrFail($id);
+        
+        // 🔹 PROTEKSI DARI SISI BACKEND: Tolak jika sudah ada pelunasan MANUAL
+        $hasManualPay = $this->selectedPeminjaman->TransaksiPembayaran->contains(function ($trx) {
+            return Str::contains($trx->id_transaksi_midtrans, 'MANUAL-PAY');
+        });
+
+        if ($hasManualPay) {
+            $this->dispatch('notify', message: 'Pelunasan manual sudah pernah dicatat sebelumnya!', type: 'error');
+            return;
+        }
+
         $this->payment_amount = $this->selectedPeminjaman->sisa_bayar;
         $this->showPaymentModal = true;
     }
 
-    public function storePayment()
+     public function storePayment()
     {
         abort_if(Gate::denies('update-peminjaman'), 403);
+
+        if ($this->selectedPeminjaman->sisa_bayar <= 0) {
+            $this->showPaymentModal = false;
+            $this->dispatch('notify', message: 'Transaksi ini sudah lunas, tidak dapat dicatat ulang.', type: 'error');
+            return;
+        }
+
+        // Cek lagi untuk menghindari double click API
+        $hasManualPay = TransaksiPembayaran::where('peminjaman_id', $this->selectedPeminjaman->id)
+                            ->where('id_transaksi_midtrans', 'like', '%MANUAL-PAY%')
+                            ->exists();
+                            
+        if ($hasManualPay) {
+            $this->showPaymentModal = false;
+            $this->dispatch('notify', message: 'Pelunasan manual sudah tercatat.', type: 'error');
+            return;
+        }
 
         $this->validate([
             'payment_amount' => 'required|numeric|min:1|lte:' . $this->selectedPeminjaman->sisa_bayar,
@@ -262,28 +297,44 @@ class PeminjamanIndex extends Component
 
         DB::beginTransaction();
         try {
+            // 1. Simpan history pembayaran
             TransaksiPembayaran::create([
                 'peminjaman_id' => $this->selectedPeminjaman->id,
                 'id_transaksi_midtrans' => 'MANUAL-PAY-' . strtoupper(Str::random(8)),
                 'status' => 'settlement',
-                'jumlah' => $this->payment_amount, // Diperbarui
+                'jumlah' => $this->payment_amount,
                 'tipe_transaksi' => 'pelunasan',
-                'respon_midtrans' => json_encode(['admin_id' => Auth::id()]), // Diperbarui
+                'respon_midtrans' => json_encode([
+                    'channel' => 'manual_cash',
+                    'admin_id' => Auth::id(),
+                    'note' => $this->payment_note
+                ]),
             ]);
 
-            $total_paid = $this->selectedPeminjaman->TransaksiPembayaran()->where('status', 'settlement')->sum('jumlah'); // Diperbarui
-            $sisa = $this->selectedPeminjaman->total_harga - $total_paid;
+            // 2. LOGIKA MATEMATIKA SEDERHANA (SESUAI REQUEST)
+            $totalDibayarLama = $this->selectedPeminjaman->total_dibayarkan ?? 0;
+            $sisaBayarLama = $this->selectedPeminjaman->sisa_bayar ?? 0;
+
+            $totalDibayarBaru = $totalDibayarLama + $this->payment_amount;
+            $sisaBaru = $sisaBayarLama - $this->payment_amount;
             
+            if ($sisaBaru < 0) {
+                $sisaBaru = 0;
+            }
+
+            $statusBaru = ($sisaBaru <= 0) ? 'sudah dibayar lunas' : 'pembayaran dp';
+
+            // 3. Update Peminjaman
             $this->selectedPeminjaman->update([
-                'total_dibayarkan' => $total_paid,
-                'sisa_bayar' => $sisa,
-                'status' => ($sisa <= 0) ? 'sudah dibayar lunas' : 'pembayaran dp',
-                'tipe_pembayaran' => ($sisa <= 0) ? 'lunas' : 'dp'
+                'total_dibayarkan' => $totalDibayarBaru,
+                'sisa_bayar' => $sisaBaru,
+                'status' => $statusBaru,
+                'tipe_pembayaran' => ($sisaBaru <= 0) ? 'lunas' : 'dp'
             ]);
 
             DB::commit();
             $this->showPaymentModal = false;
-            $this->dispatch('notify', message: 'Pembayaran tambahan berhasil dicatat!', type: 'success');
+            $this->dispatch('notify', message: 'Pelunasan manual berhasil dicatat!', type: 'success');
         } catch (\Exception $e) {
             DB::rollBack();
             $this->dispatch('notify', message: 'Gagal: ' . $e->getMessage(), type: 'error');
@@ -291,25 +342,23 @@ class PeminjamanIndex extends Component
     }
 
     // =========================================================================
-    // CRUD: PENGECEKAN KENDARAAN (Admin & Staff) - VALIDASI 2 ARAH
+    // CRUD: PENGECEKAN KENDARAAN (Admin & Staff)
     // =========================================================================
 
     public function openCheckModal($id)
     {
         $this->selectedPeminjaman = Peminjaman::findOrFail($id);
-        
-        // 🔹 LOGIKA SPLIT CATATAN
+
         $fullKondisi = $this->selectedPeminjaman->kondisi_mobil ?? '';
         $parts = explode("\n\n[+] Tambahan Validasi Pelanggan", $fullKondisi);
-        
-        // Tampilkan HANYA bagian Staff (index 0)
+
         $this->kondisi_mobil_input = trim($parts[0]);
         $this->showCheckModal = true;
     }
 
     public function storeCheck()
     {
-        if (Gate::denies('update-peminjaman') && Gate::denies('create-vehicle_inspections')) {
+        if (Gate::denies('update-peminjaman') && Gate::denies('create-inspeksi_mobil')) {
             abort(403, 'Anda tidak memiliki hak akses untuk melakukan inspeksi kendaraan.');
         }
 
@@ -319,20 +368,16 @@ class PeminjamanIndex extends Component
 
         DB::beginTransaction();
         try {
-            // 🔹 LOGIKA MERGE CATATAN
             $fullKondisi = $this->selectedPeminjaman->kondisi_mobil ?? '';
             $parts = explode("\n\n[+] Tambahan Validasi Pelanggan", $fullKondisi);
-            
+
             $newKondisi = trim($this->kondisi_mobil_input);
             if (count($parts) > 1) {
-                // Kembalikan bagian pelanggan persis seperti aslinya
                 $newKondisi .= "\n\n[+] Tambahan Validasi Pelanggan" . $parts[1];
             }
 
             $this->selectedPeminjaman->update([
                 'kondisi_mobil' => $newKondisi,
-                // Status TIDAK DIUBAH menjadi 'berlangsung'. 
-                // Status baru akan berubah saat pelanggan klik Terima Mobil.
             ]);
 
             $this->selectedPeminjaman->mobil()->update(['status' => 'disewa']);
@@ -397,8 +442,17 @@ class PeminjamanIndex extends Component
     private function resetForm()
     {
         $this->reset([
-            'user_id', 'mobil_id', 'sopir_id', 'tanggal_sewa', 'tanggal_kembali', 'jam_sewa',
-            'add_on_sopir', 'total_harga', 'bayar_awal', 'return_notice', 'selectedPeminjaman',
+            'user_id',
+            'mobil_id',
+            'sopir_id',
+            'tanggal_sewa',
+            'tanggal_kembali',
+            'jam_sewa',
+            'add_on_sopir',
+            'total_harga',
+            'bayar_awal',
+            'return_notice',
+            'selectedPeminjaman',
             'kondisi_mobil_input'
         ]);
         $this->resetErrorBag();

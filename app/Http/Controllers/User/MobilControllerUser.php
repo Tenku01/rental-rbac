@@ -20,7 +20,7 @@ class MobilControllerUser extends Controller
         // Query dasar mobil
         $query = Mobil::query();
 
-        // 🔹 Cek apakah user sudah upload identitas & disetujui (hanya jika sudah login)
+        // 🔹 Cek apakah user sudah upload identitas & disetujui
         $hasIdentification = false;
         if (Auth::check()) {
             $hasIdentification = Auth::user()->status_verifikasi === 'disetujui';
@@ -36,10 +36,16 @@ class MobilControllerUser extends Controller
             $query->where('transmisi', $request->transmisi);
         }
 
-        // 🔹 PERBAIKAN: Tambahkan ->withQueryString() di sini
+        // =========================================================================
+        // 🔹 LOGIKA KATALOG BERDASARKAN ALUR "PILIH MOBIL DULU"
+        // =========================================================================
+        // Kita tampilkan semua mobil (termasuk yang sedang 'disewa') karena 
+        // user bisa saja membooking untuk tanggal di masa depan.
+        // Kita HANYA menyembunyikan armada yang sedang dalam 'pemeliharaan' (rusak/bengkel).
+        $query->where('status', '!=', 'pemeliharaan');
+
         $mobils = $query->paginate(6)->withQueryString();
 
-        // 🔹 Kirim data ke view
         return view('user.armada.mobil', compact('mobils', 'hasIdentification'));
     }
 }

@@ -12,21 +12,21 @@ use Illuminate\Validation\Rule;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\DB;
 
-#[Layout('layouts.admin')] 
+#[Layout('layouts.admin')]
 class SopirIndex extends Component
 {
     use WithPagination;
 
     // --- Filters & Search ---
     public $search = '';
-    public $filterStatus = ''; 
+    public $filterStatus = '';
 
     // --- Modal States ---
     public $showModal = false;
     public $showDetailModal = false;
     public $isEditMode = false;
     public $modalTitle = '';
-    
+
     // --- Data Properties ---
     public $selectedSopir = null;
 
@@ -49,13 +49,19 @@ class SopirIndex extends Component
      */
     public function mount()
     {
-        if (Gate::denies('read-sopirs')) {
+        if (Gate::denies('read-sopir')) {
             return redirect()->route('unauthorized');
         }
     }
 
-    public function updatedSearch() { $this->resetPage(); }
-    public function updatedFilterStatus() { $this->resetPage(); }
+    public function updatedSearch()
+    {
+        $this->resetPage();
+    }
+    public function updatedFilterStatus()
+    {
+        $this->resetPage();
+    }
 
     public function updated($propertyName)
     {
@@ -101,14 +107,14 @@ class SopirIndex extends Component
         abort_if(Gate::denies('read-roles'), 403);
 
         $sopirs = Sopir::with('user')
-            ->when($this->search, function($q) {
+            ->when($this->search, function ($q) {
                 $q->where('nama', 'like', '%' . $this->search . '%')
-                  ->orWhere('no_sim', 'like', '%' . $this->search . '%')
-                  ->orWhereHas('user', fn($sq) => $sq->where('email', 'like', '%' . $this->search . '%'));
+                    ->orWhere('no_sim', 'like', '%' . $this->search . '%')
+                    ->orWhereHas('user', fn($sq) => $sq->where('email', 'like', '%' . $this->search . '%'));
             })
             ->when($this->filterStatus, fn($q) => $q->where('status', $this->filterStatus))
             ->orderBy('nama', 'asc')
-            ->paginate(10);
+            ->paginate(10)->withPath(url()->current());
 
         return view('livewire.menu.master.sopir-index', [
             'sopirs' => $sopirs
@@ -117,7 +123,7 @@ class SopirIndex extends Component
 
     public function create()
     {
-        if (Gate::denies('create-sopirs')) {
+        if (Gate::denies('create-sopir')) {
             return redirect()->route('unauthorized');
         }
 
@@ -129,7 +135,7 @@ class SopirIndex extends Component
 
     public function store()
     {
-        if (Gate::denies('create-sopirs')) {
+        if (Gate::denies('create-sopir')) {
             return redirect()->route('unauthorized');
         }
 
@@ -158,7 +164,6 @@ class SopirIndex extends Component
             DB::commit();
             $this->closeModal();
             $this->dispatch('show-toast', message: 'Sopir berhasil didaftarkan.', type: 'success');
-
         } catch (\Exception $e) {
             DB::rollBack();
             $this->dispatch('show-toast', message: 'Terjadi kesalahan sistem.', type: 'error');
@@ -167,19 +172,19 @@ class SopirIndex extends Component
 
     public function edit($id)
     {
-        if (Gate::denies('update-sopirs')) {
+        if (Gate::denies('update-sopir')) {
             return redirect()->route('unauthorized');
         }
-        
+
         $sopir = Sopir::with('user')->findOrFail($id);
-        
+
         $this->sopirId = $sopir->id;
         $this->userId = $sopir->user_id;
         $this->nama = $sopir->nama;
         $this->email = $sopir->user->email ?? '';
         $this->no_sim = $sopir->no_sim;
         $this->status = $sopir->status;
-        
+
         $this->isEditMode = true;
         $this->modalTitle = 'Edit Data Sopir';
         $this->showModal = true;
@@ -187,7 +192,7 @@ class SopirIndex extends Component
 
     public function update()
     {
-        if (Gate::denies('update-sopirs')) {
+        if (Gate::denies('update-sopir')) {
             return redirect()->route('unauthorized');
         }
 
@@ -205,7 +210,7 @@ class SopirIndex extends Component
             $user->update($userData);
 
             $sopir->update([
-                'nama' => trim($this->nama), 
+                'nama' => trim($this->nama),
                 'no_sim' => strtoupper(trim($this->no_sim)),
                 'status' => $this->status
             ]);
@@ -213,7 +218,6 @@ class SopirIndex extends Component
             DB::commit();
             $this->closeModal();
             $this->dispatch('show-toast', message: 'Data sopir berhasil diperbarui.', type: 'success');
-
         } catch (\Exception $e) {
             DB::rollBack();
             $this->dispatch('show-toast', message: 'Gagal memperbarui data.', type: 'error');
@@ -222,10 +226,10 @@ class SopirIndex extends Component
 
     public function delete($id)
     {
-        if (Gate::denies('delete-sopirs')) {
+        if (Gate::denies('delete-sopir')) {
             return redirect()->route('unauthorized');
         }
-        
+
         try {
             $sopir = Sopir::findOrFail($id);
             if ($sopir->user) {
@@ -241,7 +245,7 @@ class SopirIndex extends Component
 
     public function showDetail($id)
     {
-        $this->selectedSopir = Sopir::with(['user', 'peminjaman' => function($q) {
+        $this->selectedSopir = Sopir::with(['user', 'peminjaman' => function ($q) {
             $q->with('mobil')->orderBy('created_at', 'desc')->limit(10);
         }])->findOrFail($id);
 

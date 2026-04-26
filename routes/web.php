@@ -11,16 +11,24 @@ use App\Http\Controllers\User\PembatalanPesananController;
 use App\Http\Controllers\User\PeminjamanController;
 use App\Http\Controllers\User\PengembalianController;
 use App\Livewire\Menu\Dashboard\HomeIndex;
-use App\Livewire\Menu\Master\{ UserIndex, RoleIndex, MobilIndex, SopirIndex };
-use App\Livewire\Menu\Operasional\{ LogbookSopirIndex, InspeksiMobilIndex, LaporanKerusakanIndex, VerifikasiUserIndex };
-use App\Livewire\Menu\Transaksi\{ PeminjamanIndex, PengembalianIndex, PembatalanPesananIndex, TransactionIndex, DendaIndex, PembayaranIndex };
+use App\Livewire\Menu\Master\{UserIndex, RoleIndex, MobilIndex, SopirIndex};
+use App\Livewire\Menu\Operasional\{LogbookSopirIndex, InspeksiMobilIndex, LaporanKerusakanIndex, VerifikasiUserIndex};
+use App\Livewire\Menu\Transaksi\{PeminjamanIndex, PengembalianIndex, PembatalanPesananIndex, TransactionIndex, DendaIndex, PembayaranIndex};
 use App\Livewire\Resepsionis\LiveChatAdmin;
 use App\Livewire\Sopir\ChatPeminjaman;
 use App\Livewire\Sopir\Dashboard as SopirDashboard;
+use App\Livewire\Sopir\RiwayatPenugasan;
 use App\Livewire\Sopir\TugasAktif;
 use App\Livewire\Staff\Dashboard as StaffDashboard;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Facades\Artisan;
+
+// Letakkan ini di routes/web.php
+Route::get('/cron-job', function() {
+    Artisan::call('schedule:run');
+    return 'Cron job untuk pembatalan otomatis berhasil dipicu!';
+});
 
 // Landing page
 Route::get('/', [LandingController::class, 'index'])->name('landing');
@@ -33,29 +41,32 @@ require __DIR__ . '/auth.php';
 Route::get('/auth/google', [GoogleAuthController::class, 'redirect'])->name('auth.google');
 Route::get('/auth/google/callback', [GoogleAuthController::class, 'callback']);
 
-// Hanya untuk user yang login
-Route::middleware(['auth','verified'])->group(function () {
 
-//route eror
-Route::view('/unauthorized', 'erorrs.unauthorized')->name('unauthorized');
+// Hanya untuk user yang login
+Route::middleware(['auth', 'verified'])->group(function () {
+
+    //route eror
+    Route::view('/unauthorized', 'errors.unauthorized')->name('unauthorized');
 
     // Dashboard user
     Route::get('/dashboard', function () {
         return view('user.dashboard');
     })->name('dashboard');
-     // --- PANEL KHUSUS SOPIR ---
+
+    // --- PANEL KHUSUS SOPIR ---
     Route::middleware('role:sopir')->group(function () {
         Route::get('/sopir/dashboard', SopirDashboard::class)->name('sopir.dashboard');
         // Route baru untuk SPA Logbook & Tugas Aktif Sopir
         Route::get('/sopir/tugas-aktif', TugasAktif::class)->name('sopir.activeTasks');
         Route::get('/sopir/chat/{peminjaman_id}', ChatPeminjaman::class)->name('sopir.chat');
+        Route::get('/sopir/riwayat', RiwayatPenugasan::class)->name('sopir.riwayat'); // 🔹 Route baru untuk riwayat penugasan
     });
 
-Route::middleware('role:staff')->group(function () {
+    Route::middleware('role:staff')->group(function () {
         Route::get('/staff/dashboard', StaffDashboard::class)->name('staff.dashboard');
     });
 
-     Route::middleware('role:admin|resepsionis')
+    Route::middleware('role:admin|resepsionis')
         ->get('/resepsionis/livechat', LiveChatAdmin::class)
         ->name('resepsionis.livechat');
 
@@ -116,19 +127,25 @@ Route::middleware('role:staff')->group(function () {
     // Inisiasi Pembayaran Midtrans (Step 7-8)
     Route::post('/pengembalian/{kode_pengembalian}/snap-token', [PengembalianController::class, 'generateSnapToken'])
         ->name('pengembalian.generateSnapToken');
+    Route::post('/pengembalian/{kode_pengembalian}/snap-token', [PengembalianController::class, 'generateSnapToken'])
+        ->name('pengembalian.generateSnapToken');
+
+    // 🔹 TAMBAHKAN RUTE INI AGAR SAAT CLOSE BISA MENGHAPUS DATA
+    Route::post('/pengembalian/{kode_pengembalian}/cancel-midtrans', [PengembalianController::class, 'cancelMidtransPayment'])
+        ->name('pengembalian.cancelMidtransPayment');
 
     // Memilih Metode Pembayaran Manual/Tunai (Step 7, Aksi Tunai/Transfer)
     Route::post('/pengembalian/{kode_pengembalian}/select-manual-payment', [PengembalianController::class, 'selectManualPaymentMethod'])
         ->name('pengembalian.selectManualPaymentMethod');
 
-// Route::get('/pesanan/chat/{id}', \App\Livewire\User\ChatPesanan::class)->name('pesanan.chat');
+    // Route::get('/pesanan/chat/{id}', \App\Livewire\User\ChatPesanan::class)->name('pesanan.chat');
 
-        Route::get('/pesanan-saya/{id}/chat', [PeminjamanController::class, 'chat'])->name('pesanan.chat');
-        Route::post('/chat/kirim', [PeminjamanController::class, 'kirimPesan'])->name('chat.kirim');
-Route::get('/user/notifications', [NotificationController::class, 'getNotifications'])->name('user.notifications');
+    Route::get('/pesanan-saya/{id}/chat', [PeminjamanController::class, 'chat'])->name('pesanan.chat');
+    Route::post('/chat/kirim', [PeminjamanController::class, 'kirimPesan'])->name('chat.kirim');
+    Route::get('/user/notifications', [NotificationController::class, 'getNotifications'])->name('user.notifications');
     Route::post('/user/notifications/mark-read', [NotificationController::class, 'markAsRead'])->name('user.notifications.read');
 
-        
+
 
     // // Route dari definisi lama Anda (jika masih diperlukan)
     // Route::post('/peminjaman/{peminjaman}/cancel', [PembatalanPesananController::class, 'store'])
@@ -147,28 +164,21 @@ Route::get('/user/notifications', [NotificationController::class, 'getNotificati
     // Dashboard Admin & Manajemen Akses
     Route::get('/home', HomeIndex::class)->name('home');
 });
-     // --- GROUP MASTER DATA ---
-    Route::middleware('permission:read-users')->get('/management/users', UserIndex::class)->name('users');
-    Route::middleware('permission:read-roles')->get('/management/roles', RoleIndex::class)->name('roles');
-    Route::middleware('permission:read-mobils')->get('/management/mobil', MobilIndex::class)->name('mobil');
-    Route::middleware('permission:read-sopirs')->get('/management/sopir', SopirIndex::class)->name('sopir');
-    Route::middleware('permission:read-user_identifications')->get('/management/verifikasi', VerifikasiUserIndex::class)->name('verifikasi');
+// --- GROUP MASTER DATA ---
+Route::middleware('permission:read-users')->get('/management/users', UserIndex::class)->name('users');
+Route::middleware('permission:read-roles')->get('/management/roles', RoleIndex::class)->name('roles');
+Route::middleware('permission:read-mobil')->get('/management/mobil', MobilIndex::class)->name('mobil');
+Route::middleware('permission:read-sopir')->get('/management/sopir', SopirIndex::class)->name('sopir');
+Route::middleware('permission:read-identitas_pengguna')->get('/management/verifikasi', VerifikasiUserIndex::class)->name('verifikasi');
 
-    // --- GROUP TRANSAKSI ---
-    Route::middleware('permission:read-peminjaman')->get('/transaksi/peminjaman', PeminjamanIndex::class)->name('peminjaman');
-    Route::middleware('permission:read-pengembalian')->get('/transaksi/pengembalian', PengembalianIndex::class)->name('pengembalian');
-    Route::middleware('permission:read-pembatalan_pesanan')->get('/transaksi/pembatalan', PembatalanPesananIndex::class)->name('pembatalan');
-    Route::middleware('permission:read-payment_transactions')->get('/transaksi/payments', PembayaranIndex::class)->name('pembayaran');
+// --- GROUP TRANSAKSI ---
+Route::middleware('permission:read-peminjaman')->get('/transaksi/peminjaman', PeminjamanIndex::class)->name('peminjaman');
+Route::middleware('permission:read-pengembalian')->get('/transaksi/pengembalian', PengembalianIndex::class)->name('pengembalian');
+Route::middleware('permission:read-pembatalan_pesanan')->get('/transaksi/pembatalan', PembatalanPesananIndex::class)->name('pembatalan');
+Route::middleware('permission:read-transaksi_pembayaran')->get('/transaksi/payments', PembayaranIndex::class)->name('pembayaran');
 
-    // --- GROUP OPERASIONAL ---
-    Route::middleware('permission:read-driver_logbooks')->get('/operasional/logbook', LogbookSopirIndex::class)->name('logbook');
-    Route::middleware('permission:read-vehicle_inspections')->get('/operasional/inspeksi', InspeksiMobilIndex::class)->name('inspeksi');
-    Route::middleware('permission:read-vehicle_damage_reports')->get('/operasional/laporan-kerusakan', LaporanKerusakanIndex::class)->name('damage-report');
-    Route::middleware('permission:read-fines')->get('/operasional/denda', DendaIndex::class)->name('fines');
-
-    
-
-
-
-   
-   
+// --- GROUP OPERASIONAL ---
+Route::middleware('permission:read-logbook_sopir')->get('/operasional/logbook', LogbookSopirIndex::class)->name('logbook');
+Route::middleware('permission:read-inspeksi_mobil')->get('/operasional/inspeksi', InspeksiMobilIndex::class)->name('inspeksi');
+Route::middleware('permission:read-laporan_kerusakan')->get('/operasional/laporan-kerusakan', LaporanKerusakanIndex::class)->name('damage-report');
+Route::middleware('permission:read-denda')->get('/operasional/denda', DendaIndex::class)->name('fines');

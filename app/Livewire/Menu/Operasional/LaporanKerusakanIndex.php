@@ -26,7 +26,7 @@ class LaporanKerusakanIndex extends Component
     public $selectedReport = null;
 
     // --- Form Fields ---
-    public $editingKode = null; 
+    public $editingKode = null;
     public $mobil_id = '';
     public $pengembalian_kode = '';
     public $deskripsi_kerusakan = ''; // 🔹 Diperbarui dari damage_description
@@ -37,12 +37,15 @@ class LaporanKerusakanIndex extends Component
     public function mount()
     {
         // Permission tetap mengacu ke Spatie bawaan
-        if (Gate::denies('read-vehicle_damage_reports')) {
+        if (Gate::denies('read-laporan_kerusakan')) {
             return redirect()->route('unauthorized');
         }
     }
 
-    public function updatedSearch() { $this->resetPage(); }
+    public function updatedSearch()
+    {
+        $this->resetPage();
+    }
 
     public function updated($propertyName)
     {
@@ -82,13 +85,13 @@ class LaporanKerusakanIndex extends Component
     public function render()
     {
         $reports = LaporanKerusakanMobil::with(['mobil', 'pengembalian']) // 🔹 Diperbarui
-            ->when($this->search, function($q) {
-                $q->where('kode_laporan', 'like', '%'.$this->search.'%')
-                  ->orWhere('mobil_id', 'like', '%'.$this->search.'%')
-                  ->orWhere('pengembalian_kode', 'like', '%'.$this->search.'%');
+            ->when($this->search, function ($q) {
+                $q->where('kode_laporan', 'like', '%' . $this->search . '%')
+                    ->orWhere('mobil_id', 'like', '%' . $this->search . '%')
+                    ->orWhere('pengembalian_kode', 'like', '%' . $this->search . '%');
             })
             ->orderBy('created_at', 'desc')
-            ->paginate(10);
+            ->paginate(10)->withPath(url()->current());
 
         // Mengambil data mobil untuk dropdown saat Create
         $mobils = Mobil::orderBy('merek', 'asc')->get();
@@ -106,7 +109,7 @@ class LaporanKerusakanIndex extends Component
 
     public function create()
     {
-        abort_if(Gate::denies('create-vehicle_damage_reports'), 403);
+        abort_if(Gate::denies('create-laporan_kerusakan'), 403);
         $this->resetForm();
         $this->isEditMode = false;
         $this->showModal = true;
@@ -114,7 +117,7 @@ class LaporanKerusakanIndex extends Component
 
     public function store()
     {
-        abort_if(Gate::denies('create-vehicle_damage_reports'), 403);
+        abort_if(Gate::denies('create-laporan_kerusakan'), 403);
         $this->validate();
 
         try {
@@ -131,7 +134,6 @@ class LaporanKerusakanIndex extends Component
 
             $this->closeModal();
             $this->dispatch('notify', message: 'Laporan kerusakan baru berhasil dicatat.', type: 'success');
-
         } catch (\Exception $e) {
             $this->dispatch('notify', message: 'Gagal menyimpan: ' . $e->getMessage(), type: 'error');
         }
@@ -145,15 +147,15 @@ class LaporanKerusakanIndex extends Component
 
     public function edit($kode)
     {
-        abort_if(Gate::denies('update-vehicle_damage_reports'), 403);
+        abort_if(Gate::denies('update-laporan_kerusakan'), 403);
         $report = LaporanKerusakanMobil::where('kode_laporan', $kode)->firstOrFail(); // 🔹 Diperbarui
-        
+
         $this->editingKode = $kode;
         $this->mobil_id = $report->mobil_id;
         $this->pengembalian_kode = $report->pengembalian_kode;
         $this->deskripsi_kerusakan = $report->deskripsi_kerusakan; // 🔹 Diperbarui
         $this->biaya_kerusakan = $report->biaya_kerusakan; // 🔹 Diperbarui
-        
+
         $this->isEditMode = true;
         $this->resetErrorBag();
         $this->showModal = true;
@@ -161,12 +163,12 @@ class LaporanKerusakanIndex extends Component
 
     public function update()
     {
-        abort_if(Gate::denies('update-vehicle_damage_reports'), 403);
+        abort_if(Gate::denies('update-laporan_kerusakan'), 403);
         $this->validate();
 
         try {
             $report = LaporanKerusakanMobil::where('kode_laporan', $this->editingKode)->firstOrFail(); // 🔹 Diperbarui
-            
+
             $report->update([
                 'deskripsi_kerusakan' => $this->deskripsi_kerusakan, // 🔹 Diperbarui
                 'biaya_kerusakan' => $this->biaya_kerusakan, // 🔹 Diperbarui
@@ -174,7 +176,6 @@ class LaporanKerusakanIndex extends Component
 
             $this->closeModal();
             $this->dispatch('notify', message: 'Laporan #' . $this->editingKode . ' berhasil diperbarui.', type: 'success');
-
         } catch (\Exception $e) {
             $this->dispatch('notify', message: 'Gagal: ' . $e->getMessage(), type: 'error');
         }
@@ -182,7 +183,7 @@ class LaporanKerusakanIndex extends Component
 
     public function delete($kode)
     {
-        abort_if(Gate::denies('delete-vehicle_damage_reports'), 403);
+        abort_if(Gate::denies('delete-laporan_kerusakan'), 403);
         LaporanKerusakanMobil::where('kode_laporan', $kode)->delete(); // 🔹 Diperbarui
         $this->dispatch('notify', message: 'Laporan kerusakan dihapus permanen.', type: 'warning');
     }

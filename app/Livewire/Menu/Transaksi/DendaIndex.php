@@ -27,25 +27,31 @@ class DendaIndex extends Component
 
     protected $paginationTheme = 'tailwind';
 
-    public function updatedSearch() { $this->resetPage(); }
-    public function updatedFilterStatus() { $this->resetPage(); }
+    public function updatedSearch()
+    {
+        $this->resetPage();
+    }
+    public function updatedFilterStatus()
+    {
+        $this->resetPage();
+    }
 
     #[Layout('layouts.admin')]
     public function render()
     {
-        // RBAC: Izin melihat denda (Diselaraskan dengan web.php: read-fines)
-        abort_if(Gate::denies('read-fines'), 403, 'Akses ditolak.');
+        // RBAC: Izin melihat denda (Diselaraskan dengan web.php: read-denda)
+        abort_if(Gate::denies('read-denda'), 403, 'Akses ditolak.');
 
         $dendaList = Denda::with(['peminjaman.user', 'peminjaman.mobil']) // 🔹 Diperbarui
-            ->when($this->search, function($q) {
-                $q->where('id', 'like', '%'.$this->search.'%')
-                  ->orWhereHas('peminjaman.user', fn($sq) => $sq->where('name', 'like', '%'.$this->search.'%'))
-                  // 🔹 Diperbarui: plat_nomor di database baru menggunakan kolom id di tabel mobils
-                  ->orWhereHas('peminjaman.mobil', fn($sq) => $sq->where('id', 'like', '%'.$this->search.'%'));
+            ->when($this->search, function ($q) {
+                $q->where('id', 'like', '%' . $this->search . '%')
+                    ->orWhereHas('peminjaman.user', fn($sq) => $sq->where('name', 'like', '%' . $this->search . '%'))
+                    // 🔹 Diperbarui: plat_nomor di database baru menggunakan kolom id di tabel mobils
+                    ->orWhereHas('peminjaman.mobil', fn($sq) => $sq->where('id', 'like', '%' . $this->search . '%'));
             })
             ->when($this->filterStatus, fn($q) => $q->where('status', $this->filterStatus))
             ->orderBy('created_at', 'desc')
-            ->paginate(10);
+            ->paginate(10)->withPath(url()->current());
 
         // 🔹 Diperbarui nama view-nya menjadi denda-index
         return view('livewire.menu.transaksi.denda-index', [
@@ -66,7 +72,7 @@ class DendaIndex extends Component
     public function openPaymentModal($id)
     {
         // RBAC: Hanya boleh update jika punya izin
-        abort_if(Gate::denies('update-fines'), 403);
+        abort_if(Gate::denies('update-denda'), 403);
 
         $this->selectedDenda = Denda::with(['peminjaman.user'])->findOrFail($id);
         $this->metode_pembayaran = 'cash';
@@ -76,7 +82,7 @@ class DendaIndex extends Component
 
     public function processPayment()
     {
-        abort_if(Gate::denies('update-fines'), 403);
+        abort_if(Gate::denies('update-denda'), 403);
 
         $this->validate([
             'metode_pembayaran' => 'required|in:cash,transfer',

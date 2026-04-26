@@ -1,4 +1,4 @@
-<div class="p-8 space-y-10 bg-[#f9fafb] min-h-screen font-inter">
+<div wire:poll.100ms="loadData" class="p-8 space-y-10 bg-[#f9fafb] min-h-screen font-inter">
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
         .font-inter { font-family: 'Inter', sans-serif; }
@@ -18,10 +18,21 @@
 
         <div class="bg-white p-2 rounded-2xl shadow-sm border border-gray-100 flex items-center gap-3">
             <span class="text-[10px] font-black uppercase tracking-widest text-gray-400 ml-3">Ketersediaan:</span>
-            <button wire:click="toggleStatus" 
-                class="px-5 py-2.5 rounded-xl text-[11px] font-black uppercase tracking-widest transition-all
-                {{ $sopir && $sopir->status === 'Tidak Tersedia' ? 'bg-rose-50 text-rose-600 border border-rose-100' : 'bg-emerald-50 text-emerald-600 border border-emerald-100' }}">
-                {{ $sopir ? $sopir->status : '...' }}
+            
+            <button wire:click="toggleStatus" wire:loading.attr="disabled"
+                class="px-5 py-2.5 rounded-xl text-[11px] font-black uppercase tracking-widest transition-all w-36 flex justify-center items-center
+                {{ $sopir && $sopir->status === 'Tidak Tersedia' ? 'bg-rose-50 text-rose-600 border border-rose-100 hover:bg-rose-100' : 'bg-emerald-50 text-emerald-600 border border-emerald-100 hover:bg-emerald-100' }}">
+                
+                {{-- Teks Normal (Hilang saat loading) --}}
+                <span wire:loading.remove wire:target="toggleStatus">
+                    {{ $sopir ? $sopir->status : '...' }}
+                </span>
+
+                {{-- Animasi Memproses (Hanya muncul saat tombol diklik) --}}
+                <span wire:loading wire:target="toggleStatus" class="flex items-center text-gray-500">
+                    <svg class="animate-spin -ml-1 mr-2 h-3 w-3 text-current" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                    Proses...
+                </span>
             </button>
         </div>
     </div>
@@ -46,33 +57,36 @@
                         <h3 class="text-xl font-black uppercase tracking-tight">Tugas Sedang Berjalan</h3>
                         <p class="text-cyan-50 text-sm font-medium opacity-90 mt-1">Gunakan logbook harian untuk mencatat aktivitas perjalanan Anda.</p>
                     </div>
-                    <a href="{{ route('logbook') }}" class="bg-white text-cyan-600 font-black py-3 px-8 rounded-xl uppercase text-[10px] tracking-widest hover:bg-cyan-50">Logbook Saya</a>
+                    <a href="{{ route('sopir.activeTasks') }}" class="bg-white text-cyan-600 font-black py-3 px-8 rounded-xl uppercase text-[10px] tracking-widest hover:bg-cyan-50 transition">Logbook Saya</a>
                 </div>
             @endif
 
             {{-- Stat Cards --}}
             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-                <div class="bg-white p-8 rounded-[2.5rem] border border-gray-100 shadow-sm hover:border-cyan-200 transition-all">
+                
+                {{-- 🔹 Card Tugas Aktif dibuat bisa diklik --}}
+                <a href="{{ route('sopir.activeTasks') }}" class="block bg-white p-8 rounded-[2.5rem] border border-gray-100 shadow-sm hover:border-cyan-200 hover:shadow-md transition-all cursor-pointer group">
                     <div class="flex justify-between items-start mb-6">
-                        <div class="h-12 w-12 bg-cyan-50 rounded-2xl flex items-center justify-center text-cyan-600">
+                        <div class="h-12 w-12 bg-cyan-50 rounded-2xl flex items-center justify-center text-cyan-600 group-hover:scale-110 transition-transform">
                             <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path></svg>
                         </div>
                         <span class="text-[9px] font-black uppercase bg-cyan-50 text-cyan-600 px-3 py-1 rounded-full">Aktif</span>
                     </div>
                     <div class="text-4xl font-black text-gray-900">{{ $tugasAktifCount }}</div>
                     <p class="text-[11px] font-bold text-gray-400 uppercase tracking-widest mt-2">Penugasan Saat Ini</p>
-                </div>
+                </a>
 
-                <div class="bg-white p-8 rounded-[2.5rem] border border-gray-100 shadow-sm hover:border-emerald-200 transition-all">
+                {{-- 🔹 Card Riwayat Tugas dibuat bisa diklik mengarah ke halaman baru --}}
+                <a href="{{ route('sopir.riwayat') }}" class="block bg-white p-8 rounded-[2.5rem] border border-gray-100 shadow-sm hover:border-emerald-200 hover:shadow-md transition-all cursor-pointer group">
                     <div class="flex justify-between items-start mb-6">
-                        <div class="h-12 w-12 bg-emerald-50 rounded-2xl flex items-center justify-center text-emerald-600">
+                        <div class="h-12 w-12 bg-emerald-50 rounded-2xl flex items-center justify-center text-emerald-600 group-hover:scale-110 transition-transform">
                             <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"></path></svg>
                         </div>
                         <span class="text-[9px] font-black uppercase bg-emerald-50 text-emerald-600 px-3 py-1 rounded-full">History</span>
                     </div>
                     <div class="text-4xl font-black text-gray-900">{{ $riwayatSelesaiCount }}</div>
                     <p class="text-[11px] font-bold text-gray-400 uppercase tracking-widest mt-2">Tugas Selesai</p>
-                </div>
+                </a>
 
                 <div class="bg-white p-8 rounded-[2.5rem] border border-gray-100 shadow-sm hover:border-blue-200 transition-all">
                     <div class="flex justify-between items-start mb-6">

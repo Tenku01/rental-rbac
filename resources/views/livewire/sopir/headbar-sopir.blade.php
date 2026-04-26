@@ -119,37 +119,74 @@
                 </div>
             </div>
 
-            {{-- User Profile & Logout --}}
-            <div class="relative" @click.outside="userMenuOpen = false">
-                <button @click="userMenuOpen = !userMenuOpen"
-                    class="flex items-center space-x-2 focus:outline-none p-1 rounded-full hover:bg-gray-100 transition">
-                    <span class="text-sm font-medium text-gray-600 hidden sm:inline-block">
-                        {{ Auth::user()->name ?? 'Pengemudi' }}
-                    </span>
-                    <div
-                        class="w-10 h-10 rounded-full bg-cyan-600 flex items-center justify-center text-white text-base font-bold shadow-md border-2 border-white">
-                        {{ mb_substr(Auth::user()->name ?? 'P', 0, 1) }}
-                    </div>
-                </button>
+            {{-- 🔹 Pembatas --}}
+            <div class="h-6 w-px bg-gray-200 hidden sm:block"></div>
 
-                <div x-show="userMenuOpen" style="display: none;"
-                    class="absolute right-0 mt-2 w-48 bg-white rounded-xl shadow-xl py-2 z-50 border border-gray-100 origin-top-right">
-                    <form method="POST" action="{{ route('logout') }}">
-                        @csrf
-                        <button type="submit"
-                            class="flex w-full items-center px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition font-medium">Keluar</button>
-                    </form>
+            {{-- 🔹 User Profile --}}
+            <div class="flex items-center gap-3">
+                <div class="text-right hidden sm:block">
+                    <p class="text-xs font-bold text-gray-800 leading-none">
+                        {{ Auth::user()->name ?? 'Sopir' }}
+                    </p>
+                    <p class="text-[10px] text-cyan-600 font-semibold uppercase tracking-tighter mt-1">
+                        {{ Auth::user()->getRoleNames()->first() ?? 'Sopir' }}
+                    </p>
+                </div>
+
+                <div class="h-9 w-9 rounded-full bg-cyan-700 flex items-center justify-center text-white font-bold shadow-sm ring-2 ring-white ring-offset-1">
+                    {{ strtoupper(substr(Auth::user()->name ?? 'S', 0, 1)) }}
                 </div>
             </div>
+
+            {{-- 🔹 Pembatas --}}
+            <div class="h-6 w-px bg-gray-200"></div>
+
+            {{-- 🔹 Tombol Logout --}}
+            <form method="POST" action="{{ route('logout') }}" id="logout-form-sopir">
+                @csrf
+                <button 
+                    type="button"
+                    onclick="confirmLogoutSopir()"
+                    class="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-full transition-all group"
+                    title="Keluar Sistem"
+                >
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                    </svg>
+                </button>
+            </form>
+
         </div>
     </div>
 </header>
+
+{{-- Load SweetAlert2 dari CDN --}}
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
+<script>
+    function confirmLogoutSopir() {
+        Swal.fire({
+            title: 'Keluar Sistem?',
+            text: "Apakah Anda yakin ingin mengakhiri sesi ini?",
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#0e7490', // cyan-700
+            cancelButtonColor: '#d33',
+            confirmButtonText: 'Ya, Keluar!',
+            cancelButtonText: 'Batal',
+            reverseButtons: true
+        }).then((result) => {
+            if (result.isConfirmed) {
+                document.getElementById('logout-form-sopir').submit();
+            }
+        })
+    }
+</script>
 
 {{-- Script integrasi Livewire 3 & Alpine JS --}}
 @script
     <script>
         Alpine.data('livewireHeadbar', () => ({
-            userMenuOpen: false,
             notifMenuOpen: false,
             currentUserId: {{ auth()->id() }},
             joinedChannels: [],
