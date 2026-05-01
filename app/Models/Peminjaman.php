@@ -21,7 +21,7 @@ class Peminjaman extends Model
         'tanggal_sewa',
         'jam_sewa',
         'tanggal_kembali',
-        'add_on_sopir',
+        'tambahan_sopir',
         'total_harga',
         'dp_dibayarkan',
         'sisa_bayar',
