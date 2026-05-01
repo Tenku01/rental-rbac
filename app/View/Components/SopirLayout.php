@@ -4,10 +4,10 @@ namespace App\View\Components;
 
 use Illuminate\View\Component;
 
-class StaffLayout extends Component
+class SopirLayout extends Component
 {
     public function render()
     {
-        return view('sopir.staff');
+        return view('layouts.sopir');
     }
 }
