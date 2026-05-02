@@ -4,7 +4,7 @@ namespace App\View\Components;
 
 use Illuminate\View\Component;
 
-class StaffLayout extends Component
+class AdminLayout extends Component
 {
     public function render()
     {
