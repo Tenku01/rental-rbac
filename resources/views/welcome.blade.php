@@ -794,7 +794,7 @@ onclick="window.location='{{ url('/mobil/' . $mobil->id) }}'"
     <script src="https://unpkg.com/@alpinejs/collapse@3.x.x/dist/cdn.min.js" defer></script>
 
     <!-- Script Alpine Component untuk Livechat Reverb -->
-    <script>
+<script>
         document.addEventListener('alpine:init', () => {
             Alpine.data('guestChat', () => ({
                 chatOpen: false,
@@ -810,20 +810,23 @@ onclick="window.location='{{ url('/mobil/' . $mobil->id) }}'"
                         localStorage.setItem('guest_session_id', this.sessionId);
                     }
 
-                    // 2. Tarik riwayat pesan (jika web di-refresh, chat tidak hilang)
+                    // 2. Tarik riwayat pesan lama
                     this.fetchMessages();
 
-                    // 3. Berlangganan (Subscribe) ke channel Reverb publik khusus guest ini
+                    // 3. Berlangganan ke channel Reverb
                     setTimeout(() => {
                         if (window.Echo) {
                             window.Echo.channel('guest-chat.' + this.sessionId)
                                 .listen('.App\\Events\\GuestMessageEvent', (e) => {
+                                    // Ekstraksi data pesan
                                     let msgData = e.pesan ? e.pesan : e;
 
-                                    // --- PERBAIKAN DI SINI ---
-                                    // Hanya push ke array jika pengirim_id TIDAK NULL (artinya ini pesan dari ADMIN)
-                                    // Jika pengirim_id NULL, abaikan saja karena sudah kita tambah manual di sendMessage()
-                                    if (msgData.pengirim_id !== null) {
+                                    // --- LOGIKA ANTI DOUBLE ---
+                                    // 1. Jika pengirim_id != null, berarti ini pesan dari ADMIN (Wajib tampilkan)
+                                    // 2. Cek apakah ID pesan ini sudah ada di layar (Cegah duplikasi)
+                                    const isExists = this.messages.some(m => m.id === msgData.id);
+
+                                    if (msgData.pengirim_id !== null && !isExists) {
                                         this.messages.push({
                                             id: msgData.id,
                                             isi_pesan: msgData.isi_pesan,
@@ -832,6 +835,8 @@ onclick="window.location='{{ url('/mobil/' . $mobil->id) }}'"
                                         });
                                         this.scrollToBottom();
                                     }
+                                    // Note: Jika pengirim_id == null, kita abaikan karena itu pesan 
+                                    // milik guest sendiri yang sudah muncul via Optimistic Update.
                                 });
                         }
                     }, 1000);
@@ -844,45 +849,57 @@ onclick="window.location='{{ url('/mobil/' . $mobil->id) }}'"
                             this.messages = data;
                             this.scrollToBottom();
                         })
-                        .catch(err => console.error(err));
+                        .catch(err => console.error('Gagal mengambil pesan:', err));
                 },
 
-                sendMessage() {
+                async sendMessage() {
                     if (this.newMessage.trim() === '') return;
 
-                    let payload = {
-                        session_id: this.sessionId,
-                        isi_pesan: this.newMessage
-                    };
-
-                    // Optimistic Update: Munculkan pesan seketika di layar
-                    let msgInput = this.newMessage;
+                    const msgInput = this.newMessage;
                     this.newMessage = '';
 
-                    let tempMsg = {
-                        id: Date.now(),
+                    // Optimistic Update: Tampilkan langsung dengan ID sementara (Timestamp)
+                    const tempId = Date.now();
+                    this.messages.push({
+                        id: tempId,
                         isi_pesan: msgInput,
                         pengirim_id: null,
                         waktu: new Date().toLocaleTimeString('id-ID', {
                             hour: '2-digit',
                             minute: '2-digit'
                         })
-                    };
-                    this.messages.push(tempMsg);
+                    });
                     this.scrollToBottom();
 
-                    // Kirim asinkron ke server
-                    fetch('/guest-chat/send', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'X-CSRF-TOKEN': '{{ csrf_token() }}',
-                            'X-Socket-ID': window.Echo ? window.Echo.socketId() : ''
-                        },
-                        body: JSON.stringify(payload)
-                    }).catch(err => {
+                    try {
+                        const response = await fetch('/guest-chat/send', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'X-CSRF-TOKEN': '{{ csrf_token() }}',
+                                // X-Socket-ID penting agar Reverb tahu ini pengirimnya
+                                'X-Socket-ID': window.Echo ? window.Echo.socketId() : ''
+                            },
+                            body: JSON.stringify({
+                                session_id: this.sessionId,
+                                isi_pesan: msgInput
+                            })
+                        });
+
+                        const result = await response.json();
+
+                        // Update ID sementara dengan ID asli dari Database agar sinkron
+                        if (result.status === 'success') {
+                            const index = this.messages.findIndex(m => m.id === tempId);
+                            if (index !== -1) {
+                                this.messages[index].id = result.pesan.id;
+                                // Opsional: update waktu dari server
+                                this.messages[index].waktu = result.pesan.waktu;
+                            }
+                        }
+                    } catch (err) {
                         console.error('Gagal mengirim pesan:', err);
-                    });
+                    }
                 },
 
                 scrollToBottom() {
