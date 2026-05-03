@@ -46,7 +46,7 @@ class LiveChatAdmin extends Component
         $this->activeSessionId = $sessionId;
         $this->loadMessages();
         
-        // Memaksa scroll ke bawah saat chat diklik
+        // Memaksa scroll ke bawah saat chat diklik (menunggu DOM update)
         $this->dispatch('scroll-to-bottom');
     }
 
@@ -69,23 +69,26 @@ class LiveChatAdmin extends Component
         }
     }
 
-    // MENERIMA PESAN REAL-TIME DARI REVERB (Tanpa Refresh)
-    #[On('echo-private:admin.guest-chat,GuestMessageEvent')]
+    // MENERIMA PESAN REAL-TIME DARI GUEST
+    // Mendengarkan channel publik khusus Admin menggunakan MessageToAdminEvent
+    #[On('echo:admin-channel,MessageToAdminEvent')]
     public function handleIncomingMessage($payload)
     {
-        // Jika ada guest baru, update daftar sidebar
+        // Jika ada guest baru (belum ada di daftar sidebar), update daftar
         if (!in_array($payload['session_id'], $this->chatSessions)) {
             $this->loadSessions();
         }
 
-        // Jika pesan masuk ke ruang obrolan yang sedang terbuka
+        // Jika pesan masuk ke ruang obrolan guest yang SEDANG DIBUKA oleh Admin
         if ($this->activeSessionId === $payload['session_id']) {
-            $this->messages[] = $payload; // Tambah pesan
-            $this->dispatch('scroll-to-bottom'); // Scroll ke bawah otomatis
+            $this->messages[] = $payload; // Tambah pesan secara reaktif
+            
+            // Beri perintah ke browser untuk scroll ke bawah
+            $this->dispatch('scroll-to-bottom'); 
         }
     }
 
-    // MENGIRIM PESAN KE GUEST (Tanpa Refresh)
+    // MENGIRIM PESAN BALASAN KE GUEST
     public function sendMessage()
     {
         $this->validate(['newMessage' => 'required|string']);
@@ -95,11 +98,12 @@ class LiveChatAdmin extends Component
         $pesan = new Pesan();
         $pesan->session_id = $this->activeSessionId;
         $pesan->isi_pesan = $this->newMessage;
-        $pesan->pengirim_id = Auth::id(); // Terisi ID Resepsionis yang balas
+        $pesan->pengirim_id = Auth::id(); // Terisi ID Resepsionis yang membalas
         $pesan->peminjaman_id = null;
         $pesan->save();
 
-        // 2. Tembakkan event Reverb untuk dikirim ke Guest
+        // 2. Tembakkan event Reverb untuk dikirim KHUSUS ke Guest tersebut
+        // Menggunakan event yang mengirim ke public channel 'guest-chat.{session_id}'
         broadcast(new GuestMessageEvent($pesan))->toOthers();
 
         // 3. Tampilkan pesan kita sendiri di layar tanpa menunggu server reload
@@ -111,7 +115,10 @@ class LiveChatAdmin extends Component
             'waktu' => $pesan->created_at->format('H:i'),
         ];
         
+        // Bersihkan inputan
         $this->newMessage = '';
+        
+        // Beri perintah ke browser untuk scroll ke bawah
         $this->dispatch('scroll-to-bottom');
     }
 

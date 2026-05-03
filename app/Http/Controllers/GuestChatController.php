@@ -2,7 +2,8 @@
 
 namespace App\Http\Controllers;
 
-use App\Events\GuestMessageEvent;
+// GANTI: Gunakan MessageToAdminEvent, bukan GuestMessageEvent
+use App\Events\MessageToAdminEvent;
 use App\Models\Pesan;
 use Illuminate\Http\Request;
 
@@ -50,9 +51,9 @@ class GuestChatController extends Controller
         
         $pesan->save();
 
-        // 2. Broadcast pesan tersebut menggunakan Reverb
-        // Menggunakan toOthers() agar pengirim tidak menerima pesan ganda di layarnya sendiri
-        broadcast(new GuestMessageEvent($pesan))->toOthers();
+        // 2. Broadcast pesan ke ADMIN
+        // PERUBAHAN: Gunakan MessageToAdminEvent agar masuk ke 'admin-channel'
+        broadcast(new MessageToAdminEvent($pesan))->toOthers();
 
         return response()->json([
             'status' => 'success',
