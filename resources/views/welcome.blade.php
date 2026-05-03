@@ -795,38 +795,47 @@ onclick="window.location='{{ url('/mobil/' . $mobil->id) }}'"
 
     <!-- Script Alpine Component untuk Livechat Reverb -->
 <script>
-        document.addEventListener('alpine:init', () => {
-            Alpine.data('guestChat', () => ({
-                chatOpen: false,
-                sessionId: '',
-                newMessage: '',
-                messages: [],
+    document.addEventListener('alpine:init', () => {
+        Alpine.data('guestChat', () => ({
+            chatOpen: false,
+            sessionId: '',
+            newMessage: '',
+            messages: [],
+            isSending: false, // Tambahan: Guard untuk mencegah double send
 
-                init() {
-                    // 1. Dapatkan atau buat UUID (session) baru di browser
-                    this.sessionId = localStorage.getItem('guest_session_id');
-                    if (!this.sessionId) {
-                        this.sessionId = 'guest_' + crypto.randomUUID();
-                        localStorage.setItem('guest_session_id', this.sessionId);
-                    }
+            init() {
+                // 1. Dapatkan atau buat UUID (session) baru di browser
+                this.sessionId = localStorage.getItem('guest_session_id');
+                if (!this.sessionId) {
+                    this.sessionId = 'guest_' + crypto.randomUUID();
+                    localStorage.setItem('guest_session_id', this.sessionId);
+                }
 
-                    // 2. Tarik riwayat pesan lama
-                    this.fetchMessages();
+                this.fetchMessages();
 
-                    // 3. Berlangganan ke channel Reverb
-                    setTimeout(() => {
-                        if (window.Echo) {
-                            window.Echo.channel('guest-chat.' + this.sessionId)
-                                .listen('.App\\Events\\GuestMessageEvent', (e) => {
-                                    // Ekstraksi data pesan
-                                    let msgData = e.pesan ? e.pesan : e;
+                // 2. Berlangganan ke channel Reverb
+                setTimeout(() => {
+                    if (window.Echo) {
+                        window.Echo.channel('guest-chat.' + this.sessionId)
+                            .listen('.App\\Events\\GuestMessageEvent', (e) => {
+                                let msgData = e.pesan ? e.pesan : e;
 
-                                    // --- LOGIKA ANTI DOUBLE ---
-                                    // 1. Jika pengirim_id != null, berarti ini pesan dari ADMIN (Wajib tampilkan)
-                                    // 2. Cek apakah ID pesan ini sudah ada di layar (Cegah duplikasi)
-                                    const isExists = this.messages.some(m => m.id === msgData.id);
+                                // --- LOGIKA ANTI DOUBLE SUPER KETAT ---
+                                // 1. Cek berdasarkan ID asli dari database
+                                const isIdExists = this.messages.some(m => m.id === msgData.id);
+                                
+                                // 2. Cek berdasarkan isi pesan (untuk pesan yang masih pakai tempId)
+                                // Ini mengantisipasi jika broadcast datang sangat cepat
+                                const isContentExists = this.messages.some(m => 
+                                    m.pengirim_id === msgData.pengirim_id && 
+                                    m.isi_pesan === msgData.isi_pesan &&
+                                    (typeof m.id === 'number' && m.id > 1000000000000) // Ciri-ciri tempId/timestamp
+                                );
 
-                                    if (msgData.pengirim_id !== null && !isExists) {
+                                if (!isIdExists && !isContentExists) {
+                                    // HANYA TERIMA jika pengirim_id tidak NULL (berarti dari ADMIN)
+                                    // Karena pesan Guest sendiri sudah ditangani oleh sendMessage()
+                                    if (msgData.pengirim_id !== null) {
                                         this.messages.push({
                                             id: msgData.id,
                                             isi_pesan: msgData.isi_pesan,
@@ -835,82 +844,89 @@ onclick="window.location='{{ url('/mobil/' . $mobil->id) }}'"
                                         });
                                         this.scrollToBottom();
                                     }
-                                    // Note: Jika pengirim_id == null, kita abaikan karena itu pesan 
-                                    // milik guest sendiri yang sudah muncul via Optimistic Update.
-                                });
-                        }
-                    }, 1000);
-                },
+                                }
+                            });
+                    }
+                }, 1000);
+            },
 
-                fetchMessages() {
-                    fetch('/guest-chat/' + this.sessionId)
-                        .then(res => res.json())
-                        .then(data => {
-                            this.messages = data;
-                            this.scrollToBottom();
-                        })
-                        .catch(err => console.error('Gagal mengambil pesan:', err));
-                },
+            fetchMessages() {
+                fetch('/guest-chat/' + this.sessionId)
+                    .then(res => res.json())
+                    .then(data => {
+                        this.messages = data;
+                        this.scrollToBottom();
+                    })
+                    .catch(err => console.error('Gagal mengambil pesan:', err));
+            },
 
-                async sendMessage() {
-                    if (this.newMessage.trim() === '') return;
+            async sendMessage() {
+                // Tambahkan pengecekan isSending untuk mencegah eksekusi ganda
+                if (this.newMessage.trim() === '' || this.isSending) return;
 
-                    const msgInput = this.newMessage;
-                    this.newMessage = '';
+                this.isSending = true;
+                const msgInput = this.newMessage;
+                this.newMessage = '';
 
-                    // Optimistic Update: Tampilkan langsung dengan ID sementara (Timestamp)
-                    const tempId = Date.now();
-                    this.messages.push({
-                        id: tempId,
-                        isi_pesan: msgInput,
-                        pengirim_id: null,
-                        waktu: new Date().toLocaleTimeString('id-ID', {
-                            hour: '2-digit',
-                            minute: '2-digit'
+                // Optimistic Update: Gunakan timestamp sebagai ID sementara agar tampilan instan
+                const tempId = Date.now();
+                const tempMsg = {
+                    id: tempId,
+                    isi_pesan: msgInput,
+                    pengirim_id: null,
+                    waktu: new Date().toLocaleTimeString('id-ID', {
+                        hour: '2-digit',
+                        minute: '2-digit'
+                    })
+                };
+                
+                this.messages.push(tempMsg);
+                this.scrollToBottom();
+
+                try {
+                    const response = await fetch('/guest-chat/send', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRF-TOKEN': '{{ csrf_token() }}',
+                            // Header Socket-ID sangat krusial agar Reverb bisa melakukan toOthers()
+                            'X-Socket-ID': window.Echo ? window.Echo.socketId() : ''
+                        },
+                        body: JSON.stringify({
+                            session_id: this.sessionId,
+                            isi_pesan: msgInput
                         })
                     });
-                    this.scrollToBottom();
 
-                    try {
-                        const response = await fetch('/guest-chat/send', {
-                            method: 'POST',
-                            headers: {
-                                'Content-Type': 'application/json',
-                                'X-CSRF-TOKEN': '{{ csrf_token() }}',
-                                // X-Socket-ID penting agar Reverb tahu ini pengirimnya
-                                'X-Socket-ID': window.Echo ? window.Echo.socketId() : ''
-                            },
-                            body: JSON.stringify({
-                                session_id: this.sessionId,
-                                isi_pesan: msgInput
-                            })
-                        });
+                    const result = await response.json();
 
-                        const result = await response.json();
-
-                        // Update ID sementara dengan ID asli dari Database agar sinkron
-                        if (result.status === 'success') {
-                            const index = this.messages.findIndex(m => m.id === tempId);
-                            if (index !== -1) {
-                                this.messages[index].id = result.pesan.id;
-                                // Opsional: update waktu dari server
-                                this.messages[index].waktu = result.pesan.waktu;
-                            }
+                    if (result.status === 'success') {
+                        // Sinkronisasi ID: Ganti ID sementara dengan ID asli dari Database
+                        const index = this.messages.findIndex(m => m.id === tempId);
+                        if (index !== -1) {
+                            this.messages[index].id = result.pesan.id;
+                            this.messages[index].waktu = result.pesan.waktu;
                         }
-                    } catch (err) {
-                        console.error('Gagal mengirim pesan:', err);
                     }
-                },
-
-                scrollToBottom() {
-                    setTimeout(() => {
-                        const el = document.getElementById('chat-body');
-                        if (el) el.scrollTop = el.scrollHeight;
-                    }, 50);
+                } catch (err) {
+                    console.error('Gagal mengirim pesan:', err);
+                    // Jika gagal, hapus pesan sementara dari layar
+                    this.messages = this.messages.filter(m => m.id !== tempId);
+                } finally {
+                    // Selesai proses, buka kembali kunci pengiriman
+                    this.isSending = false;
                 }
-            }));
-        });
-    </script>
+            },
+
+            scrollToBottom() {
+                setTimeout(() => {
+                    const el = document.getElementById('chat-body');
+                    if (el) el.scrollTop = el.scrollHeight;
+                }, 50);
+            }
+        }));
+    });
+</script>
 
     <!-- JavaScript Native IntersectionObserver -->
     <script>
