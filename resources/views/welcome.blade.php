@@ -557,12 +557,12 @@
                     this.fetchMessages();
 
                     // 3. Berlangganan (Subscribe) ke channel Reverb publik khusus guest ini
-                    setTimeout(() => {
+                   setTimeout(() => {
                         if (window.Echo) {
                             window.Echo.channel('guest-chat.' + this.sessionId)
-                                .listen('GuestMessageEvent', (e) => {
-                                    // Karena kita tidak menggunakan livewire, format yang dikembalikan sesuai event
-                                    // Cek strukturnya, jika dibungkus ['pesan' => ...] dari event
+                                // TAMBAHKAN TITIK (.) DAN App\\Events\\
+                                .listen('.App\\Events\\GuestMessageEvent', (e) => {
+                                    
                                     let msgData = e.pesan ? e.pesan : e;
                                     
                                     this.messages.push({
