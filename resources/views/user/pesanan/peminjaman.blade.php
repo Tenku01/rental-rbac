@@ -773,18 +773,30 @@
         window.location.href = "{{ route('payment.success') }}";
     },
     onPending: function(result) {
-        // Jika user memilih metode pembayaran tapi belum bayar, 
-        // kita arahkan ke halaman daftar pesanan.
-        window.location.href = "{{ route('pesanan.saya') }}";
+        // KASUS ANDA: User pilih metode pembayaran (QRIS), lalu close.
+        // Midtrans menganggap ini 'Pending'. Jika ingin tetap dihapus:
+        console.log('User mendapatkan kode bayar tapi menutup Snap (Pending). Membersihkan data...');
+        
+        const peminjamanId = response.data.peminjaman_id;
+        
+        axios.post(`/peminjaman/force-cancel/${peminjamanId}`, {
+            _token: '{{ csrf_token() }}'
+        })
+        .then(res => {
+            // Setelah data dihapus, arahkan ke halaman utama agar tidak ada data "gantung"
+            window.location.href = "/"; 
+        })
+        .catch(err => {
+            window.location.reload();
+        });
     },
     onError: function(result) {
         window.location.href = "{{ route('payment.failed') }}";
     },
     onClose: function() {
-        // LOGIKA BARU: Panggil fungsi force cancel saat pop-up ditutup
-        console.log('User menutup Snap. Menjalankan pembersihan data...');
+        // Kasus: User klik "X" sebelum pilih metode pembayaran
+        console.log('User menutup Snap sebelum memilih metode. Menjalankan pembersihan...');
         
-        // Gunakan peminjamanId yang didapat dari response axios sebelumnya
         const peminjamanId = response.data.peminjaman_id;
 
         axios.post(`/peminjaman/force-cancel/${peminjamanId}`, {
@@ -792,16 +804,13 @@
         })
         .then(res => {
             if (res.data.status === 'success') {
-                showToast('🚫 Pesanan dibatalkan karena pembayaran tidak diselesaikan.');
-                // Refresh halaman setelah 2 detik
-                setTimeout(() => { window.location.reload(); }, 2000);
+                showToast('🚫 Pesanan dibatalkan.');
+                setTimeout(() => { window.location.reload(); }, 1500);
             } else {
-                // Jika status ignored, berarti user mungkin sudah bayar/pending di sistem
                 window.location.href = "{{ route('pesanan.saya') }}";
             }
         })
         .catch(err => {
-            console.error('Gagal menjalankan force cancel:', err);
             window.location.reload();
         });
     }

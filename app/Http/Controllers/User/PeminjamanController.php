@@ -524,7 +524,7 @@ class PeminjamanController extends Controller
         ]);
     }
 
-    public function forceCancelPeminjaman($id)
+   public function forceCancelPeminjaman($id)
 {
     try {
         DB::beginTransaction();
@@ -555,7 +555,7 @@ class PeminjamanController extends Controller
             $peminjaman->delete();
 
             DB::commit();
-            Log::info("Force Cancel: Peminjaman ID {$id} berhasil dihapus karena user menutup pembayaran.");
+            Log::info("Force Cancel: Peminjaman ID {$id} berhasil dihapus karena user membatalkan/menutup Snap.");
             
             return response()->json([
                 'status' => 'success',
@@ -566,7 +566,7 @@ class PeminjamanController extends Controller
         DB::rollBack();
         return response()->json([
             'status' => 'ignored',
-            'message' => 'Pembayaran sedang diproses, data tidak dihapus.'
+            'message' => 'Pembayaran sudah masuk/diproses, data tidak dihapus.'
         ]);
 
     } catch (\Exception $e) {
@@ -575,5 +575,6 @@ class PeminjamanController extends Controller
         return response()->json(['status' => 'error'], 500);
     }
 }
+
 
 }
