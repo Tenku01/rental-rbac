@@ -22,6 +22,7 @@ class LiveChatAdmin extends Component
         /** @var \App\Models\User $user */
         $user = Auth::user();
 
+        // Meskipun channel publik, akses halaman tetap dibatasi role
         if (!$user || !$user->hasAnyRole(['admin', 'resepsionis'])) {
             abort(403, 'Akses Ditolak.');
         }
@@ -66,20 +67,19 @@ class LiveChatAdmin extends Component
     }
 
     /**
-     * LISTENER PERBAIKAN:
-     * Karena kita menggunakan broadcastAs() di Event, kita gunakan nama tersebut di sini.
-     * Kita tambahkan dot (.) di depan nama event jika menggunakan Echo dengan Reverb/Pusher.
+     * PERUBAHAN LISTENER:
+     * Dari 'echo-private' menjadi 'echo' karena menggunakan Public Channel.
+     * Nama channel: admin-channel
+     * Nama event: .MessageToAdminEvent (titik diperlukan karena broadcastAs)
      */
-    #[On('echo-private:admin.guest-chat,.MessageToAdminEvent')]
+    #[On('echo:admin-channel,.MessageToAdminEvent')]
     public function handleIncomingMessage($payload)
     {
-        // 1. Cek apakah ada pengunjung baru yang belum ada di list sidebar
         if (!in_array($payload['session_id'], $this->chatSessions)) {
             $this->loadSessions();
         }
 
-        // 2. Jika chat yang sedang dibuka adalah milik pengirim pesan ini
-        if ($this->activeSessionId === $payload['session_id']) {
+        if (trim($this->activeSessionId) === trim($payload['session_id'])) {
             $this->messages[] = [
                 'id' => $payload['id'],
                 'session_id' => $payload['session_id'],

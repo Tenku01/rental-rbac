@@ -3,7 +3,7 @@
 namespace App\Events;
 
 use App\Models\Pesan;
-use Illuminate\Broadcasting\PrivateChannel;
+use Illuminate\Broadcasting\Channel;
 use Illuminate\Contracts\Broadcasting\ShouldBroadcastNow;
 use Illuminate\Foundation\Events\Dispatchable;
 use Illuminate\Queue\SerializesModels;
@@ -19,16 +19,17 @@ class MessageToAdminEvent implements ShouldBroadcastNow
         $this->pesan = $pesan;
     }
 
+    /**
+     * MENGGUNAKAN PUBLIC CHANNEL
+     * Menggunakan 'Channel' (bukan PrivateChannel) agar tidak memerlukan otentikasi.
+     */
     public function broadcastOn(): array
     {
-        // Harus sesuai dengan auth di channels.php
-        return [new PrivateChannel('admin.guest-chat')];
+        return [new Channel('admin-channel')];
     }
 
     /**
-     * SANGAT PENTING: Menentukan nama event secara eksplisit.
-     * Tanpa ini, Laravel akan mengirim nama dengan namespace lengkap (App\Events\...)
-     * yang seringkali sulit dideteksi oleh listener Livewire di VPS.
+     * Nama event yang akan didengar oleh Livewire.
      */
     public function broadcastAs(): string
     {
