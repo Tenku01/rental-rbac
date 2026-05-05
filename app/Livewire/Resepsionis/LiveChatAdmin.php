@@ -5,7 +5,6 @@ namespace App\Livewire\Resepsionis;
 use Livewire\Component;
 use App\Models\Pesan;
 use App\Events\GuestMessageEvent;
-use Livewire\Attributes\On;
 use Livewire\Attributes\Layout;
 use Illuminate\Support\Facades\Auth;
 
@@ -15,6 +14,7 @@ class LiveChatAdmin extends Component
     public $chatSessions = [];
     public $messages = [];
     public $newMessage = '';
+    public $lastMessageCount = 0;
 
     #[Layout('layouts.admin')]
     public function mount()
@@ -22,12 +22,31 @@ class LiveChatAdmin extends Component
         /** @var \App\Models\User $user */
         $user = Auth::user();
 
-        // Meskipun channel publik, akses halaman tetap dibatasi role
         if (!$user || !$user->hasAnyRole(['admin', 'resepsionis'])) {
             abort(403, 'Akses Ditolak.');
         }
 
         $this->loadSessions();
+    }
+
+    /**
+     * Fungsi yang akan dipanggil secara berkala oleh wire:poll
+     */
+    public function refreshData()
+    {
+        // 1. Refresh daftar sesi di sidebar
+        $this->loadSessions();
+
+        // 2. Jika ada chat yang dibuka, refresh pesannya
+        if ($this->activeSessionId) {
+            $currentCount = count($this->messages);
+            $this->loadMessages();
+            
+            // Jika ada pesan baru masuk, trigger scroll ke bawah
+            if (count($this->messages) > $currentCount) {
+                $this->dispatch('scroll-to-bottom');
+            }
+        }
     }
 
     public function loadSessions()
@@ -66,32 +85,6 @@ class LiveChatAdmin extends Component
         }
     }
 
-    /**
-     * PERUBAHAN LISTENER:
-     * Dari 'echo-private' menjadi 'echo' karena menggunakan Public Channel.
-     * Nama channel: admin-channel
-     * Nama event: .MessageToAdminEvent (titik diperlukan karena broadcastAs)
-     */
-    #[On('echo:admin-channel,.MessageToAdminEvent')]
-    public function handleIncomingMessage($payload)
-    {
-        if (!in_array($payload['session_id'], $this->chatSessions)) {
-            $this->loadSessions();
-        }
-
-        if (trim($this->activeSessionId) === trim($payload['session_id'])) {
-            $this->messages[] = [
-                'id' => $payload['id'],
-                'session_id' => $payload['session_id'],
-                'isi_pesan' => $payload['isi_pesan'],
-                'pengirim_id' => $payload['pengirim_id'],
-                'waktu' => $payload['waktu'],
-            ];
-            
-            $this->dispatch('scroll-to-bottom'); 
-        }
-    }
-
     public function sendMessage()
     {
         $this->validate(['newMessage' => 'required|string']);
@@ -103,17 +96,11 @@ class LiveChatAdmin extends Component
         $pesan->pengirim_id = Auth::id();
         $pesan->save();
 
+        // Tetap broadcast agar Guest (sisi pelanggan) tetap bisa realtime jika mereka pakai Reverb
         broadcast(new GuestMessageEvent($pesan))->toOthers();
 
-        $this->messages[] = [
-            'id' => $pesan->id,
-            'session_id' => $pesan->session_id,
-            'isi_pesan' => $pesan->isi_pesan,
-            'pengirim_id' => $pesan->pengirim_id,
-            'waktu' => $pesan->created_at->format('H:i'),
-        ];
-        
         $this->newMessage = '';
+        $this->loadMessages(); // Refresh langsung setelah kirim
         $this->dispatch('scroll-to-bottom');
     }
 
