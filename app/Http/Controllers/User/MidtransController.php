@@ -14,6 +14,7 @@ use Midtrans\Config;
 use Midtrans\Snap;
 use App\Mail\PaymentSuccessMail;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\DB;
 
 class MidtransController extends Controller
 {
@@ -322,5 +323,47 @@ class MidtransController extends Controller
     }
 
     public function failed() { return view('user.pesanan.failed-payment'); }
-    public function unfinish() { return view('user.pesanan.unfinish-payment'); }
+  public function unfinish(Request $request) 
+    { 
+        // Midtrans mengirim order_id lewat URL: ?order_id=xxx
+        $orderId = $request->query('order_id');
+
+        if ($orderId) {
+            try {
+                DB::beginTransaction();
+
+                // 1. Cari transaksi berdasarkan order_id dari Midtrans
+                $payment = TransaksiPembayaran::where('id_transaksi_midtrans', $orderId)->first();
+
+                if ($payment && $payment->peminjaman) {
+                    $peminjaman = $payment->peminjaman;
+
+                    // 2. Pastikan hanya hapus jika statusnya masih 'menunggu pembayaran'
+                    // Ini untuk keamanan agar data yang sudah sukses tidak terhapus sengaja
+                    if ($peminjaman->status === 'menunggu pembayaran') {
+                        
+                        // Kembalikan status mobil jadi tersedia
+                        if ($peminjaman->mobil) {
+                            $peminjaman->mobil->update(['status' => 'tersedia']);
+                        }
+
+                        // Hapus transaksi pembayaran
+                        $payment->delete();
+
+                        // Hapus peminjaman
+                        $peminjaman->delete();
+
+                        DB::commit();
+                        Log::info("Auto-Cleanup: Pesanan {$orderId} berhasil dihapus via Unfinish Redirect.");
+                    }
+                }
+            } catch (\Exception $e) {
+                DB::rollBack();
+                Log::error('Gagal menghapus data di unfinish: ' . $e->getMessage());
+            }
+        }
+
+        // Tampilkan view yang sudah Anda buat
+        return view('user.pesanan.unfinish-payment');
+    }
 }
