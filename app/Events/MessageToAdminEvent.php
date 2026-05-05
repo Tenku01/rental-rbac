@@ -21,11 +21,18 @@ class MessageToAdminEvent implements ShouldBroadcastNow
 
     public function broadcastOn(): array
     {
-        /**
-         * Diubah ke PrivateChannel agar sesuai dengan auth di channels.php
-         * Nama channel disamakan: admin.guest-chat
-         */
+        // Harus sesuai dengan auth di channels.php
         return [new PrivateChannel('admin.guest-chat')];
+    }
+
+    /**
+     * SANGAT PENTING: Menentukan nama event secara eksplisit.
+     * Tanpa ini, Laravel akan mengirim nama dengan namespace lengkap (App\Events\...)
+     * yang seringkali sulit dideteksi oleh listener Livewire di VPS.
+     */
+    public function broadcastAs(): string
+    {
+        return 'MessageToAdminEvent';
     }
 
     public function broadcastWith(): array

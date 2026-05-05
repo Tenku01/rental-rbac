@@ -22,9 +22,8 @@ class LiveChatAdmin extends Component
         /** @var \App\Models\User $user */
         $user = Auth::user();
 
-        // Keamanan: Hanya izinkan Admin dan Resepsionis
         if (!$user || !$user->hasAnyRole(['admin', 'resepsionis'])) {
-            abort(403, 'Akses Ditolak: Fitur Livechat hanya untuk Admin dan Resepsionis.');
+            abort(403, 'Akses Ditolak.');
         }
 
         $this->loadSessions();
@@ -32,7 +31,6 @@ class LiveChatAdmin extends Component
 
     public function loadSessions()
     {
-        // Ambil daftar sesi chat unik
         $this->chatSessions = Pesan::whereNotNull('session_id')
             ->select('session_id')
             ->distinct()
@@ -45,8 +43,6 @@ class LiveChatAdmin extends Component
     {
         $this->activeSessionId = $sessionId;
         $this->loadMessages();
-        
-        // Scroll ke bawah setelah memilih chat
         $this->dispatch('scroll-to-bottom');
     }
 
@@ -70,28 +66,26 @@ class LiveChatAdmin extends Component
     }
 
     /**
-     * MENERIMA PESAN REAL-TIME DARI GUEST
-     * Menggunakan Private Channel 'admin.guest-chat' sesuai dengan channels.php
-     * Pastikan MessageToAdminEvent melakukan broadcastOn ke PrivateChannel('admin.guest-chat')
+     * LISTENER PERBAIKAN:
+     * Karena kita menggunakan broadcastAs() di Event, kita gunakan nama tersebut di sini.
+     * Kita tambahkan dot (.) di depan nama event jika menggunakan Echo dengan Reverb/Pusher.
      */
-    #[On('echo-private:admin.guest-chat,MessageToAdminEvent')]
+    #[On('echo-private:admin.guest-chat,.MessageToAdminEvent')]
     public function handleIncomingMessage($payload)
     {
-        // Debugging payload jika perlu: \Log::info($payload);
-
-        // 1. Jika ada sesi baru, refresh daftar sidebar
+        // 1. Cek apakah ada pengunjung baru yang belum ada di list sidebar
         if (!in_array($payload['session_id'], $this->chatSessions)) {
             $this->loadSessions();
         }
 
-        // 2. Jika pesan masuk untuk chat yang sedang dibuka, tambahkan ke array messages
+        // 2. Jika chat yang sedang dibuka adalah milik pengirim pesan ini
         if ($this->activeSessionId === $payload['session_id']) {
             $this->messages[] = [
-                'id' => $payload['id'] ?? rand(1000, 9999),
+                'id' => $payload['id'],
                 'session_id' => $payload['session_id'],
                 'isi_pesan' => $payload['isi_pesan'],
-                'pengirim_id' => $payload['pengirim_id'] ?? null,
-                'waktu' => now()->format('H:i'),
+                'pengirim_id' => $payload['pengirim_id'],
+                'waktu' => $payload['waktu'],
             ];
             
             $this->dispatch('scroll-to-bottom'); 
@@ -103,17 +97,14 @@ class LiveChatAdmin extends Component
         $this->validate(['newMessage' => 'required|string']);
         if (!$this->activeSessionId) return;
 
-        // Simpan ke DB
         $pesan = new Pesan();
         $pesan->session_id = $this->activeSessionId;
         $pesan->isi_pesan = $this->newMessage;
         $pesan->pengirim_id = Auth::id();
         $pesan->save();
 
-        // Broadcast ke channel Guest
         broadcast(new GuestMessageEvent($pesan))->toOthers();
 
-        // Update UI Admin sendiri secara instan
         $this->messages[] = [
             'id' => $pesan->id,
             'session_id' => $pesan->session_id,
