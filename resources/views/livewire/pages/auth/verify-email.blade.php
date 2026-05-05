@@ -36,12 +36,12 @@ new #[Layout('layouts.guest')] class extends Component {
 
 <div>
     <div class="mb-4 text-sm text-gray-600">
-        {{ __('live') }}
+        {{ __('Terima kasih telah mendaftar! Sebelum memulai, silakan verifikasi alamat email Anda dengan mengklik tautan yang baru saja kami kirimkan. Jika Anda belum menerima emailnya, kami dengan senang hati akan mengirimkan yang baru.') }}
     </div>
 
     @if (session('status') == 'verification-link-sent')
         <div class="mb-4 font-medium text-sm text-green-600">
-            {{ __('A new verification link has been sent to the email address you provided during registration.') }}
+            {{ __('Tautan verifikasi baru telah dikirim ke alamat email yang Anda berikan selama pendaftaran.') }}
         </div>
     @endif
 
