@@ -45,6 +45,11 @@ class MidtransController extends Controller
                 'first_name' => Auth::user()->name,
                 'email' => Auth::user()->email,
             ],
+            'callbacks' => [
+                'finish' => url('/payment/success'),
+                'unfinish' => url('/payment/unfinish'),
+                'error' => url('/payment/unfinish'),
+            ],
             'enabled_payments' => [
                 'qris',            
                 'bank_transfer',
@@ -56,6 +61,7 @@ class MidtransController extends Controller
             'qris' => [
                 'acquirer' => 'gopay', 
             ],
+            
         ];
 
         try {
