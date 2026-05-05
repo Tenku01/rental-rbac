@@ -768,39 +768,44 @@
                             const peminjamanId = response.data.peminjaman_id;
 
                             // Buka Snap Midtrans
-                            snap.pay(response.data.snap_token, {
-                                onSuccess: function() {
-                                    window.location.href = "{{ route('payment.success') }}"
-                                },
-                                onError: function() {
-                                    window.location.href = "{{ route('payment.failed') }}";
-                                },
-                                onClose: function() {
-                                    console.log('❌ Snap ditutup. Menghapus data booking...');
-                                    showToast('🚫 Pembayaran dibatalkan. Menghapus pesanan...');
+                          snap.pay(response.data.snap_token, {
+    onSuccess: function(result) {
+        window.location.href = "{{ route('payment.success') }}";
+    },
+    onPending: function(result) {
+        // Jika user memilih metode pembayaran tapi belum bayar, 
+        // kita arahkan ke halaman daftar pesanan.
+        window.location.href = "{{ route('pesanan.saya') }}";
+    },
+    onError: function(result) {
+        window.location.href = "{{ route('payment.failed') }}";
+    },
+    onClose: function() {
+        // LOGIKA BARU: Panggil fungsi force cancel saat pop-up ditutup
+        console.log('User menutup Snap. Menjalankan pembersihan data...');
+        
+        // Gunakan peminjamanId yang didapat dari response axios sebelumnya
+        const peminjamanId = response.data.peminjaman_id;
 
-                                    // Hapus data jika user close popup payment
-                                    fetch(`/peminjaman/${peminjamanId}/cancel`, {
-                                            method: 'POST', 
-                                            headers: {
-                                                'Content-Type': 'application/json',
-                                                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
-                                            },
-                                            body: JSON.stringify({
-                                                _method: 'DELETE'
-                                            })
-                                        })
-                                        .then(res => {
-                                            if (res.ok) {
-                                                console.log('✅ Data berhasil dihapus.');
-                                                showToast('🗑️ Data peminjaman telah dihapus. Silakan pesan ulang.');
-                                            } else {
-                                                console.error('Gagal menghapus data.');
-                                            }
-                                        })
-                                        .catch(err => console.error('Error delete request:', err));
-                                }
-                            });
+        axios.post(`/peminjaman/force-cancel/${peminjamanId}`, {
+            _token: '{{ csrf_token() }}'
+        })
+        .then(res => {
+            if (res.data.status === 'success') {
+                showToast('🚫 Pesanan dibatalkan karena pembayaran tidak diselesaikan.');
+                // Refresh halaman setelah 2 detik
+                setTimeout(() => { window.location.reload(); }, 2000);
+            } else {
+                // Jika status ignored, berarti user mungkin sudah bayar/pending di sistem
+                window.location.href = "{{ route('pesanan.saya') }}";
+            }
+        })
+        .catch(err => {
+            console.error('Gagal menjalankan force cancel:', err);
+            window.location.reload();
+        });
+    }
+});
                         } 
                         // 2. Error dari Backend (Skenario bentrok/race condition)
                         else if (response.data.error) {

@@ -107,6 +107,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
         ->name('peminjaman.cancel-payment');
     Route::delete('/peminjaman/{id}/cancel', [PeminjamanController::class, 'cancel'])
         ->name('peminjaman.cancel');
+        Route::post('/peminjaman/force-cancel/{id}', [App\Http\Controllers\User\PeminjamanController::class, 'forceCancelPeminjaman'])
+    ->name('peminjaman.forceCancel');
 
     //pengembalian
     // Route::post('/peminjaman/{id}/pengembalian', [PeminjamanController::class, 'prosesPengembalian'])

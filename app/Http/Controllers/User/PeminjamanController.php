@@ -524,4 +524,56 @@ class PeminjamanController extends Controller
         ]);
     }
 
+    public function forceCancelPeminjaman($id)
+{
+    try {
+        DB::beginTransaction();
+
+        // Cari data peminjaman
+        $peminjaman = Peminjaman::find($id);
+
+        if (!$peminjaman) {
+            return response()->json([
+                'status' => 'not_found',
+                'message' => 'Data sudah tidak ada.'
+            ], 200);
+        }
+
+        // KEAMANAN: Hanya hapus jika statusnya masih 'menunggu pembayaran'
+        // Ini mencegah data terhapus jika sebenarnya pembayaran sudah berhasil (settlement)
+        if ($peminjaman->status === 'menunggu pembayaran') {
+            
+            // 1. Kembalikan status mobil jadi tersedia
+            if ($peminjaman->mobil) {
+                $peminjaman->mobil->update(['status' => 'tersedia']);
+            }
+
+            // 2. Bersihkan record di tabel TransaksiPembayaran
+            TransaksiPembayaran::where('peminjaman_id', $peminjaman->id)->delete();
+
+            // 3. Hapus data peminjaman utama
+            $peminjaman->delete();
+
+            DB::commit();
+            Log::info("Force Cancel: Peminjaman ID {$id} berhasil dihapus karena user menutup pembayaran.");
+            
+            return response()->json([
+                'status' => 'success',
+                'message' => 'Pemesanan dibatalkan.'
+            ]);
+        }
+
+        DB::rollBack();
+        return response()->json([
+            'status' => 'ignored',
+            'message' => 'Pembayaran sedang diproses, data tidak dihapus.'
+        ]);
+
+    } catch (\Exception $e) {
+        DB::rollBack();
+        Log::error('Force Cancel Error: ' . $e->getMessage());
+        return response()->json(['status' => 'error'], 500);
+    }
+}
+
 }
