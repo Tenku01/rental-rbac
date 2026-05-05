@@ -1,8 +1,9 @@
 <?php
+
 namespace App\Events;
 
 use App\Models\Pesan;
-use Illuminate\Broadcasting\Channel;
+use Illuminate\Broadcasting\PrivateChannel;
 use Illuminate\Contracts\Broadcasting\ShouldBroadcastNow;
 use Illuminate\Foundation\Events\Dispatchable;
 use Illuminate\Queue\SerializesModels;
@@ -10,13 +11,21 @@ use Illuminate\Queue\SerializesModels;
 class MessageToAdminEvent implements ShouldBroadcastNow
 {
     use Dispatchable, SerializesModels;
+
     public $pesan;
-    public function __construct(Pesan $pesan) { $this->pesan = $pesan; }
+
+    public function __construct(Pesan $pesan)
+    {
+        $this->pesan = $pesan;
+    }
 
     public function broadcastOn(): array
     {
-        // Channel publik yang HANYA didengarkan oleh Admin
-        return [new Channel('admin-channel')];
+        /**
+         * Diubah ke PrivateChannel agar sesuai dengan auth di channels.php
+         * Nama channel disamakan: admin.guest-chat
+         */
+        return [new PrivateChannel('admin.guest-chat')];
     }
 
     public function broadcastWith(): array
