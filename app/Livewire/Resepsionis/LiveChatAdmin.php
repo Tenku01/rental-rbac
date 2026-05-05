@@ -14,6 +14,7 @@ class LiveChatAdmin extends Component
     public $chatSessions = [];
     public $messages = [];
     public $newMessage = '';
+    public $activeTab = 'semua'; // Tab aktif: semua, belum_dibaca, sudah_dibaca
 
     #[Layout('layouts.admin')]
     public function mount()
@@ -29,6 +30,30 @@ class LiveChatAdmin extends Component
     }
 
     /**
+     * Mengatur tab yang aktif
+     */
+    public function setTab($tab)
+    {
+        $this->activeTab = $tab;
+    }
+
+    /**
+     * Mendapatkan sesi yang sudah difilter berdasarkan tab
+     */
+    public function getFilteredSessionsProperty()
+    {
+        return array_filter($this->chatSessions, function ($session) {
+            if ($this->activeTab === 'belum_dibaca') {
+                return $session['unread_count'] > 0;
+            }
+            if ($this->activeTab === 'sudah_dibaca') {
+                return $session['unread_count'] == 0;
+            }
+            return true; // Untuk tab 'semua'
+        });
+    }
+
+    /**
      * Fungsi Polling (3 detik sekali)
      */
     public function refreshData()
@@ -38,7 +63,7 @@ class LiveChatAdmin extends Component
         if ($this->activeSessionId) {
             $currentCount = count($this->messages);
             
-            // Tandai pesan baru dari guest sebagai sudah dibaca
+            // Tandai pesan baru dari guest sebagai sudah dibaca jika room sedang dibuka
             $this->markAsRead($this->activeSessionId);
             
             $this->loadMessages();
@@ -124,6 +149,8 @@ class LiveChatAdmin extends Component
 
     public function render()
     {
-        return view('livewire.resepsionis.live-chat-admin');
+        return view('livewire.resepsionis.live-chat-admin', [
+            'filteredSessions' => $this->filteredSessions
+        ]);
     }
 }
