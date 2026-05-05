@@ -349,6 +349,11 @@ class PeminjamanController extends Controller
             $midtransParams = [
                 'transaction_details' => ['order_id' => $orderId, 'gross_amount' => (int)$jumlahBayar],
                 'customer_details' => ['first_name' => Auth::user()->name, 'email' => Auth::user()->email],
+                 'callbacks' => [
+                'finish' => url('/payment/success'),
+                'unfinish' => url('/payment/unfinish'),
+                'error' => url('/payment/unfinish'),
+            ],
             ];
 
             $snapToken = Snap::getSnapToken($midtransParams);
