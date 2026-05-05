@@ -1,44 +1,59 @@
-<div class="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8" wire:poll.2s="refreshData">
+<div class="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8" wire:poll.3s="refreshData">
     <div class="bg-white rounded-2xl shadow-sm border border-gray-200 h-[650px] flex overflow-hidden">
         
         {{-- Sidebar Kiri --}}
         <div class="w-1/3 border-r border-gray-200 bg-gray-50 flex flex-col">
             <div class="p-5 border-b border-gray-200 bg-white">
                 <h3 class="font-bold text-gray-800 text-lg">Livechat Tamu</h3>
-                <p class="text-xs text-gray-500 mt-1">Status: Polling Aktif (3s)</p>
+                <p class="text-xs text-gray-500 mt-1">Status: Polling Aktif</p>
             </div>
             
             <div class="overflow-y-auto flex-1 p-3 space-y-2 custom-scrollbar">
                 @forelse($chatSessions as $session)
-                    <button wire:click="selectChat('{{ $session }}')" 
-                            wire:key="session-{{ $session }}"
-                            class="w-full text-left p-3 rounded-xl transition-all duration-200 {{ $activeSessionId === $session ? 'bg-cyan-100 border-cyan-300 shadow-sm' : 'bg-white hover:bg-gray-100 border-transparent' }} border">
-                        <div class="flex items-center gap-3">
-                            <div class="w-10 h-10 rounded-full bg-cyan-600 text-white flex items-center justify-center font-bold text-xs shrink-0">GS</div>
+                    <button wire:click="selectChat('{{ $session['session_id'] }}')" 
+                            wire:key="session-{{ $session['session_id'] }}"
+                            class="w-full text-left p-3 rounded-xl transition-all duration-200 border flex items-center justify-between {{ $activeSessionId === $session['session_id'] ? 'bg-cyan-100 border-cyan-300 shadow-sm' : 'bg-white hover:bg-gray-100 border-transparent' }}">
+                        
+                        <div class="flex items-center gap-3 overflow-hidden">
+                            <div class="w-10 h-10 rounded-full bg-cyan-600 text-white flex items-center justify-center font-bold text-xs shrink-0 relative">
+                                GS
+                                @if($session['unread_count'] > 0 && $activeSessionId !== $session['session_id'])
+                                    <span class="absolute -top-1 -right-1 flex h-4 w-4">
+                                        <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                                        <span class="relative inline-flex rounded-full h-4 w-4 bg-red-500 text-[10px] text-white items-center justify-center font-bold">
+                                            {{ $session['unread_count'] }}
+                                        </span>
+                                    </span>
+                                @endif
+                            </div>
                             <div class="overflow-hidden">
                                 <h4 class="font-bold text-sm text-gray-900 truncate">Pengunjung</h4>
-                                <p class="text-xs text-cyan-600 font-medium mt-0.5">ID: {{ strtoupper(substr($session, -6)) }}</p>
+                                <p class="text-[10px] text-gray-500 truncate">ID: {{ strtoupper(substr($session['session_id'], -6)) }}</p>
                             </div>
                         </div>
+
+                        @if($session['unread_count'] > 0 && $activeSessionId !== $session['session_id'])
+                            <div class="w-2 h-2 bg-red-500 rounded-full"></div>
+                        @endif
                     </button>
                 @empty
-                    <div class="text-center mt-10">
-                        <p class="text-gray-400 text-sm">Belum ada obrolan.</p>
+                    <div class="text-center mt-10 p-4">
+                        <p class="text-gray-400 text-sm italic">Belum ada percakapan masuk.</p>
                     </div>
                 @endforelse
             </div>
         </div>
 
-        {{-- Area Kanan --}}
+        {{-- Area Chat --}}
         <div class="w-2/3 flex flex-col bg-white">
             @if($activeSessionId)
-                <div class="p-4 border-b border-gray-200 bg-white flex justify-between items-center">
+                <div class="p-4 border-b border-gray-200 bg-white flex justify-between items-center shadow-sm">
                     <div class="flex items-center gap-3">
                         <div class="w-10 h-10 rounded-full bg-gray-100 text-gray-500 flex items-center justify-center font-bold text-xs">
                             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path></svg>
                         </div>
                         <div>
-                            <h3 class="font-bold text-gray-800">ID: {{ strtoupper(substr($activeSessionId, -6)) }}</h3>
+                            <h3 class="font-bold text-gray-800">Pengunjung - {{ strtoupper(substr($activeSessionId, -6)) }}</h3>
                         </div>
                     </div>
                 </div>
@@ -48,7 +63,13 @@
                         <div wire:key="msg-{{ $index }}-{{ $msg['id'] }}" class="flex {{ $msg['pengirim_id'] === null ? 'justify-start' : 'justify-end' }}">
                             <div class="p-3.5 rounded-2xl shadow-sm max-w-[80%] text-sm {{ $msg['pengirim_id'] === null ? 'bg-white border border-gray-200 text-gray-800 rounded-tl-none' : 'bg-cyan-600 text-white rounded-tr-none' }}">
                                 {{ $msg['isi_pesan'] }}
-                                <div class="text-[10px] mt-1 text-right opacity-70">{{ $msg['waktu'] }}</div>
+                                <div class="text-[10px] mt-1 flex items-center justify-end gap-1 {{ $msg['pengirim_id'] === null ? 'text-gray-400' : 'text-cyan-200' }}">
+                                    {{ $msg['waktu'] }}
+                                    @if($msg['pengirim_id'] !== null)
+                                        {{-- Indikator sudah dibaca untuk pesan admin (pesan ini dibaca oleh guest?) --}}
+                                        <svg class="w-3 h-3 {{ $msg['sudah_dibaca'] ? 'text-white' : 'text-cyan-400' }}" fill="currentColor" viewBox="0 0 20 20"><path d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293l-4.243 4.243a1 1 0 01-1.414 0l-2.121-2.121a1 1 0 011.414-1.414l1.414 1.414 3.536-3.536a1 1 0 011.414 1.414z"></path></svg>
+                                    @endif
+                                </div>
                             </div>
                         </div>
                     @endforeach
@@ -56,16 +77,17 @@
 
                 <div class="p-4 bg-white border-t border-gray-200">
                     <form wire:submit.prevent="sendMessage" class="flex gap-2 relative">
-                        <input type="text" wire:model="newMessage" placeholder="Balas pengunjung..." required
-                               class="flex-1 bg-gray-50 border border-gray-300 rounded-xl pl-4 pr-12 py-3 text-sm outline-none">
-                        <button type="submit" class="absolute right-2 top-2 bottom-2 bg-cyan-600 text-white px-4 rounded-lg">
+                        <input type="text" wire:model="newMessage" placeholder="Ketik balasan..." required
+                               class="flex-1 bg-gray-50 border border-gray-300 rounded-xl pl-4 pr-12 py-3 text-sm focus:ring-2 focus:ring-cyan-500 outline-none transition-all">
+                        <button type="submit" class="absolute right-2 top-2 bottom-2 bg-cyan-600 hover:bg-cyan-700 text-white px-5 rounded-lg font-medium transition-colors">
                             Kirim
                         </button>
                     </form>
                 </div>
             @else
                 <div class="flex-1 flex flex-col items-center justify-center text-gray-400 bg-slate-50">
-                    <p class="text-sm">Pilih obrolan untuk mulai membalas.</p>
+                    <svg class="w-16 h-16 mb-4 text-gray-200" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"></path></svg>
+                    <p class="text-sm">Pilih chat untuk melihat pesan.</p>
                 </div>
             @endif
         </div>
@@ -73,7 +95,6 @@
 
     <script>
         document.addEventListener('livewire:initialized', () => {
-            const chatBody = document.getElementById('admin-chat-body');
             const scrollToBottom = () => {
                 const el = document.getElementById('admin-chat-body');
                 if (el) el.scrollTop = el.scrollHeight;

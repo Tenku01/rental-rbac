@@ -14,7 +14,6 @@ class LiveChatAdmin extends Component
     public $chatSessions = [];
     public $messages = [];
     public $newMessage = '';
-    public $lastMessageCount = 0;
 
     #[Layout('layouts.admin')]
     public function mount()
@@ -30,19 +29,20 @@ class LiveChatAdmin extends Component
     }
 
     /**
-     * Fungsi yang akan dipanggil secara berkala oleh wire:poll
+     * Fungsi Polling (3 detik sekali)
      */
     public function refreshData()
     {
-        // 1. Refresh daftar sesi di sidebar
         $this->loadSessions();
 
-        // 2. Jika ada chat yang dibuka, refresh pesannya
         if ($this->activeSessionId) {
             $currentCount = count($this->messages);
+            
+            // Tandai pesan baru dari guest sebagai sudah dibaca
+            $this->markAsRead($this->activeSessionId);
+            
             $this->loadMessages();
             
-            // Jika ada pesan baru masuk, trigger scroll ke bawah
             if (count($this->messages) > $currentCount) {
                 $this->dispatch('scroll-to-bottom');
             }
@@ -51,19 +51,35 @@ class LiveChatAdmin extends Component
 
     public function loadSessions()
     {
+        // Ambil session_id unik dan hitung pesan belum dibaca (yang dikirim guest: pengirim_id = null)
         $this->chatSessions = Pesan::whereNotNull('session_id')
             ->select('session_id')
-            ->distinct()
-            ->latest('created_at')
-            ->pluck('session_id')
+            ->selectRaw('MAX(created_at) as last_chat')
+            ->selectRaw('SUM(CASE WHEN sudah_dibaca = 0 AND pengirim_id IS NULL THEN 1 ELSE 0 END) as unread_count')
+            ->groupBy('session_id')
+            ->orderBy('last_chat', 'desc')
+            ->get()
             ->toArray();
     }
 
     public function selectChat($sessionId)
     {
         $this->activeSessionId = $sessionId;
+        
+        // Tandai sebagai dibaca saat chat diklik
+        $this->markAsRead($sessionId);
+        
         $this->loadMessages();
         $this->dispatch('scroll-to-bottom');
+    }
+
+    protected function markAsRead($sessionId)
+    {
+        // Update pesan dari guest (pengirim_id is null) menjadi sudah dibaca (1)
+        Pesan::where('session_id', $sessionId)
+            ->where('pengirim_id', null)
+            ->where('sudah_dibaca', 0)
+            ->update(['sudah_dibaca' => 1]);
     }
 
     public function loadMessages()
@@ -78,6 +94,7 @@ class LiveChatAdmin extends Component
                         'session_id' => $msg->session_id,
                         'isi_pesan' => $msg->isi_pesan,
                         'pengirim_id' => $msg->pengirim_id,
+                        'sudah_dibaca' => $msg->sudah_dibaca,
                         'waktu' => $msg->created_at->format('H:i'),
                     ];
                 })
@@ -94,13 +111,14 @@ class LiveChatAdmin extends Component
         $pesan->session_id = $this->activeSessionId;
         $pesan->isi_pesan = $this->newMessage;
         $pesan->pengirim_id = Auth::id();
+        $pesan->sudah_dibaca = 1; // Pesan admin otomatis sudah dibaca
         $pesan->save();
 
-        // Tetap broadcast agar Guest (sisi pelanggan) tetap bisa realtime jika mereka pakai Reverb
+        // Tetap kirim broadcast untuk Guest (jika mereka masih pakai Reverb)
         broadcast(new GuestMessageEvent($pesan))->toOthers();
 
         $this->newMessage = '';
-        $this->loadMessages(); // Refresh langsung setelah kirim
+        $this->loadMessages();
         $this->dispatch('scroll-to-bottom');
     }
 
