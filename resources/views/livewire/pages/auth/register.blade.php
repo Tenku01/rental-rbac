@@ -27,30 +27,59 @@ new #[Layout('layouts.guest')] class extends Component
     public $foto_sim;
 
     /**
+     * Mendefinisikan aturan validasi utama untuk real-time dan saat submit.
+     */
+    protected function rules(): array
+    {
+        return [
+            'name' => ['required', 'string', 'max:255'],
+            'email' => ['required', 'string', 'lowercase', 'email', 'max:255', 'unique:'.User::class],
+            'no_telepon' => ['nullable', 'string', 'max:20'],
+            'alamat' => ['nullable', 'string', 'max:500'],
+            'password' => ['required', 'string', 'min:8', 'confirmed', Rules\Password::defaults()],
+            'password_confirmation' => ['required_with:password', 'same:password'],
+            'foto_ktp' => ['nullable', 'image', 'max:5120'], 
+            'foto_sim' => ['nullable', 'image', 'max:5120'],
+        ];
+    }
+
+    /**
+     * Pesan error kustom (bahasa Indonesia)
+     */
+    protected function messages(): array
+    {
+        return [
+            'email.unique' => 'Email ini sudah terdaftar. Silakan gunakan email lain atau klik Login di bawah.',
+            'password.min' => 'Password terlalu pendek. Minimal harus terdiri dari 8 karakter.',
+            'password.confirmed' => 'Konfirmasi password tidak cocok dengan password di atas.',
+            'password_confirmation.same' => 'Konfirmasi password tidak cocok dengan password di atas.',
+        ];
+    }
+
+    /**
+     * Hook Real-time: Berjalan setiap kali pengguna mengetik (dengan debounce).
+     */
+    public function updated($propertyName): void
+    {
+        $this->validateOnly($propertyName);
+    }
+
+    /**
      * Handle an incoming registration request.
      */
     public function register(): void
     {
-        // 1. Validasi reCAPTCHA
+        // 1. Validasi reCAPTCHA (dilakukan terpisah agar tidak dicek saat mengetik)
         $this->validate([
             'recaptcha' => ['required', new RecaptchaRule()]
         ], [
             'recaptcha.required' => 'Verifikasi keamanan gagal. Silakan centang "I\'m not a robot".'
         ]);
 
-        // 2. Validasi Form
+        // 2. Validasi Form Keseluruhan saat Submit
         try {
-            $validated = $this->validate([
-                'name' => ['required', 'string', 'max:255'],
-                'email' => ['required', 'string', 'lowercase', 'email', 'max:255', 'unique:'.User::class],
-                // Mengubah jadi nullable (opsional)
-                'no_telepon' => ['nullable', 'string', 'max:20'],
-                'alamat' => ['nullable', 'string', 'max:500'],
-                'password' => ['required', 'string', 'confirmed', Rules\Password::defaults()],
-                // Validasi gambar opsional, maksimal 5MB
-                'foto_ktp' => ['nullable', 'image', 'max:5120'], 
-                'foto_sim' => ['nullable', 'image', 'max:5120'],
-            ]);
+            // Memanggil $this->validate() tanpa parameter akan otomatis mengambil dari method rules()
+            $validated = $this->validate();
         } catch (\Illuminate\Validation\ValidationException $e) {
             // Reset captcha jika gagal validasi
             $this->recaptcha = null;
@@ -125,14 +154,15 @@ new #[Layout('layouts.guest')] class extends Component
             <!-- Name -->
             <div>
                 <x-input-label for="name" :value="__('Nama Lengkap')" />
-                <x-text-input wire:model="name" id="name" class="block mt-1 w-full" type="text" name="name" required autofocus autocomplete="name" placeholder="Nama lengkap sesuai identitas" />
+                <!-- Menggunakan wire:model.live.debounce.500ms untuk real-time validation yang mulus -->
+                <x-text-input wire:model.live.debounce.500ms="name" id="name" class="block mt-1 w-full" type="text" name="name" required autofocus autocomplete="name" placeholder="Nama lengkap sesuai identitas" />
                 <x-input-error :messages="$errors->get('name')" class="mt-2" />
             </div>
 
             <!-- Email Address -->
             <div>
                 <x-input-label for="email" :value="__('Email')" />
-                <x-text-input wire:model="email" id="email" class="block mt-1 w-full" type="email" name="email" required autocomplete="username" placeholder="email@contoh.com" />
+                <x-text-input wire:model.live.debounce.500ms="email" id="email" class="block mt-1 w-full" type="email" name="email" required autocomplete="username" placeholder="email@contoh.com" />
                 <x-input-error :messages="$errors->get('email')" class="mt-2" />
             </div>
 
@@ -154,17 +184,15 @@ new #[Layout('layouts.guest')] class extends Component
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <!-- No Telepon -->
                     <div>
-                        <x-input-label for="no_telepon" :value="__('Nomor WhatsApp / HP')" />
-                        <!-- Menghapus atribut 'required' -->
-                        <x-text-input wire:model="no_telepon" id="no_telepon" class="block mt-1 w-full" type="text" name="no_telepon" placeholder="08xxxxxxxxxx" />
+                        <x-input-label for="no_telepon" :value="__('Nomor WhatsApp / HP (Opsional)')" />
+                        <x-text-input wire:model.live.debounce.500ms="no_telepon" id="no_telepon" class="block mt-1 w-full" type="text" name="no_telepon" placeholder="08xxxxxxxxxx" />
                         <x-input-error :messages="$errors->get('no_telepon')" class="mt-2" />
                     </div>
 
                     <!-- Alamat -->
                     <div>
                         <x-input-label for="alamat" :value="__('Alamat Domisili (Opsional)')" />
-                        <!-- Menghapus atribut 'required' -->
-                        <x-text-input wire:model="alamat" id="alamat" class="block mt-1 w-full" type="text" name="alamat" placeholder="Jalan, RT/RW, Kota" />
+                        <x-text-input wire:model.live.debounce.500ms="alamat" id="alamat" class="block mt-1 w-full" type="text" name="alamat" placeholder="Jalan, RT/RW, Kota" />
                         <x-input-error :messages="$errors->get('alamat')" class="mt-2" />
                     </div>
                 </div>
@@ -175,9 +203,9 @@ new #[Layout('layouts.guest')] class extends Component
             <div x-data="{ showPassword: false }" class="pt-2">
                 <x-input-label for="password" :value="__('Password')" />
                 <div class="relative mt-1">
-                    <x-text-input wire:model="password" id="password" class="block w-full pr-10"
+                    <x-text-input wire:model.live.debounce.500ms="password" id="password" class="block w-full pr-10"
                         x-bind:type="showPassword ? 'text' : 'password'"
-                        name="password" required autocomplete="new-password" placeholder="••••••••" />
+                        name="password" required autocomplete="new-password" placeholder="Minimal 8 karakter" />
                     
                     <button type="button" @click="showPassword = !showPassword" class="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-cyan-600 focus:outline-none">
                         <svg x-show="!showPassword" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -196,9 +224,9 @@ new #[Layout('layouts.guest')] class extends Component
             <div x-data="{ showConfirm: false }">
                 <x-input-label for="password_confirmation" :value="__('Konfirmasi Password')" />
                 <div class="relative mt-1">
-                    <x-text-input wire:model="password_confirmation" id="password_confirmation" class="block w-full pr-10"
+                    <x-text-input wire:model.live.debounce.500ms="password_confirmation" id="password_confirmation" class="block w-full pr-10"
                         x-bind:type="showConfirm ? 'text' : 'password'"
-                        name="password_confirmation" required autocomplete="new-password" placeholder="••••••••" />
+                        name="password_confirmation" required autocomplete="new-password" placeholder="Ulangi password Anda" />
                     
                     <button type="button" @click="showConfirm = !showConfirm" class="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-cyan-600 focus:outline-none">
                         <svg x-show="!showConfirm" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -284,7 +312,6 @@ new #[Layout('layouts.guest')] class extends Component
                             <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
                             <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                         </svg>
-                        Memproses...
                     </span>
                 </x-primary-button>
             </div>
