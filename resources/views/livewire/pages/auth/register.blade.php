@@ -154,7 +154,7 @@ new #[Layout('layouts.guest')] class extends Component
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <!-- No Telepon -->
                     <div>
-                        <x-input-label for="no_telepon" :value="__('Nomor WhatsApp / HP (Opsional)')" />
+                        <x-input-label for="no_telepon" :value="__('Nomor WhatsApp / HP')" />
                         <!-- Menghapus atribut 'required' -->
                         <x-text-input wire:model="no_telepon" id="no_telepon" class="block mt-1 w-full" type="text" name="no_telepon" placeholder="08xxxxxxxxxx" />
                         <x-input-error :messages="$errors->get('no_telepon')" class="mt-2" />
