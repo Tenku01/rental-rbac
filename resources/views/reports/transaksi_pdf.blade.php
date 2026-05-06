@@ -255,7 +255,7 @@
                     <p>Sleman, {{ \Carbon\Carbon::now()->translatedFormat('d F Y') }}</p>
                     <p>Mengetahui,</p>
                     <div class="signature-space"></div>
-                    <p style="font-weight: bold; text-decoration: underline;">{{ Auth::user()->name ?? 'Administrator' }}</p>
+                    <p style="font-weight: bold; text-decoration: underline;">{{ Auth::user()->name ?? 'Owner' }}</p>
                     <p style="margin-top: 2px;">{{ implode(', ', Auth::user()->roles->pluck('name')->toArray() ?? ['Owner']) }}</p>
                 </td>
             </tr>
