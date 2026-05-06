@@ -41,6 +41,7 @@ new #[Layout('layouts.guest')] class extends Component
             'password' => ['required', 'string', 'min:8', Rules\Password::defaults()],
             // Gunakan rule 'same:password' agar error muncul tepat di bawah kolom password_confirmation
             'password_confirmation' => ['required_with:password', 'string', 'same:password'],
+            // max:5120 berarti maksimal 5 MB
             'foto_ktp' => ['nullable', 'image', 'max:5120'], 
             'foto_sim' => ['nullable', 'image', 'max:5120'],
         ];
@@ -59,11 +60,18 @@ new #[Layout('layouts.guest')] class extends Component
             'password_confirmation.required' => 'Konfirmasi password wajib diisi.',
             'password_confirmation.required_with' => 'Konfirmasi password wajib diisi jika password telah diisi.',
             'password_confirmation.same' => 'Konfirmasi password tidak cocok dengan password di atas.',
+            
+            // Tambahan validasi kustom untuk Foto KTP dan SIM
+            'foto_ktp.image' => 'File KTP harus berupa gambar (JPG, PNG, dll).',
+            'foto_ktp.max' => 'Ukuran foto KTP tidak boleh lebih dari 5 MB.',
+            'foto_sim.image' => 'File SIM harus berupa gambar (JPG, PNG, dll).',
+            'foto_sim.max' => 'Ukuran foto SIM tidak boleh lebih dari 5 MB.',
         ];
     }
 
     /**
-     * Hook Real-time: Berjalan setiap kali pengguna mengetik (dengan debounce).
+     * Hook Real-time: Berjalan setiap kali pengguna mengetik (dengan debounce) 
+     * atau ketika pengguna memilih file (upload file otomatis ter-trigger ke sini).
      */
     public function updated($propertyName): void
     {
@@ -258,6 +266,7 @@ new #[Layout('layouts.guest')] class extends Component
                     <!-- Upload KTP -->
                     <div>
                         <x-input-label for="foto_ktp" :value="__('Foto KTP')" />
+                        <!-- Catatan: tidak ada atribut 'multiple', jadi HTML otomatis hanya izinkan 1 file -->
                         <input wire:model="foto_ktp" id="foto_ktp" type="file" accept="image/*" class="block w-full text-sm text-gray-500
                             file:mr-4 file:py-2 file:px-4
                             file:rounded-md file:border-0
@@ -265,11 +274,11 @@ new #[Layout('layouts.guest')] class extends Component
                             file:bg-cyan-50 file:text-cyan-700
                             hover:file:bg-cyan-100 mt-1 cursor-pointer
                         " />
-                        <x-input-error :messages="$errors->get('foto_ktp')" class="mt-2" />
+                        <x-input-error :messages="$errors->get('foto_ktp')" class="mt-2 text-red-600" />
                         
                         <!-- Preview KTP -->
                         <div wire:loading wire:target="foto_ktp" class="text-sm text-cyan-600 mt-2">Mengunggah...</div>
-                        @if ($foto_ktp)
+                        @if ($foto_ktp && !$errors->has('foto_ktp'))
                             <div class="mt-2 relative inline-block">
                                 <img src="{{ $foto_ktp->temporaryUrl() }}" class="h-24 w-auto object-cover rounded shadow-sm border border-gray-200">
                             </div>
@@ -279,6 +288,7 @@ new #[Layout('layouts.guest')] class extends Component
                     <!-- Upload SIM -->
                     <div>
                         <x-input-label for="foto_sim" :value="__('Foto SIM')" />
+                        <!-- Catatan: tidak ada atribut 'multiple', jadi HTML otomatis hanya izinkan 1 file -->
                         <input wire:model="foto_sim" id="foto_sim" type="file" accept="image/*" class="block w-full text-sm text-gray-500
                             file:mr-4 file:py-2 file:px-4
                             file:rounded-md file:border-0
@@ -286,11 +296,11 @@ new #[Layout('layouts.guest')] class extends Component
                             file:bg-cyan-50 file:text-cyan-700
                             hover:file:bg-cyan-100 mt-1 cursor-pointer
                         " />
-                        <x-input-error :messages="$errors->get('foto_sim')" class="mt-2" />
+                        <x-input-error :messages="$errors->get('foto_sim')" class="mt-2 text-red-600" />
                         
                         <!-- Preview SIM -->
                         <div wire:loading wire:target="foto_sim" class="text-sm text-cyan-600 mt-2">Mengunggah...</div>
-                        @if ($foto_sim)
+                        @if ($foto_sim && !$errors->has('foto_sim'))
                             <div class="mt-2 relative inline-block">
                                 <img src="{{ $foto_sim->temporaryUrl() }}" class="h-24 w-auto object-cover rounded shadow-sm border border-gray-200">
                             </div>
