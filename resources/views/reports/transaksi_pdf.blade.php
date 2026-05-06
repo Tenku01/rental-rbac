@@ -137,7 +137,7 @@
                     <h1>PT.AKA MENDUNIA SEJAHTERA</h1>
                     <p>Nomor : AHU-054806.AH.01.30.Tahun 2022</p>
                     <p>Jl. Kutu Patran, Sendangadi, Sleman Yogyakarta</p>
-                    <p>Email: <span style="color: #0563C1; text-decoration: underline;">pt.aka.mendunia@gmail.com</span>, Web :akarental.site</p>
+                    <p>Email: <span style="color: #0563C1; text-decoration: underline;">pt.aka.mendunia@gmail.com</span>, Web :rentalmobilyogyakarta.id</p>
                 </td>
             </tr>
         </table>
@@ -255,8 +255,9 @@
                     <p>Sleman, {{ \Carbon\Carbon::now()->translatedFormat('d F Y') }}</p>
                     <p>Mengetahui,</p>
                     <div class="signature-space"></div>
+                    <!-- Mengubah default nama fallback dan hardcode jabatan menjadi Owner -->
                     <p style="font-weight: bold; text-decoration: underline;">{{ Auth::user()->name ?? 'Owner' }}</p>
-                    <p style="margin-top: 2px;">{{ implode(', ', Auth::user()->roles->pluck('name')->toArray() ?? ['Owner']) }}</p>
+                    <p style="margin-top: 2px;">Owner</p>
                 </td>
             </tr>
         </table>
