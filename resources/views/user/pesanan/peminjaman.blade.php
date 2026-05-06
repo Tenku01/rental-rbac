@@ -768,53 +768,53 @@
                             const peminjamanId = response.data.peminjaman_id;
 
                             // Buka Snap Midtrans
-                          snap.pay(response.data.snap_token, {
-    onSuccess: function(result) {
-        window.location.href = "{{ route('payment.success') }}";
-    },
-    onPending: function(result) {
-        // KASUS ANDA: User pilih metode pembayaran (QRIS), lalu close.
-        // Midtrans menganggap ini 'Pending'. Jika ingin tetap dihapus:
-        console.log('User mendapatkan kode bayar tapi menutup Snap (Pending). Membersihkan data...');
-        
-        const peminjamanId = response.data.peminjaman_id;
-        
-        axios.post(`/peminjaman/force-cancel/${peminjamanId}`, {
-            _token: '{{ csrf_token() }}'
-        })
-        .then(res => {
-            // Setelah data dihapus, arahkan ke halaman utama agar tidak ada data "gantung"
-            window.location.href = "/"; 
-        })
-        .catch(err => {
-            window.location.reload();
-        });
-    },
-    onError: function(result) {
-        window.location.href = "{{ route('payment.failed') }}";
-    },
-    onClose: function() {
-        // Kasus: User klik "X" sebelum pilih metode pembayaran
-        console.log('User menutup Snap sebelum memilih metode. Menjalankan pembersihan...');
-        
-        const peminjamanId = response.data.peminjaman_id;
+                         snap.pay(response.data.snap_token, {
+                                onSuccess: function(result) {
+                                    window.location.href = "{{ route('payment.success') }}";
+                                },
+                                onPending: function(result) {
+                                    // KASUS ANDA: User pilih metode pembayaran (QRIS), lalu close.
+                                    // Midtrans menganggap ini 'Pending'. Jika ingin tetap dihapus:
+                                    console.log('User mendapatkan kode bayar tapi menutup Snap (Pending). Membersihkan data...');
+                                    
+                                    const peminjamanId = response.data.peminjaman_id;
+                                    
+                                    axios.post(`/peminjaman/force-cancel/${peminjamanId}`, {
+                                        _token: '{{ csrf_token() }}'
+                                    })
+                                    .then(res => {
+                                        // Setelah data dihapus, arahkan ke halaman utama agar tidak ada data "gantung"
+                                        window.location.href = "/"; 
+                                    })
+                                    .catch(err => {
+                                        window.location.reload();
+                                    });
+                                },
+                                onError: function(result) {
+                                    window.location.href = "{{ route('payment.failed') }}";
+                                },
+                                onClose: function() {
+                                    // Kasus: User klik "X" sebelum pilih metode pembayaran
+                                    console.log('User menutup Snap sebelum memilih metode. Menjalankan pembersihan...');
+                                    
+                                    const peminjamanId = response.data.peminjaman_id;
 
-        axios.post(`/peminjaman/force-cancel/${peminjamanId}`, {
-            _token: '{{ csrf_token() }}'
-        })
-        .then(res => {
-            if (res.data.status === 'success') {
-                showToast('🚫 Pesanan dibatalkan.');
-                setTimeout(() => { window.location.reload(); }, 1500);
-            } else {
-                window.location.href = "{{ route('pesanan.saya') }}";
-            }
-        })
-        .catch(err => {
-            window.location.reload();
-        });
-    }
-});
+                                    axios.post(`/peminjaman/force-cancel/${peminjamanId}`, {
+                                        _token: '{{ csrf_token() }}'
+                                    })
+                                    .then(res => {
+                                        if (res.data.status === 'success') {
+                                            showToast('🚫 Pesanan dibatalkan.');
+                                            setTimeout(() => { window.location.reload(); }, 1500);
+                                        } else {
+                                            window.location.href = "{{ route('pesanan.saya') }}";
+                                        }
+                                    })
+                                    .catch(err => {
+                                        window.location.reload();
+                                    });
+                                }
+                            });
                         } 
                         // 2. Error dari Backend (Skenario bentrok/race condition)
                         else if (response.data.error) {
