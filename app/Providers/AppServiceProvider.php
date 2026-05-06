@@ -2,16 +2,17 @@
 
 namespace App\Providers;
 
-use App\Models\User;
 use App\Models\Peminjaman;
+use App\Models\User;
 use App\Observers\UserObserver;
-use Illuminate\Support\Facades\View;
+use Carbon\Carbon;
+use Illuminate\Auth\Events\Login;
+use Illuminate\Auth\Events\Logout;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\View;
 use Illuminate\Support\ServiceProvider;
-use Illuminate\Auth\Events\Login;
-use Illuminate\Auth\Events\Logout;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -22,6 +23,9 @@ class AppServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
+
+     Carbon::setLocale('id');
+     
         // =========================================================================
         // 1. PELACAK STATUS ONLINE/OFFLINE (VIA CACHE)
         // =========================================================================
