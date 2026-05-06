@@ -12,12 +12,12 @@
         /* Gaya Kop Surat */
         .kop-surat {
             width: 100%;
-            border-bottom: 3px solid #000;
+            border-bottom: 3px solid #000; /* Garis tebal */
             padding-bottom: 10px;
             margin-bottom: 2px;
         }
         .kop-surat-tengah {
-            border-bottom: 1px solid #000;
+            border-bottom: 1px solid #000; /* Garis tipis */
             margin-bottom: 20px;
         }
         .kop-surat table {
@@ -38,18 +38,20 @@
             width: 85%;
             text-align: center;
             vertical-align: middle;
+            font-family: 'Times New Roman', Times, serif; /* Font resmi untuk kop surat */
         }
         .teks-kop h1 {
-            margin: 0 0 5px 0;
-            font-size: 22px;
+            margin: 0 0 8px 0;
+            font-size: 24px;
             font-weight: bold;
-            color: #0891b2; /* Cyan-600 */
-            letter-spacing: 1px;
+            color: #000; /* Hitam tegas sesuai gambar */
+            letter-spacing: 0.5px;
         }
         .teks-kop p {
-            margin: 2px 0;
-            font-size: 11px;
-            color: #444;
+            margin: 5px 0;
+            font-size: 15px;
+            color: #000;
+            font-weight: bold; /* Teks di gambar terlihat tebal */
         }
 
         /* Gaya Konten */
@@ -125,17 +127,17 @@
                         }
                     ?>
                     @if($logoData)
-                        <img src="{{ $logoData }}" style="max-width: 80px; height: auto;">
+                        <img src="{{ $logoData }}" style="max-width: 90px; height: auto;">
                     @else
                         <!-- Fallback jika gambar tidak ditemukan -->
                         <h2 style="margin:0;">AKA RENT</h2>
                     @endif
                 </td>
                 <td class="teks-kop">
-                    <h1>AKA RENTAL CAR</h1>
-                    <p>Jl. Contoh Alamat Bisnis No. 123, Kelurahan, Kecamatan, Kota, Kode Pos 12345</p>
-                    <p>Telp: (021) 1234-5678 | WhatsApp: 0812-3456-7890</p>
-                    <p>Email: admin@akarentalcar.com | Website: www.akarentalcar.com</p>
+                    <h1>PT.AKA MENDUNIA SEJAHTERA</h1>
+                    <p>Nomor : AHU-054806.AH.01.30.Tahun 2022</p>
+                    <p>Jl. Kutu Patran, Sendangadi, Sleman Yogyakarta</p>
+                    <p>Email: <span style="color: #0563C1; text-decoration: underline;">pt.aka.mendunia@gmail.com</span>, Web :rentalmobilyogyakarta.id</p>
                 </td>
             </tr>
         </table>
@@ -250,11 +252,11 @@
             <tr>
                 <td width="70%"></td>
                 <td class="signature-box">
-                    <p>Kota Anda, {{ \Carbon\Carbon::now()->translatedFormat('d F Y') }}</p>
+                    <p>Sleman, {{ \Carbon\Carbon::now()->translatedFormat('d F Y') }}</p>
                     <p>Mengetahui,</p>
                     <div class="signature-space"></div>
                     <p style="font-weight: bold; text-decoration: underline;">{{ Auth::user()->name ?? 'Administrator' }}</p>
-                    <p style="margin-top: 2px;">{{ implode(', ', Auth::user()->roles->pluck('name')->toArray() ?? ['Admin']) }}</p>
+                    <p style="margin-top: 2px;">{{ implode(', ', Auth::user()->roles->pluck('name')->toArray() ?? ['Owner']) }}</p>
                 </td>
             </tr>
         </table>
