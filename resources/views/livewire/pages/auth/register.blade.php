@@ -34,12 +34,13 @@ new #[Layout('layouts.guest')] class extends Component
         return [
             'name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'string', 'lowercase', 'email', 'max:255', 'unique:'.User::class],
-            'no_telepon' => ['nullable', 'string', 'max:20'],
+            // Regex: Opsional tanda + di awal, sisanya HANYA ANGKA. Menolak minus, spasi, titik, huruf.
+            'no_telepon' => ['nullable', 'string', 'max:20', 'regex:/^\+?[0-9]+$/'],
             'alamat' => ['nullable', 'string', 'max:500'],
             // Hapus rule 'confirmed' agar error tidak muncul di bawah kolom password
             'password' => ['required', 'string', 'min:8', Rules\Password::defaults()],
             // Gunakan rule 'same:password' agar error muncul tepat di bawah kolom password_confirmation
-            'password_confirmation' => ['required', 'string', 'same:password'],
+            'password_confirmation' => ['required_with:password', 'string', 'same:password'],
             'foto_ktp' => ['nullable', 'image', 'max:5120'], 
             'foto_sim' => ['nullable', 'image', 'max:5120'],
         ];
@@ -53,8 +54,10 @@ new #[Layout('layouts.guest')] class extends Component
         return [
             'email.unique' => 'Email ini sudah terdaftar. Silakan gunakan email lain atau klik Login di bawah.',
             'email.email' => 'Format email tidak valid. Pastikan alamat email mengandung karakter @.',
+            'no_telepon.regex' => 'Nomor telepon hanya boleh berisi angka (tanpa minus, spasi, atau simbol lainnya).',
             'password.min' => 'Password terlalu pendek. Minimal harus terdiri dari 8 karakter.',
             'password_confirmation.required' => 'Konfirmasi password wajib diisi.',
+            'password_confirmation.required_with' => 'Konfirmasi password wajib diisi jika password telah diisi.',
             'password_confirmation.same' => 'Konfirmasi password tidak cocok dengan password di atas.',
         ];
     }
@@ -241,6 +244,7 @@ new #[Layout('layouts.guest')] class extends Component
                         </svg>
                     </button>
                 </div>
+                <!-- Error untuk konfirmasi akan muncul persis di bawah sini! -->
                 <x-input-error :messages="$errors->get('password_confirmation')" class="mt-2" />
             </div>
 
