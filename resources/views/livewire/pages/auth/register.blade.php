@@ -16,8 +16,8 @@ new #[Layout('layouts.guest')] class extends Component
 
     public string $name = '';
     public string $email = '';
-    public string $no_telepon = '';
-    public string $alamat = '';
+    public ?string $no_telepon = null; // Diubah agar bisa null
+    public ?string $alamat = null; // Diubah agar bisa null
     public string $password = '';
     public string $password_confirmation = '';
     public ?string $recaptcha = null;
@@ -43,8 +43,9 @@ new #[Layout('layouts.guest')] class extends Component
             $validated = $this->validate([
                 'name' => ['required', 'string', 'max:255'],
                 'email' => ['required', 'string', 'lowercase', 'email', 'max:255', 'unique:'.User::class],
-                'no_telepon' => ['required', 'string', 'max:20'],
-                'alamat' => ['required', 'string', 'max:500'],
+                // Mengubah jadi nullable (opsional)
+                'no_telepon' => ['nullable', 'string', 'max:20'],
+                'alamat' => ['nullable', 'string', 'max:500'],
                 'password' => ['required', 'string', 'confirmed', Rules\Password::defaults()],
                 // Validasi gambar opsional, maksimal 5MB
                 'foto_ktp' => ['nullable', 'image', 'max:5120'], 
@@ -136,28 +137,34 @@ new #[Layout('layouts.guest')] class extends Component
             </div>
 
             <!-- ========================================== -->
-            <!-- INFORMASI KONTAK & OPERASIONAL (BARU)      -->
+            <!-- INFORMASI KONTAK & OPERASIONAL (OPSIONAL)  -->
             <!-- ========================================== -->
             <div class="pt-2">
-                <div class="flex items-start p-3 mb-4 text-xs text-cyan-800 border border-cyan-200 rounded-lg bg-cyan-50" role="alert">
-                    <svg class="flex-shrink-0 inline w-4 h-4 me-2 mt-[1px]" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                <div class="flex items-start p-4 mb-4 text-sm text-cyan-800 border border-cyan-200 rounded-lg bg-cyan-50" role="alert">
+                    <svg class="flex-shrink-0 inline w-5 h-5 me-3 mt-[1px]" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
                     <div>
-                        <span class="font-bold">Informasi:</span> Data Nomor HP dan Alamat diperlukan sebagai sarana komunikasi operasional dan validasi saat Anda menyewa mobil.
+                        <span class="font-bold">Informasi Opsional:</span> Data di bawah ini dapat Anda lewati dan lengkapi nanti di menu <strong>Profil</strong> Anda.<br>
+                        <ul class="mt-1.5 list-disc list-inside text-xs">
+                            <li>Data Nomor HP diperlukan untuk komunikasi penyewaan.</li>
+                            <li>Data Alamat akan digunakan sebagai titik lokasi penjemputan jika Anda menyewa mobil beserta sopir.</li>
+                        </ul>
                     </div>
                 </div>
 
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <!-- No Telepon -->
                     <div>
-                        <x-input-label for="no_telepon" :value="__('Nomor WhatsApp / HP')" />
-                        <x-text-input wire:model="no_telepon" id="no_telepon" class="block mt-1 w-full" type="text" name="no_telepon" required placeholder="08xxxxxxxxxx" />
+                        <x-input-label for="no_telepon" :value="__('Nomor WhatsApp / HP (Opsional)')" />
+                        <!-- Menghapus atribut 'required' -->
+                        <x-text-input wire:model="no_telepon" id="no_telepon" class="block mt-1 w-full" type="text" name="no_telepon" placeholder="08xxxxxxxxxx" />
                         <x-input-error :messages="$errors->get('no_telepon')" class="mt-2" />
                     </div>
 
                     <!-- Alamat -->
                     <div>
-                        <x-input-label for="alamat" :value="__('Alamat Domisili')" />
-                        <x-text-input wire:model="alamat" id="alamat" class="block mt-1 w-full" type="text" name="alamat" required placeholder="Jalan, RT/RW, Kota" />
+                        <x-input-label for="alamat" :value="__('Alamat Domisili (Opsional)')" />
+                        <!-- Menghapus atribut 'required' -->
+                        <x-text-input wire:model="alamat" id="alamat" class="block mt-1 w-full" type="text" name="alamat" placeholder="Jalan, RT/RW, Kota" />
                         <x-input-error :messages="$errors->get('alamat')" class="mt-2" />
                     </div>
                 </div>
@@ -212,16 +219,6 @@ new #[Layout('layouts.guest')] class extends Component
             <div class="pt-5 border-t border-gray-200 mt-6">
                 <h3 class="text-lg font-medium text-gray-900 mb-2">Dokumen Identitas (Opsional)</h3>
                 
-                <!-- Banner Pemberitahuan -->
-                <div class="flex items-start p-4 mb-4 text-sm text-amber-800 border border-amber-300 rounded-lg bg-amber-50" role="alert">
-                    <svg class="flex-shrink-0 inline w-4 h-4 me-3 mt-[2px]" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 20 20">
-                        <path d="M10 .5a9.5 9.5 0 1 0 9.5 9.5A9.51 9.51 0 0 0 10 .5ZM9.5 4a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3ZM12 15H8a1 1 0 0 1 0-2h1v-3H8a1 1 0 0 1 0-2h2a1 1 0 0 1 1 1v4h1a1 1 0 0 1 0 2Z"/>
-                    </svg>
-                    <div>
-                        <span class="font-medium">Penting untuk menyewa mobil:</span> Anda dapat mengosongkan bagian ini sekarang. Namun, KTP dan SIM wajib diunggah nantinya agar Anda dapat melakukan penyewaan.
-                    </div>
-                </div>
-
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <!-- Upload KTP -->
                     <div>
