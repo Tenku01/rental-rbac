@@ -351,8 +351,6 @@ class PeminjamanController extends Controller
                 'customer_details' => ['first_name' => Auth::user()->name, 'email' => Auth::user()->email],
                  'callbacks' => [
                 'finish' => url('/payment/success'),
-                'unfinish' => url('/payment/unfinish'),
-                'error' => url('/payment/unfinish'),
             ],
             ];
 

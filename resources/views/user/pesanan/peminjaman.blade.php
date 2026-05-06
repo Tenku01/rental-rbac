@@ -784,7 +784,8 @@
                                     })
                                     .then(res => {
                                         // Setelah data dihapus, arahkan ke halaman utama agar tidak ada data "gantung"
-                                       window.location.href = "{{ route('payment.unfinish') }}?order_id=" + result.order_id + "&transaction_status=pending"; 
+                                       showToast('🚫 Pesanan dibatalkan.');
+                                            setTimeout(() => { window.location.reload(); }, 1500);
                                     })
                                     .catch(err => {
                                         window.location.reload();

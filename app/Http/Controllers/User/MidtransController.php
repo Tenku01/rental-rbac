@@ -47,8 +47,6 @@ class MidtransController extends Controller
             ],
             'callbacks' => [
                 'finish' => url('/payment/success'),
-                'unfinish' => url('/payment/unfinish'),
-                'error' => url('/payment/unfinish'),
             ],
             'enabled_payments' => [
                 'qris',            
