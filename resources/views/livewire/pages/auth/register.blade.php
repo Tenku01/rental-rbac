@@ -36,8 +36,10 @@ new #[Layout('layouts.guest')] class extends Component
             'email' => ['required', 'string', 'lowercase', 'email', 'max:255', 'unique:'.User::class],
             'no_telepon' => ['nullable', 'string', 'max:20'],
             'alamat' => ['nullable', 'string', 'max:500'],
-            'password' => ['required', 'string', 'min:8', 'confirmed', Rules\Password::defaults()],
-            'password_confirmation' => ['required_with:password', 'same:password'],
+            // Hapus rule 'confirmed' agar error tidak muncul di bawah kolom password
+            'password' => ['required', 'string', 'min:8', Rules\Password::defaults()],
+            // Gunakan rule 'same:password' agar error muncul tepat di bawah kolom password_confirmation
+            'password_confirmation' => ['required', 'string', 'same:password'],
             'foto_ktp' => ['nullable', 'image', 'max:5120'], 
             'foto_sim' => ['nullable', 'image', 'max:5120'],
         ];
@@ -50,8 +52,9 @@ new #[Layout('layouts.guest')] class extends Component
     {
         return [
             'email.unique' => 'Email ini sudah terdaftar. Silakan gunakan email lain atau klik Login di bawah.',
+            'email.email' => 'Format email tidak valid. Pastikan alamat email mengandung karakter @.',
             'password.min' => 'Password terlalu pendek. Minimal harus terdiri dari 8 karakter.',
-            'password.confirmed' => 'Konfirmasi password tidak cocok dengan password di atas.',
+            'password_confirmation.required' => 'Konfirmasi password wajib diisi.',
             'password_confirmation.same' => 'Konfirmasi password tidak cocok dengan password di atas.',
         ];
     }
@@ -184,14 +187,14 @@ new #[Layout('layouts.guest')] class extends Component
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <!-- No Telepon -->
                     <div>
-                        <x-input-label for="no_telepon" :value="__('Nomor WhatsApp / HP (Opsional)')" />
+                        <x-input-label for="no_telepon" :value="__('Nomor WhatsApp / HP')" />
                         <x-text-input wire:model.live.debounce.500ms="no_telepon" id="no_telepon" class="block mt-1 w-full" type="text" name="no_telepon" placeholder="08xxxxxxxxxx" />
                         <x-input-error :messages="$errors->get('no_telepon')" class="mt-2" />
                     </div>
 
                     <!-- Alamat -->
                     <div>
-                        <x-input-label for="alamat" :value="__('Alamat Domisili (Opsional)')" />
+                        <x-input-label for="alamat" :value="__('Alamat Domisili')" />
                         <x-text-input wire:model.live.debounce.500ms="alamat" id="alamat" class="block mt-1 w-full" type="text" name="alamat" placeholder="Jalan, RT/RW, Kota" />
                         <x-input-error :messages="$errors->get('alamat')" class="mt-2" />
                     </div>
