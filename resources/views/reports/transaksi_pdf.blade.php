@@ -137,7 +137,7 @@
                     <h1>PT.AKA MENDUNIA SEJAHTERA</h1>
                     <p>Nomor : AHU-054806.AH.01.30.Tahun 2022</p>
                     <p>Jl. Kutu Patran, Sendangadi, Sleman Yogyakarta</p>
-                    <p>Email: <span style="color: #0563C1; text-decoration: underline;">pt.aka.mendunia@gmail.com</span>, Web :rentalmobilyogyakarta.id</p>
+                    <p>Email: <span style="color: #0563C1; text-decoration: underline;">pt.aka.mendunia@gmail.com</span>, Web :akarental.site</p>
                 </td>
             </tr>
         </table>
