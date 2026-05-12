@@ -4,7 +4,14 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="csrf-token" content="{{ csrf_token() }}">
-    
+
+    <script>
+if (window.location.hostname !== 'akarental.site' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+        window.location.replace('https://akarental.site' + window.location.pathname);
+    }
+</script>
+
+<link rel="canonical" href="{{ url()->current() }}" />
 
     <!-- Title -->
     <title>{{ config('app.name', 'Akarental - Rental Mobil') }}</title>

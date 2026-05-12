@@ -7,6 +7,14 @@
 
     <title>Aka Rental</title>
 
+<script>
+if (window.location.hostname !== 'akarental.site' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+        window.location.replace('https://akarental.site' + window.location.pathname);
+    }
+</script>
+
+<link rel="canonical" href="{{ url()->current() }}" />
+
     <!-- Favicon -->
     <link rel="icon" type="image/png" href="{{ asset('logoakarentcar.png') }}">
     <link rel="apple-touch-icon" href="{{ asset('logoakarentcar.png') }}">

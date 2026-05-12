@@ -7,6 +7,14 @@
 
         <title>{{ config('app.name', 'Akarental - Rental Mobil') }}</title>
         
+<script>
+if (window.location.hostname !== 'akarental.site' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+        window.location.replace('https://akarental.site' + window.location.pathname);
+    }
+</script>
+
+<link rel="canonical" href="{{ url()->current() }}" />
+
  <!-- Menambahkan Favicon di Tab Browser -->
     <link rel="icon" href="{{ asset('logoakarentcar.png') }}" type="image/png">
         <!-- Fonts -->
