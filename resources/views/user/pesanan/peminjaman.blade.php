@@ -4,7 +4,7 @@
             {{ __('Form Peminjaman Mobil') }}
         </h2>
     </x-slot>
- <script type="text/javascript" src="https://app.sandbox.midtrans.com/snap/snap.js"
+<script type="text/javascript" src="https://app.midtrans.com/snap/snap.js"
         data-client-key="{{ config('services.midtrans.client_key') }}"></script>
     <!-- Dependencies -->
     <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
