@@ -79,8 +79,20 @@
                 </div>
 
                 {{-- Kontainer Pesan --}}
-                <div class="flex-1 overflow-y-auto p-6 bg-slate-50 space-y-4 custom-scrollbar" id="admin-chat-body">
+                <div class="flex-1 overflow-y-auto p-6 bg-slate-50 space-y-4 custom-scrollbar relative" id="admin-chat-body">
+                    @php $lastDate = ''; @endphp
                     @foreach($messages as $index => $msg)
+                        
+                        {{-- Header Tanggal Mengambang --}}
+                        @if($lastDate !== $msg['tanggal_grup'])
+                            <div class="flex justify-center my-4 sticky top-2 z-10">
+                                <span class="px-4 py-1.5 text-[10px] font-bold text-gray-500 bg-white/90 backdrop-blur-sm border border-gray-200 rounded-full shadow-sm">
+                                    {{ $msg['tanggal_grup'] }}
+                                </span>
+                            </div>
+                            @php $lastDate = $msg['tanggal_grup']; @endphp
+                        @endif
+
                         <div wire:key="msg-{{ $index }}-{{ $msg['id'] }}" class="flex {{ $msg['pengirim_id'] === null ? 'justify-start' : 'justify-end' }}">
                             <div class="p-3.5 rounded-2xl shadow-sm max-w-[75%] text-sm {{ $msg['pengirim_id'] === null ? 'bg-white border border-gray-200 text-gray-800 rounded-tl-none' : 'bg-cyan-600 text-white rounded-tr-none' }}">
                                 {{ $msg['isi_pesan'] }}

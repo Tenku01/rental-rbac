@@ -7,6 +7,7 @@ use App\Models\Pesan;
 use App\Events\GuestMessageEvent;
 use Livewire\Attributes\Layout;
 use Illuminate\Support\Facades\Auth;
+use Carbon\Carbon;
 
 class LiveChatAdmin extends Component
 {
@@ -114,13 +115,32 @@ class LiveChatAdmin extends Component
                 ->orderBy('created_at', 'asc')
                 ->get()
                 ->map(function ($msg) {
+                    $createdAt = Carbon::parse($msg->created_at);
+                    $now = Carbon::now();
+                    
+                    // Logika Grup Tanggal ala WhatsApp
+                    if ($createdAt->isToday()) {
+                        $tanggalGrup = 'Hari ini';
+                    } elseif ($createdAt->isYesterday()) {
+                        $tanggalGrup = 'Kemarin';
+                    } elseif ($createdAt->diffInDays($now) < 7) {
+                        // Jika masih dalam 7 hari terakhir, tampilkan nama hari (misal: Senin, Selasa)
+                        $tanggalGrup = $createdAt->locale('id')->translatedFormat('l');
+                    } else {
+                        // Jika lebih dari 7 hari, tampilkan tanggal lengkap
+                        $tanggalGrup = $createdAt->locale('id')->translatedFormat('d F Y');
+                    }
+
                     return [
                         'id' => $msg->id,
                         'session_id' => $msg->session_id,
                         'isi_pesan' => $msg->isi_pesan,
                         'pengirim_id' => $msg->pengirim_id,
                         'sudah_dibaca' => $msg->sudah_dibaca,
-                        'waktu' => $msg->created_at->format('l, H:i'),,
+                        // Waktu jam:menit untuk di dalam bubble chat (misal: 14:30)
+                        'waktu' => $createdAt->format('H:i'), 
+                        // Grup tanggal untuk header yang mengambang di tengah layar
+                        'tanggal_grup' => $tanggalGrup,
                     ];
                 })
                 ->toArray();
