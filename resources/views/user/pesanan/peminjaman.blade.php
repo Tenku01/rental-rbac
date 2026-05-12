@@ -301,7 +301,7 @@
                                         
                                         <!-- Teks Berubah Tergantung Status -->
                                         <template x-if="sopirAvailable">
-                                            <span class="block text-xs text-blue-600 font-medium">+ {{ number_format(1500, 0, ',', '.') }} /hari</span>
+                                            <span class="block text-xs text-blue-600 font-medium">+ {{ number_format(1500 * $lama, 0, ',', '.') }} /hari</span>
                                         </template>
                                         <template x-if="!sopirAvailable">
                                             <span class="block text-xs text-red-600 font-bold mt-1">HABIS / TIDAK TERSEDIA</span>
