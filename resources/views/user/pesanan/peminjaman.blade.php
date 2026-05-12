@@ -6,6 +6,7 @@
     </x-slot>
 <script type="text/javascript" src="https://app.midtrans.com/snap/snap.js"
         data-client-key="{{ config('services.midtrans.client_key') }}"></script>
+
     <!-- Dependencies -->
     <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
@@ -25,7 +26,7 @@
                     sisaSopir: 0,
                     isCheckingDriver: false,
                     addOnSopir: 0, // 0 = tidak, 1 = ya
-                    hargaSopirPerHari: 150000, // Disesuaikan dengan controller (150.000)
+                    hargaSopirPerHari: 1500, // Disesuaikan dengan controller (150.000)
                 
                     // HARGA & PEMBAYARAN
                     hargaMobil: {{ $mobil->harga }},
@@ -300,7 +301,7 @@
                                         
                                         <!-- Teks Berubah Tergantung Status -->
                                         <template x-if="sopirAvailable">
-                                            <span class="block text-xs text-blue-600 font-medium">+ {{ number_format(150000, 0, ',', '.') }} /hari</span>
+                                            <span class="block text-xs text-blue-600 font-medium">+ {{ number_format(1500, 0, ',', '.') }} /hari</span>
                                         </template>
                                         <template x-if="!sopirAvailable">
                                             <span class="block text-xs text-red-600 font-bold mt-1">HABIS / TIDAK TERSEDIA</span>

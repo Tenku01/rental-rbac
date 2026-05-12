@@ -299,7 +299,7 @@ class PeminjamanController extends Controller
             $lama = max($lama, 1);
 
             $biayaSewa = $lama * $mobil->harga;
-            $biayaSopir = $request->tambahan_sopir ? 150000 * $lama : 0; // Diperbarui
+            $biayaSopir = $request->tambahan_sopir ? 1500 * $lama : 0; // Diperbarui
             $total = $biayaSewa + $biayaSopir;
 
             // Payment Logic
