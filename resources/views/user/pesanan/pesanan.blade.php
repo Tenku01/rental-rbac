@@ -7,7 +7,8 @@
 
     {{-- Script Midtrans --}}
     @push('scripts')
-        <script src="https://app.sandbox.midtrans.com/snap/snap.js" data-client-key="{{ env('MIDTRANS_CLIENT_KEY') }}"></script>
+    <script type="text/javascript" src="https://app.midtrans.com/snap/snap.js"
+        data-client-key="{{ config('services.midtrans.client_key') }}"></script>
         {{-- Pastikan komponen scripts-pesanan memuat fungsi callMidtransSnap & callManualPayment --}}
         @include('components.scripts-pesanan')
     @endpush
