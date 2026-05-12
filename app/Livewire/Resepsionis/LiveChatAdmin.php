@@ -120,7 +120,7 @@ class LiveChatAdmin extends Component
                         'isi_pesan' => $msg->isi_pesan,
                         'pengirim_id' => $msg->pengirim_id,
                         'sudah_dibaca' => $msg->sudah_dibaca,
-                        'waktu' => $msg->created_at->format('H:i'),
+                        'waktu' => $msg->created_at->format('l, H:i'),,
                     ];
                 })
                 ->toArray();
