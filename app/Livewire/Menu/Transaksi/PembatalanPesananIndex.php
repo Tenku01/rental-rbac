@@ -2,16 +2,17 @@
 
 namespace App\Livewire\Menu\Transaksi;
 
-use Livewire\Component;
-use Livewire\WithPagination;
-use Livewire\Attributes\Layout;
+use App\Models\Mobil;
 use App\Models\PembatalanPesanan;
 use App\Models\Peminjaman;
 use App\Models\TransaksiPembayaran; 
-use App\Models\Mobil;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Http;
-use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use Livewire\Attributes\Layout;
+use Livewire\Component;
+use Livewire\WithPagination;
 
 class PembatalanPesananIndex extends Component
 {
@@ -85,7 +86,7 @@ class PembatalanPesananIndex extends Component
     // CORE LOGIC: EKSEKUSI REFUND KE MIDTRANS / MANUAL (ANTI-GAGAL)
     // =========================================================================
 
-    private function executeRefund($peminjaman, $persentase, $alasan)
+      private function executeRefund($peminjaman, $persentase, $alasan)
     {
         $decimalPercentage = (float) $persentase / 100;
         $totalTargetRefund = (float) $peminjaman->total_dibayarkan * $decimalPercentage;
@@ -105,8 +106,11 @@ class PembatalanPesananIndex extends Component
 
         $totalRefundedNow = 0;
         $refundIds = [];
+        
+        // 🔹 AMBIL CONFIG UNTUK DYNAMIC ENVIRONMENT
         $serverKey = config('services.midtrans.server_key');
-        $base64Auth = base64_encode($serverKey . ':');
+        $isProduction = config('services.midtrans.is_production');
+        $baseUrl = $isProduction ? 'https://api.midtrans.com' : 'https://api.sandbox.midtrans.com';
         
         $sisaTargetRefund = $totalTargetRefund;
         $isAnyGateway = false;
@@ -132,24 +136,28 @@ class PembatalanPesananIndex extends Component
                 $allFailed = false;
             } else {
                 $isAnyGateway = true;
-                $refundUrl = "https://api.sandbox.midtrans.com/v2/{$payment->id_transaksi_midtrans}/refund";
+                
+                // 🔹 URL DINAMIS (Menggunakan $baseUrl)
+                $refundUrl = "{$baseUrl}/v2/{$payment->id_transaksi_midtrans}/refund";
 
                 try {
-                    $response = Http::withHeaders([
-                        'Authorization' => 'Basic ' . $base64Auth,
-                        'Content-Type' => 'application/json',
-                        'Accept' => 'application/json',
-                    ])->post($refundUrl, [
-                        'refund_key' => $refundKey,
-                        'amount' => $amountToRefundFromThisTx,
-                        'reason' => $alasan ?? 'Pembatalan pesanan',
-                    ]);
+                    // 🔹 MENGGUNAKAN BASIC AUTH BAWAAN LARAVEL
+                    $response = Http::withBasicAuth($serverKey, '')
+                        ->withHeaders([
+                            'Content-Type' => 'application/json',
+                            'Accept' => 'application/json',
+                        ])->post($refundUrl, [
+                            'refund_key' => $refundKey,
+                            'amount' => $amountToRefundFromThisTx,
+                            'reason' => $alasan ?? 'Pembatalan pesanan',
+                        ]);
                     
                     $refundData = $response->json();
                     
-                    // 🔹 PERBAIKAN: Jika gagal, kita HANYA set statusnya jadi 'failed'. TIDAK error throw.
+                    // Jika gagal, set statusnya jadi 'failed' dan catat ke log
                     if (($refundData['status_code'] ?? '') != '200') {
                         $refundStatusTransaksi = 'failed';
+                        Log::error('Refund Midtrans Gagal:', $refundData);
                     } else {
                         $refundStatusTransaksi = 'pending';
                         $allFailed = false;
@@ -157,6 +165,7 @@ class PembatalanPesananIndex extends Component
                 } catch (\Exception $e) {
                     $refundData = ['status_code' => '500', 'status_message' => $e->getMessage()];
                     $refundStatusTransaksi = 'failed';
+                    Log::error('Error HTTP Refund Midtrans:', ['msg' => $e->getMessage()]);
                 }
             }
 
