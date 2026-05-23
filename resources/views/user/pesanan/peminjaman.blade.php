@@ -35,7 +35,7 @@
                     hargaMobil: {{ $mobil->harga }},
                     tipePembayaran: 'dp',
                     metodePembayaran: 'transfer', // Default rencana pelunasan
-                    dpManual: {{ $mobil->harga * 0.5 }}, // Default 50%
+                    dpManual: 1000, //diubah dulu nanti kalo mau di tes
                     dpError: '',
                 
                     // HELPER FUNCTIONS
@@ -138,10 +138,13 @@
                         this.dpManual = Number(this.dpManual);
                         const total = this.totalHarga();
                         
-                        const minDp = 1000; // Ubah minimal DP sesuai kebutuhan (contoh 50.000)
+                       const minDp = 1000; 
+    const maxDp = 10000; // Ubah minimal DP sesuai kebutuhan (contoh 50.000)
                         
                         if (this.dpManual < minDp) {
                              this.dpError = 'Minimal DP adalah ' + this.formatRupiah(minDp);
+                        } else if (this.dpManual > maxDp) {
+                            this.dpError = 'DP tidak boleh melebihi ' + this.formatRupiah(maxDp);
                         } else if (this.dpManual > total) {
                             this.dpError = 'DP tidak boleh melebihi Total Harga (' + this.formatRupiah(total) + ')';
                         } else {
@@ -354,7 +357,7 @@
                     <div x-show="tipePembayaran === 'dp'" x-cloak x-transition.opacity
                         class="mt-4 p-4 border border-yellow-200 bg-yellow-50 rounded-lg">
                         <label for="dpManual" class="block text-sm font-medium text-gray-700">Nominal DP <span
-                                class="text-xs text-gray-500">(Minimal Rp 50.000)</span></label>
+                                class="text-xs text-gray-500">(Minimal Rp 50.000 / testing Rp. 1000)</span></label>
                         <div class="relative mt-1">
                             <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-500">Rp</span>
                             <input type="number" id="dpManual" name="dp" x-model.number="dpManual"

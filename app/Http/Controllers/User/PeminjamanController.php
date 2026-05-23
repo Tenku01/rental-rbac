@@ -237,7 +237,7 @@ class PeminjamanController extends Controller
             'tanggal_kembali' => 'required|string|different:tanggal_sewa',
             'tambahan_sopir' => 'required|boolean', // Diperbarui dari add_on_sopir
             'tipe_pembayaran' => 'required|in:dp,lunas',
-            'dp' => 'nullable|numeric',
+            'dp' => 'required_if:tipe_pembayaran,dp|numeric|min:1000|max:10000', // Diperbarui: Validasi DP manual (contoh min 1.000 dan max 10.000 untuk testing)
         ]);
 
         $tanggalSewa = Carbon::createFromFormat('d-m-Y', $request->tanggal_sewa)->format('Y-m-d');
@@ -303,8 +303,15 @@ class PeminjamanController extends Controller
             $total = $biayaSewa + $biayaSopir;
 
             // Payment Logic
-            if ($request->tipe_pembayaran === 'dp') {
-                $dp = $request->dp ?: ($total * 0.5);
+           if ($request->tipe_pembayaran === 'dp') {
+                // Karena sudah pakai required_if di validasi, $request->dp pasti ada
+                $dp = $request->dp; 
+                
+                // Opsional: Validasi tambahan untuk memastikan DP tidak lebih besar dari total harga
+                if ($dp > $total) {
+                    $dp = $total; 
+                }
+
                 $sisa = $total - $dp;
                 $jumlahBayar = $dp;
                 $tipeTransaksi = 'dp';
