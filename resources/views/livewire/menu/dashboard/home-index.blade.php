@@ -411,7 +411,7 @@
                     <h4 class="text-sm font-semibold mb-2">Pusat Bantuan</h4>
                     <p class="text-xs text-cyan-100 leading-relaxed mb-4">Butuh bantuan teknis terkait operasional
                         sistem persewaan?</p>
-                    <a href="wa.me/6289673647187?text=Halo%20Admin%20IT%2C%20saya%20butuh%20bantuan%20teknis%20untuk%20sistem%20persewaan."
+                    <a href="https://wa.me/6289673647187?text=Halo%20Admin%20IT%2C%20saya%20butuh%20bantuan%20teknis%20untuk%20sistem%20persewaan."
                         class="inline-flex items-center justify-center bg-white text-cyan-800 hover:bg-cyan-50 px-4 py-2 rounded-lg text-xs font-medium transition-colors">
                         Hubungi IT
                         <svg class="w-3 h-3 ml-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
