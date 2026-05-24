@@ -238,20 +238,27 @@
         <tfoot>
             <tr style="background-color: #f8fafc;">
                 @php
-                    $colspan = 5;
+                    // Hitung berapa banyak kolom yang perlu digabungkan (semua kolom KECUALI kolom paling kanan)
+                    $colspanTotal = 5; // Default untuk peminjaman (No, Periode, Penyewa, Armada, Status)
                     if ($reportType === 'pembayaran') {
-                        $colspan = 5;
+                        $colspanTotal = 6; // (No, Tgl, ID, Penyewa, Tipe, Status)
                     } elseif ($reportType === 'denda') {
-                        $colspan = 4;
+                        $colspanTotal = 4; // (No, Tgl, Penyewa, Keterangan, Status) - wait let me count headers for denda
+                        // Denda headers: No, Tgl, Penyewa/Armada, Keterangan, Status Bayar, Total Denda = 6 columns
+                        $colspanTotal = 5; 
                     }
                 @endphp
-                <td colspan="{{ $colspan }}" class="text-right" style="font-weight: bold; padding-right: 15px;">
+                
+                {{-- Merging semua kolom menjadi satu cell yang rata kanan --}}
+                <td colspan="{{ $colspanTotal }}" class="text-right" style="font-weight: bold; padding-right: 15px;">
                     TOTAL 
                     @if($reportType === 'peminjaman') NILAI TRANSAKSI
                     @elseif($reportType === 'pembayaran') PENERIMAAN BERSIH
                     @elseif($reportType === 'denda') DENDA TERBAYARKAN
                     @endif
                 </td>
+                
+                {{-- Cell nilai total di ujung kanan --}}
                 <td class="text-right" style="font-weight: bold; color: #0891b2;">
                     Rp {{ number_format($totalOmzet, 0, ',', '.') }}
                 </td>
@@ -269,7 +276,6 @@
                     <p>Sleman, {{ \Carbon\Carbon::now()->translatedFormat('d F Y') }}</p>
                     <p>Mengetahui,</p>
                     <div class="signature-space"></div>
-                    <!-- Mengubah default nama fallback dan hardcode jabatan menjadi Owner -->
                     <p style="font-weight: bold; text-decoration: underline;">{{ Auth::user()->name ?? 'Owner' }}</p>
                     <p style="margin-top: 2px;">Owner</p>
                 </td>

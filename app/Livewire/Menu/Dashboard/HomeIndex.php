@@ -12,6 +12,7 @@ use Barryvdh\DomPDF\Facade\Pdf;
 use App\Models\{User, Mobil, Peminjaman, Pengembalian, PembatalanPesanan, TransaksiPembayaran, Denda, Sopir, InspeksiMobil};
 use Spatie\Permission\Models\Role;
 
+/* STREAMING_CHUNK:Initializing the Livewire Component class */
 class HomeIndex extends Component
 {
     // Property untuk Modal Export
@@ -33,6 +34,7 @@ class HomeIndex extends Component
         /** @var \App\Models\User $user */
         $user = Auth::user();
 
+        /* STREAMING_CHUNK:Setting up role-based access controls using Gates */
         if ($user) {
             $this->hasFinancialAccess = Gate::any([
                 'read-transaksi_pembayaran',
@@ -68,6 +70,7 @@ class HomeIndex extends Component
         $this->showExportModal = true;
     }
 
+    /* STREAMING_CHUNK:Processing the report download logic */
     // Fungsi Utama untuk Download Laporan
     public function downloadReport()
     {
@@ -93,11 +96,10 @@ class HomeIndex extends Component
             }
 
             $data = $query->orderBy('tanggal_sewa', 'desc')->get();
-            // Total omzet peminjaman mungkin perlu disesuaikan jika refund juga dicatat per peminjaman,
-            // namun untuk saat ini kita biarkan berdasarkan sum('total_harga') pesanan.
             $totalOmzet = $data->sum('total_harga'); 
         }
 
+        /* STREAMING_CHUNK:Calculating financial report data with refund deductions */
         // 2. Logika Laporan Pembayaran (Cashflow/Keuangan)
         elseif ($this->exportType === 'pembayaran') {
             $title = 'LAPORAN TRANSAKSI KEUANGAN';
@@ -110,20 +112,20 @@ class HomeIndex extends Component
 
             $data = $query->orderBy('created_at', 'desc')->get();
             
-            // Hitung Total Omzet dengan mengurangi Refund
-            // Pendapatan: dp, sisa, lunas, denda (opsional, jika denda masuk sini)
+            // Hitung Pendapatan (Hanya yang sukses)
             $pendapatan = $data->whereIn('status', ['success', 'settlement'])
                                ->whereIn('tipe_transaksi', ['dp', 'sisa', 'lunas', 'denda'])
                                ->sum('jumlah');
             
-            // Pengurangan: refund
-            $refund = $data->whereIn('status', ['success', 'settlement'])
-                           ->where('tipe_transaksi', 'refund')
+            // Hitung Pengurangan (Refund) - MENGABAIKAN STATUS
+            // Semua transaksi bertipe 'refund', baik pending maupun success, akan mengurangi total
+            $refund = $data->where('tipe_transaksi', 'refund')
                            ->sum('jumlah');
 
             $totalOmzet = $pendapatan - $refund;
         }
 
+        /* STREAMING_CHUNK:Generating the PDF report */
         // 3. Logika Laporan Denda
         elseif ($this->exportType === 'denda') {
             $title = 'LAPORAN PENERIMAAN DENDA';
@@ -155,6 +157,7 @@ class HomeIndex extends Component
         }, 'Laporan_' . ucfirst($this->exportType) . '_' . date('Ymd_Hi') . '.pdf');
     }
 
+    /* STREAMING_CHUNK:Rendering the dashboard view with calculated statistics */
     public function render()
     {
         /** @var \App\Models\User $user */
@@ -171,9 +174,8 @@ class HomeIndex extends Component
                     ->whereIn('tipe_transaksi', ['dp', 'sisa', 'lunas', 'denda'])
                     ->sum('jumlah');
                 
-                // Mengambil Total Refund
-                $refund = TransaksiPembayaran::whereIn('status', ['success', 'settlement'])
-                    ->where('tipe_transaksi', 'refund')
+                // Mengambil Total Refund (Status apapun)
+                $refund = TransaksiPembayaran::where('tipe_transaksi', 'refund')
                     ->sum('jumlah');
 
                 $data['totalPendapatan'] = $pendapatan - $refund;
@@ -192,6 +194,7 @@ class HomeIndex extends Component
                 $data['combinedData'] = $combinedData;
             }
 
+            /* STREAMING_CHUNK:Fetching operational and transaction data */
             if (Gate::allows('read-peminjaman')) {
                 $data['peminjamanBerlangsung'] = Peminjaman::where('status', 'berlangsung')->count();
                 $data['peminjamanBaru'] = Peminjaman::where('status', 'menunggu pembayaran')->count();
@@ -218,6 +221,7 @@ class HomeIndex extends Component
                 $data['pendingVerifikasi'] = User::where('status_verifikasi', 'menunggu')->count();
             }
 
+            /* STREAMING_CHUNK:Fetching inspection and driver data */
             if (Gate::allows('read-inspeksi_mobil')) {
                 $data['latestChecks'] = Pengembalian::with(['peminjaman.user', 'peminjaman.mobil'])
                     ->orderByDesc('tanggal_pengembalian')
@@ -244,6 +248,7 @@ class HomeIndex extends Component
             $data['tugasAktif'] = $queryTugas->get();
         }
 
+        /* STREAMING_CHUNK:Finalizing data compilation and returning view */
         // --- 4. SISTEM ---
         if ($this->hasSystemAccess && Gate::allows('read-users')) {
             $data['totalPelanggan'] = User::role('pelanggan')->count();
@@ -265,6 +270,7 @@ class HomeIndex extends Component
         return Gate::allows($permission);
     }
 
+    /* STREAMING_CHUNK:Defining helper functions for monthly revenue calculations */
     private function getMonthlyRevenue()
     {
         // Data Pendapatan Sewa (Masuk)
@@ -274,9 +280,8 @@ class HomeIndex extends Component
             ->select(DB::raw('SUM(jumlah) as total'), DB::raw('MONTH(created_at) as month'))
             ->groupBy('month')->pluck('total', 'month')->toArray();
         
-        // Data Refund (Keluar)
-        $ref = TransaksiPembayaran::whereIn('status', ['success', 'settlement'])
-            ->where('tipe_transaksi', 'refund')
+        // Data Refund (Keluar) - Status apapun
+        $ref = TransaksiPembayaran::where('tipe_transaksi', 'refund')
             ->whereYear('created_at', date('Y'))
             ->select(DB::raw('SUM(jumlah) as total'), DB::raw('MONTH(created_at) as month'))
             ->groupBy('month')->pluck('total', 'month')->toArray();
@@ -300,6 +305,7 @@ class HomeIndex extends Component
         return array_map(fn($m) => $fines[$m] ?? 0, range(1, 12));
     }
 
+    /* STREAMING_CHUNK:Defining helper functions for top car data and defaults */
     private function getTopMobilData(&$data)
     {
         $top = Peminjaman::select('mobil_id', DB::raw('count(*) as total'))
