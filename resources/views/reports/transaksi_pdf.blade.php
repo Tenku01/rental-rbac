@@ -271,7 +271,9 @@
     <div class="footer">
         <table class="footer-table">
             <tr>
-                <td width="70%"></td>
+                <td width="70%" style="vertical-align: bottom; font-size: 10px; color: #666;">
+                    Dicetak pada Tanggal {{ \Carbon\Carbon::now()->translatedFormat('d F Y, H:i') }}
+                </td>
                 <td class="signature-box">
                     <p>Sleman, {{ \Carbon\Carbon::now()->translatedFormat('d F Y') }}</p>
                     <p>Mengetahui,</p>
