@@ -100,7 +100,14 @@ class MidtransController extends Controller
                 'first_name' => Auth::user()->name,
                 'email' => Auth::user()->email,
             ],
-            'enabled_payments' => ['qris', 'bank_transfer', 'credit_card'],
+            'enabled_payments' => ['shopeepay',
+                'qris','bank_transfer','credit_card'], 
+                'gopay' => [
+                'enable_callback' => true,
+            ],
+            'qris' => [
+                'acquirer' => 'gopay', 
+            ], 
         ];
 
         try {

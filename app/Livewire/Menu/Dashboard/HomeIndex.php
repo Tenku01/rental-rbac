@@ -2,7 +2,6 @@
 
 namespace App\Livewire\Menu\Dashboard;
 
-
 use Livewire\Component;
 use Livewire\Attributes\Layout;
 use Illuminate\Support\Facades\DB;
