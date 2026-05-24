@@ -93,7 +93,9 @@ class HomeIndex extends Component
             }
 
             $data = $query->orderBy('tanggal_sewa', 'desc')->get();
-            $totalOmzet = $data->sum('total_harga');
+            // Total omzet peminjaman mungkin perlu disesuaikan jika refund juga dicatat per peminjaman,
+            // namun untuk saat ini kita biarkan berdasarkan sum('total_harga') pesanan.
+            $totalOmzet = $data->sum('total_harga'); 
         }
 
         // 2. Logika Laporan Pembayaran (Cashflow/Keuangan)
@@ -107,7 +109,19 @@ class HomeIndex extends Component
             }
 
             $data = $query->orderBy('created_at', 'desc')->get();
-            $totalOmzet = $data->whereIn('status', ['success', 'settlement'])->sum('jumlah');
+            
+            // Hitung Total Omzet dengan mengurangi Refund
+            // Pendapatan: dp, sisa, lunas, denda (opsional, jika denda masuk sini)
+            $pendapatan = $data->whereIn('status', ['success', 'settlement'])
+                               ->whereIn('tipe_transaksi', ['dp', 'sisa', 'lunas', 'denda'])
+                               ->sum('jumlah');
+            
+            // Pengurangan: refund
+            $refund = $data->whereIn('status', ['success', 'settlement'])
+                           ->where('tipe_transaksi', 'refund')
+                           ->sum('jumlah');
+
+            $totalOmzet = $pendapatan - $refund;
         }
 
         // 3. Logika Laporan Denda
@@ -152,10 +166,17 @@ class HomeIndex extends Component
         // --- 1. SEKSI KEUANGAN & TRANSAKSI ---
         if ($this->hasFinancialAccess) {
             if (Gate::allows('read-transaksi_pembayaran')) {
-                // Mengambil Total Pendapatan HANYA dari transaksi yang sukses, mencakup sewa dan denda (mengabaikan refund/failed)
-                $data['totalPendapatan'] = TransaksiPembayaran::whereIn('status', ['success', 'settlement'])
+                // Mengambil Total Pendapatan HANYA dari transaksi yang sukses
+                $pendapatan = TransaksiPembayaran::whereIn('status', ['success', 'settlement'])
                     ->whereIn('tipe_transaksi', ['dp', 'sisa', 'lunas', 'denda'])
                     ->sum('jumlah');
+                
+                // Mengambil Total Refund
+                $refund = TransaksiPembayaran::whereIn('status', ['success', 'settlement'])
+                    ->where('tipe_transaksi', 'refund')
+                    ->sum('jumlah');
+
+                $data['totalPendapatan'] = $pendapatan - $refund;
                 
                 // Konsistensi Penamaan Variabel untuk Grafik
                 $revenueData = $this->getMonthlyRevenue();
@@ -246,13 +267,26 @@ class HomeIndex extends Component
 
     private function getMonthlyRevenue()
     {
-        // Data Pendapatan Sewa murni diambil dari transaksi_pembayaran (mengabaikan tipe denda & refund)
+        // Data Pendapatan Sewa (Masuk)
         $rev = TransaksiPembayaran::whereIn('status', ['success', 'settlement'])
             ->whereIn('tipe_transaksi', ['dp', 'sisa', 'lunas'])
             ->whereYear('created_at', date('Y'))
             ->select(DB::raw('SUM(jumlah) as total'), DB::raw('MONTH(created_at) as month'))
             ->groupBy('month')->pluck('total', 'month')->toArray();
-        return array_map(fn($m) => $rev[$m] ?? 0, range(1, 12));
+        
+        // Data Refund (Keluar)
+        $ref = TransaksiPembayaran::whereIn('status', ['success', 'settlement'])
+            ->where('tipe_transaksi', 'refund')
+            ->whereYear('created_at', date('Y'))
+            ->select(DB::raw('SUM(jumlah) as total'), DB::raw('MONTH(created_at) as month'))
+            ->groupBy('month')->pluck('total', 'month')->toArray();
+
+        // Gabungkan dan kurangi per bulan
+        return array_map(function($m) use ($rev, $ref) {
+            $pendapatanBulanIni = $rev[$m] ?? 0;
+            $refundBulanIni = $ref[$m] ?? 0;
+            return $pendapatanBulanIni - $refundBulanIni;
+        }, range(1, 12));
     }
 
     private function getMonthlyFines()

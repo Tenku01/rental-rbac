@@ -207,7 +207,13 @@
                         <td>{{ $row->peminjaman->user->name ?? '-' }}</td>
                         <td class="text-center">{{ strtoupper($row->tipe_transaksi) }}</td>
                         <td class="text-center">{{ ucfirst($row->status) }}</td>
-                        <td class="text-right">Rp {{ number_format($row->jumlah, 0, ',', '.') }}</td>
+                        <td class="text-right">
+                            @if($row->tipe_transaksi === 'refund')
+                                <span style="color: red;">- Rp {{ number_format($row->jumlah, 0, ',', '.') }}</span>
+                            @else
+                                Rp {{ number_format($row->jumlah, 0, ',', '.') }}
+                            @endif
+                        </td>
 
                     @elseif($reportType === 'denda')
                         <td class="text-center">{{ \Carbon\Carbon::parse($row->tanggal_terdeteksi)->format('d/m/Y') }}</td>
@@ -222,7 +228,7 @@
                 </tr>
             @empty
                 <tr>
-                    <td colspan="6" class="text-center" style="padding: 20px;">Tidak ada data yang ditemukan pada rentang tanggal dan filter ini.</td>
+                    <td colspan="{{ $reportType === 'pembayaran' ? 7 : 6 }}" class="text-center" style="padding: 20px;">Tidak ada data yang ditemukan pada rentang tanggal dan filter ini.</td>
                 </tr>
             @endforelse
         </tbody>
@@ -231,10 +237,18 @@
         @if(count($data) > 0)
         <tfoot>
             <tr style="background-color: #f8fafc;">
-                <td colspan="5" class="text-right" style="font-weight: bold; padding-right: 15px;">
+                @php
+                    $colspan = 5;
+                    if ($reportType === 'pembayaran') {
+                        $colspan = 5;
+                    } elseif ($reportType === 'denda') {
+                        $colspan = 4;
+                    }
+                @endphp
+                <td colspan="{{ $colspan }}" class="text-right" style="font-weight: bold; padding-right: 15px;">
                     TOTAL 
                     @if($reportType === 'peminjaman') NILAI TRANSAKSI
-                    @elseif($reportType === 'pembayaran') PENERIMAAN (SETTLEMENT/SUCCESS)
+                    @elseif($reportType === 'pembayaran') PENERIMAAN BERSIH
                     @elseif($reportType === 'denda') DENDA TERBAYARKAN
                     @endif
                 </td>
