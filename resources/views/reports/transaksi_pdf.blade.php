@@ -127,7 +127,7 @@
                         }
                     ?>
                     @if($logoData)
-                        <img src="{{ $logoData }}" style="max-width: 120px; height: auto;">
+                        <img src="{{ $logoData }}" style="max-width: 90px; height: auto;">
                     @else
                         <!-- Fallback jika gambar tidak ditemukan -->
                         <h2 style="margin:0;">AKA RENT</h2>
@@ -147,7 +147,8 @@
     {{-- JUDUL LAPORAN --}}
     <div class="header">
         <h2>{{ $title ?? 'LAPORAN TRANSAKSI RENTAL MOBIL' }}</h2>
-        <p>Periode: {{ \Carbon\Carbon::parse($startDate)->translatedFormat('d F Y') }} - {{ \Carbon\Carbon::parse($endDate)->translatedFormat('d F Y') }}</p>
+        {{-- MENGGUNAKAN locale('id')->isoFormat() AGAR PASTI BAHASA INDONESIA --}}
+        <p>Periode: {{ \Carbon\Carbon::parse($startDate)->locale('id')->isoFormat('D MMMM Y') }} - {{ \Carbon\Carbon::parse($endDate)->locale('id')->isoFormat('D MMMM Y') }}</p>
     </div>
 
     {{-- TABEL DATA DINAMIS --}}
@@ -181,7 +182,27 @@
             </tr>
         </thead>
         <tbody>
+            @php
+                $grandTotal = 0;
+            @endphp
+
             @forelse($data as $index => $row)
+                @php
+                    if ($reportType === 'pembayaran') {
+                        if (strtolower($row->tipe_transaksi) === 'refund') {
+                            $grandTotal -= $row->jumlah;
+                        } elseif (in_array(strtolower($row->status), ['success', 'settlement'])) {
+                            $grandTotal += $row->jumlah;
+                        }
+                    } elseif ($reportType === 'peminjaman') {
+                        $grandTotal += $row->total_harga;
+                    } elseif ($reportType === 'denda') {
+                        if (strtolower($row->status) === 'sudah dibayar') {
+                            $grandTotal += $row->total_denda;
+                        }
+                    }
+                @endphp
+
                 <tr>
                     <td class="text-center">{{ $index + 1 }}</td>
                     
@@ -208,7 +229,7 @@
                         <td class="text-center">{{ strtoupper($row->tipe_transaksi) }}</td>
                         <td class="text-center">{{ ucfirst($row->status) }}</td>
                         <td class="text-right">
-                            @if($row->tipe_transaksi === 'refund')
+                            @if(strtolower($row->tipe_transaksi) === 'refund')
                                 <span style="color: red;">- Rp {{ number_format($row->jumlah, 0, ',', '.') }}</span>
                             @else
                                 Rp {{ number_format($row->jumlah, 0, ',', '.') }}
@@ -238,18 +259,14 @@
         <tfoot>
             <tr style="background-color: #f8fafc;">
                 @php
-                    // Hitung berapa banyak kolom yang perlu digabungkan (semua kolom KECUALI kolom paling kanan)
-                    $colspanTotal = 5; // Default untuk peminjaman (No, Periode, Penyewa, Armada, Status)
+                    $colspanTotal = 5; 
                     if ($reportType === 'pembayaran') {
-                        $colspanTotal = 6; // (No, Tgl, ID, Penyewa, Tipe, Status)
+                        $colspanTotal = 6; 
                     } elseif ($reportType === 'denda') {
-                        $colspanTotal = 4; // (No, Tgl, Penyewa, Keterangan, Status) - wait let me count headers for denda
-                        // Denda headers: No, Tgl, Penyewa/Armada, Keterangan, Status Bayar, Total Denda = 6 columns
                         $colspanTotal = 5; 
                     }
                 @endphp
                 
-                {{-- Merging semua kolom menjadi satu cell yang rata kanan --}}
                 <td colspan="{{ $colspanTotal }}" class="text-right" style="font-weight: bold; padding-right: 15px;">
                     TOTAL 
                     @if($reportType === 'peminjaman') NILAI TRANSAKSI
@@ -258,9 +275,8 @@
                     @endif
                 </td>
                 
-                {{-- Cell nilai total di ujung kanan --}}
                 <td class="text-right" style="font-weight: bold; color: #0891b2;">
-                    Rp {{ number_format($totalOmzet, 0, ',', '.') }}
+                    Rp {{ number_format($grandTotal, 0, ',', '.') }}
                 </td>
             </tr>
         </tfoot>
@@ -271,11 +287,14 @@
     <div class="footer">
         <table class="footer-table">
             <tr>
+                {{-- INFO TANGGAL DICETAK --}}
                 <td width="70%" style="vertical-align: bottom; font-size: 10px; color: #666;">
-                    Dicetak pada Tanggal {{ \Carbon\Carbon::now()->translatedFormat('d F Y, H:i') }}
+                    * Dicetak oleh sistem pada {{ \Carbon\Carbon::now()->locale('id')->isoFormat('D MMMM Y, HH:mm') }}
                 </td>
+                
                 <td class="signature-box">
-                    <p>Sleman, {{ \Carbon\Carbon::now()->translatedFormat('d F Y') }}</p>
+                    {{-- MENGGUNAKAN locale('id')->isoFormat() AGAR PASTI BAHASA INDONESIA --}}
+                    <p>Sleman, {{ \Carbon\Carbon::now()->locale('id')->isoFormat('D MMMM Y') }}</p>
                     <p>Mengetahui,</p>
                     <div class="signature-space"></div>
                     <p style="font-weight: bold; text-decoration: underline;">{{ Auth::user()->name ?? 'Owner' }}</p>
