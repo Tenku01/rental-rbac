@@ -127,7 +127,7 @@
                         }
                     ?>
                     @if($logoData)
-                        <img src="{{ $logoData }}" style="max-width: 90px; height: auto;">
+                        <img src="{{ $logoData }}" style="max-width: 120px; height: auto;">
                     @else
                         <!-- Fallback jika gambar tidak ditemukan -->
                         <h2 style="margin:0;">AKA RENT</h2>
