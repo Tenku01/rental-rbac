@@ -222,23 +222,35 @@
                                 @error('deskripsi_aktivitas') <span class="text-xs text-rose-500 font-bold mt-1 block">{{ $message }}</span> @enderror
                             </div>
 
-                            {{-- Foto --}}
+                            {{-- Foto (PERBAIKAN AREA KLIK) --}}
                             <div>
                                 <label class="block text-[11px] font-black text-gray-400 uppercase tracking-widest mb-2">Foto Pendukung (Opsional)</label>
-                                <div class="relative mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-200 border-dashed rounded-2xl hover:border-cyan-400 hover:bg-cyan-50/50 transition-all overflow-hidden group">
+                                
+                                {{-- 
+                                  PERUBAHAN UTAMA: 
+                                  Mengganti <div class="relative..."> dengan <label for="foto_upload"> 
+                                  agar *seluruh area kotak putus-putus* ini bisa diklik dan memunculkan file picker.
+                                --}}
+                                <label for="foto_upload" class="relative mt-1 block w-full px-6 pt-5 pb-6 border-2 border-gray-200 border-dashed rounded-2xl hover:border-cyan-400 hover:bg-cyan-50/50 transition-all overflow-hidden group cursor-pointer">
+                                    
                                     @if ($foto_bukti)
                                         <img src="{{ $foto_bukti->temporaryUrl() }}" class="absolute inset-0 w-full h-full object-cover opacity-30 group-hover:opacity-10 transition-opacity">
                                     @endif
-                                    <div class="space-y-2 text-center relative z-10">
+                                    
+                                    {{-- Tambahkan pointer-events-none agar teks tidak memblokir klik pada label --}}
+                                    <div class="space-y-2 text-center relative z-10 pointer-events-none">
                                         <svg class="mx-auto h-10 w-10 text-gray-400 group-hover:text-cyan-500 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg>
                                         <div class="flex text-sm text-gray-600 justify-center">
-                                            <label class="relative cursor-pointer rounded-md font-bold text-cyan-600 hover:text-cyan-700">
-                                                <span>{{ $foto_bukti ? 'Ganti Foto' : 'Pilih Foto' }}</span>
-                                                <input type="file" wire:model="foto_bukti" class="sr-only" accept="image/*">
-                                            </label>
+                                            <span class="rounded-md font-bold text-cyan-600 group-hover:text-cyan-700">
+                                                {{ $foto_bukti ? 'Ganti Foto' : 'Pilih Foto' }}
+                                            </span>
                                         </div>
                                     </div>
-                                </div>
+                                    
+                                    {{-- Input file-nya ditaruh di dalam label dengan id yang sama dengan `for` --}}
+                                    <input id="foto_upload" type="file" wire:model="foto_bukti" class="sr-only" accept="image/*">
+                                </label>
+                                
                                 <div wire:loading wire:target="foto_bukti" class="text-[10px] font-bold text-cyan-600 mt-2 animate-pulse">Mengunggah foto...</div>
                                 @error('foto_bukti') <span class="text-xs text-rose-500 font-bold mt-1 block">{{ $message }}</span> @enderror
                             </div>
@@ -340,4 +352,4 @@
     @endif
 
     <x-toast-notification />
-</div>d
+</div>
