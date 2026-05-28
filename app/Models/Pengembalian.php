@@ -4,7 +4,6 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Support\Str;
 
 class Pengembalian extends Model
 {
@@ -16,16 +15,30 @@ class Pengembalian extends Model
     protected $keyType = 'string';
 
     /**
-     * 1. NONAKTIFKAN TIMESTAMPS
-     * Karena tabel database Anda tidak memiliki kolom created_at & updated_at
+     * 1. AKTIFKAN KEMBALI TIMESTAMPS
+     * Karena pada migrasi terbaru kita telah menambahkan created_at dan updated_at
      */
-    public $timestamps = false;
+    public $timestamps = true;
 
     protected $fillable = [
         'kode_pengembalian',
         'peminjaman_id',
         'tanggal_pengembalian',
         'status',
+        
+        // --- Data Inspeksi Mobil ---
+        'pemeriksa_id',
+        'kondisi_mobil',
+        'catatan_inspeksi',
+        
+        // --- Data Denda ---
+        'denda_keterlambatan',
+        'denda_kerusakan',
+        'total_denda',
+        'status_denda',
+        'metode_pembayaran_denda',
+        'tanggal_pembayaran_denda',
+        'keterangan_denda',
     ];
 
     protected $appends = ['total_outstanding_fine'];
@@ -37,11 +50,6 @@ class Pengembalian extends Model
         static::creating(function ($model) {
             // Logika generate kode unik: PBL0000001
             if (empty($model->kode_pengembalian)) {
-                /**
-                 * 2. PERBAIKI ORDER BY
-                 * Jangan gunakan 'created_at' karena kolomnya tidak ada.
-                 * Gunakan 'tanggal_pengembalian' atau primary key.
-                 */
                 $latest = static::orderBy('tanggal_pengembalian', 'desc')->first();
                 
                 $number = $latest ? (int) substr($latest->kode_pengembalian, 3) + 1 : 1;
@@ -60,10 +68,10 @@ class Pengembalian extends Model
         return $this->belongsTo(Peminjaman::class, 'peminjaman_id');
     }
 
-    /** 🔹 Relasi ke denda (fines) */
-    public function fines()
+    /** 🔹 Relasi ke user (Pemeriksa) */
+    public function pemeriksa()
     {
-        return $this->hasMany(Denda::class, 'peminjaman_id', 'peminjaman_id');
+        return $this->belongsTo(User::class, 'pemeriksa_id');
     }
 
     /** 🔹 Relasi ke laporan kerusakan */
@@ -72,20 +80,17 @@ class Pengembalian extends Model
         return $this->hasMany(LaporanKerusakanMobil::class, 'pengembalian_kode', 'kode_pengembalian');
     }
 
-    /** 🔹 Relasi ke inspeksi kendaraan */
-    public function inspections()
-    {
-        return $this->hasMany(InspeksiMobil::class, 'pengembalian_kode', 'kode_pengembalian');
-    }
-
     /**
      * ACCESSOR: Menghitung total denda yang BELUM DIBAYAR.
+     * Karena data denda sudah tergabung, kita cukup membaca kolomnya sendiri.
      */
     public function getTotalOutstandingFineAttribute()
     {
-        return $this->fines()
-                    ->where('status', 'belum dibayar') 
-                    ->sum('total_denda');
+        if ($this->status_denda === 'belum dibayar') {
+            return $this->total_denda;
+        }
+        
+        return 0; // Jika tidak ada denda atau sudah dibayar
     }
     
     /**
@@ -93,6 +98,6 @@ class Pengembalian extends Model
      */
     public function getTotalDendaAttribute()
     {
-        return $this->fines()->sum('total_denda');
+        return $this->total_denda;
     }
 }

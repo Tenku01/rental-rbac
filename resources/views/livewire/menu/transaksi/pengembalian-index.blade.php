@@ -75,7 +75,6 @@
                     <tr class="hover:bg-cyan-50/20 transition-colors group">
                         <td class="px-8 py-6">
                             <div class="font-black text-cyan-700 text-sm tracking-tight">{{ $item->kode_pengembalian }}</div>
-                            {{-- 🔹 Teks ID DB dihapus dari sini --}}
                         </td>
                         <td class="px-8 py-6">
                             <div class="font-bold text-gray-800 text-xs">{{ $item->peminjaman->user->name ?? 'N/A' }}</div>
@@ -89,11 +88,11 @@
                             <div class="text-xs font-black text-gray-700">{{ \Carbon\Carbon::parse($item->tanggal_pengembalian)->format('d M Y') }}</div>
                         </td>
                         <td class="px-8 py-6 text-center">
-                            @if($dendaList->has($item->peminjaman_id))
+                            @if($item->total_denda > 0)
                                 <span class="px-3 py-1 bg-rose-50 text-rose-600 text-[10px] font-black rounded-lg border border-rose-100 uppercase tracking-tighter">
                                     Ada Denda
                                 </span>
-                                <div class="text-[9px] text-rose-500 font-bold mt-1">Rp {{ number_format($dendaList[$item->peminjaman_id]->total_denda ?? 0, 0, ',', '.') }}</div>
+                                <div class="text-[9px] text-rose-500 font-bold mt-1">Rp {{ number_format($item->total_denda, 0, ',', '.') }}</div>
                             @else
                                 <span class="px-3 py-1 bg-emerald-50 text-emerald-600 text-[10px] font-black rounded-lg border border-emerald-100 uppercase tracking-widest leading-none">
                                     Aman (Clear)
@@ -102,13 +101,11 @@
                         </td>
                         <td class="px-8 py-6 text-right">
                             <div class="flex justify-end gap-2">
-                                {{-- 🔹 Passing Parameter Menggunakan String --}}
                                 <button wire:click="showDetail('{{ $item->kode_pengembalian }}')" class="p-2.5 text-cyan-600 bg-cyan-50 hover:bg-cyan-600 hover:text-white rounded-xl transition-all border border-cyan-100 shadow-sm" title="Detail">
                                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path></svg>
                                 </button>
                                 
                                 @can('delete-pengembalian')
-                                {{-- 🔹 Passing Parameter Menggunakan String --}}
                                 <button wire:confirm="Hapus data pengembalian? Status mobil akan kembali jadi 'Disewa'." wire:click="delete('{{ $item->kode_pengembalian }}')" class="p-2.5 text-rose-600 bg-rose-50 hover:bg-rose-600 hover:text-white rounded-xl transition-all border border-rose-100 shadow-sm">
                                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
                                 </button>
@@ -267,13 +264,13 @@
                     </div>
 
                     {{-- Menampilkan informasi dari tabel Denda jika data tersebut exist --}}
-                    @if($selectedDenda)
+                    @if($selectedPengembalian->total_denda > 0)
                     <div class="p-6 bg-rose-50 rounded-[2rem] border border-rose-100 flex justify-between items-center shadow-inner mt-4">
                         <div>
                             <p class="text-xs font-black text-rose-500 uppercase tracking-widest">Denda Ditetapkan</p>
-                            <p class="text-[10px] font-black text-rose-400 mt-1.5 uppercase bg-white px-2 py-0.5 rounded border border-rose-100 inline-block">{{ str_replace('_', ' ', $selectedDenda->status) }}</p>
+                            <p class="text-[10px] font-black text-rose-400 mt-1.5 uppercase bg-white px-2 py-0.5 rounded border border-rose-100 inline-block">{{ str_replace('_', ' ', $selectedPengembalian->status_denda) }}</p>
                         </div>
-                        <p class="text-xl font-black text-rose-600">Rp {{ number_format($selectedDenda->total_denda ?? 0, 0, ',', '.') }}</p>
+                        <p class="text-xl font-black text-rose-600">Rp {{ number_format($selectedPengembalian->total_denda, 0, ',', '.') }}</p>
                     </div>
                     @endif
                 </div>

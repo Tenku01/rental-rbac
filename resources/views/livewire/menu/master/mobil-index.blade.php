@@ -117,8 +117,13 @@
                             @endif
                         </td>
                         <td class="px-8 py-6 whitespace-nowrap">
-                            <div class="text-[15px] font-black text-gray-900 uppercase leading-none">{{ $mobil->merek }} {{ $mobil->tipe }}</div>
-                            <div class="text-xs font-mono font-bold bg-gray-100 px-2 py-0.5 rounded-lg inline-block mt-2 text-cyan-700 tracking-widest">
+                            <div class="flex items-center gap-2 mb-1.5">
+                                <div class="text-[15px] font-black text-gray-900 uppercase leading-none">{{ $mobil->merek }} {{ $mobil->tipe }}</div>
+                                @if($mobil->status_kepemilikan === 'mitra')
+                                    <span class="bg-indigo-100 text-indigo-700 border border-indigo-200 text-[8px] font-black px-2 py-0.5 rounded uppercase tracking-widest" title="Mobil Titipan/Mitra">Mitra</span>
+                                @endif
+                            </div>
+                            <div class="text-xs font-mono font-bold bg-gray-100 px-2 py-0.5 rounded-lg inline-block text-cyan-700 tracking-widest">
                                 {{ $mobil->id }}
                             </div>
                         </td>
@@ -126,13 +131,16 @@
                             <span class="px-3 py-1.5 inline-flex text-[10px] leading-none font-black rounded-lg bg-cyan-50 text-cyan-700 border border-cyan-100 uppercase tracking-widest">
                                 {{ $mobil->transmisi }}
                             </span>
-                            <span class="px-3 py-1.5 inline-flex text-[10px] leading-none font-black rounded-lg bg-indigo-50 text-indigo-700 border border-indigo-100 ml-1 uppercase tracking-widest">
+                            <span class="px-3 py-1.5 inline-flex text-[10px] leading-none font-black rounded-lg bg-gray-100 text-gray-700 border border-gray-200 ml-1 uppercase tracking-widest">
                                 {{ $mobil->kursi }} Seat
                             </span>
                             <div class="text-[11px] font-bold text-gray-500 mt-2 uppercase tracking-widest">{{ $mobil->warna }}</div>
                         </td>
                         <td class="px-8 py-6 text-center whitespace-nowrap">
                             <div class="text-sm font-black text-gray-900">Rp {{ number_format($mobil->harga, 0, ',', '.') }}</div>
+                            @if($mobil->status_kepemilikan === 'mitra')
+                                <div class="text-[9px] text-gray-400 mt-1 uppercase font-bold tracking-widest">Bagi Hasil: {{ $mobil->persentase_bagi_hasil_rental }}% (Rental)</div>
+                            @endif
                         </td>
                         <td class="px-8 py-6 text-center whitespace-nowrap">
                             @php
@@ -210,7 +218,7 @@
             <div class="fixed inset-0 bg-gray-900/40 backdrop-blur-md transition-opacity" wire:click="closeModal"></div>
             <span class="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
 
-            <div class="inline-block align-bottom bg-white rounded-[2.5rem] text-left overflow-hidden shadow-2xl transform transition-all sm:my-8 sm:align-middle sm:max-w-2xl w-full border border-gray-100">
+            <div class="inline-block align-bottom bg-white rounded-[2.5rem] text-left overflow-hidden shadow-2xl transform transition-all sm:my-8 sm:align-middle sm:max-w-3xl w-full border border-gray-100">
                 <form wire:submit.prevent="{{ $isEditMode ? 'update' : 'store' }}">
                     
                     <!-- HEADER MODAL FIXED -->
@@ -331,7 +339,7 @@
                                 <!-- 5. Harga -->
                                 <div class="group">
                                     <label class="block text-[11px] font-black text-gray-400 uppercase tracking-[0.2em] mb-3 ml-1 group-focus-within:text-cyan-600 transition-colors">
-                                        Harga Sewa / Hari (Rp) <span class="text-rose-500">*</span>
+                                        Harga Sewa / Hari (Termasuk PPN) <span class="text-rose-500">*</span>
                                     </label>
                                     <div class="relative">
                                         <div class="absolute inset-y-0 left-0 pl-5 flex items-center pointer-events-none text-gray-400 font-bold">Rp</div>
@@ -390,7 +398,131 @@
                                     @enderror
                                 </div>
 
-                                <!-- 8. Status Ketersediaan -->
+                                <!-- ======================================================= -->
+                                <!-- 8. KEPEMILIKAN & BAGI HASIL (DENGAN KALKULASI REALTIME) -->
+                                <!-- ======================================================= -->
+                                <div class="sm:col-span-2 pt-6 pb-2" x-data="{
+                                    kepemilikan: @entangle('status_kepemilikan').live,
+                                    hargaSewa: @entangle('harga').live,
+                                    persenRental: @entangle('persentase_bagi_hasil_rental').live,
+                                    
+                                    get pendapatanBersih() {
+                                        let val = Number(this.hargaSewa) || 0;
+                                        // Rumus Pajak Inklusi 11% (Harga Asli = Total / 1.11)
+                                        return Math.round(val / 1.11);
+                                    },
+                                    get pajakPpn() {
+                                        return (Number(this.hargaSewa) || 0) - this.pendapatanBersih;
+                                    },
+                                    get persenMitra() {
+                                        let p = Number(this.persenRental) || 0;
+                                        return (p > 100 ? 0 : 100 - p);
+                                    },
+                                    get nominalRental() {
+                                        let p = Number(this.persenRental) || 0;
+                                        return Math.round(this.pendapatanBersih * (p / 100));
+                                    },
+                                    get nominalMitra() {
+                                        return Math.round(this.pendapatanBersih * (this.persenMitra / 100));
+                                    }
+                                }">
+                                    
+                                    <div class="space-y-4">
+                                        <label class="block text-[11px] font-black text-gray-400 uppercase tracking-[0.2em] mb-2 text-center">Status Kepemilikan <span class="text-rose-500">*</span></label>
+                                        <div class="grid grid-cols-2 gap-4">
+                                            <label class="flex items-center justify-center h-14 rounded-2xl border-2 cursor-pointer transition-all shadow-sm" :class="kepemilikan === 'milik_sendiri' ? 'border-cyan-500 bg-cyan-50/50 text-cyan-700 ring-4 ring-cyan-500/10' : 'border-gray-100 hover:border-cyan-200'">
+                                                <input type="radio" wire:model.live="status_kepemilikan" value="milik_sendiri" class="hidden">
+                                                <span class="text-[11px] font-black uppercase tracking-widest">Aset Pribadi</span>
+                                            </label>
+                                            <label class="flex items-center justify-center h-14 rounded-2xl border-2 cursor-pointer transition-all shadow-sm" :class="kepemilikan === 'mitra' ? 'border-indigo-500 bg-indigo-50/50 text-indigo-700 ring-4 ring-indigo-500/10' : 'border-gray-100 hover:border-indigo-200'">
+                                                <input type="radio" wire:model.live="status_kepemilikan" value="mitra" class="hidden">
+                                                <span class="text-[11px] font-black uppercase tracking-widest">Mobil Mitra</span>
+                                            </label>
+                                        </div>
+                                    </div>
+
+                                    <!-- KOLOM TAMBAHAN UNTUK MITRA -->
+                                    <div x-show="kepemilikan === 'mitra'" x-transition class="mt-8 space-y-6 animate-fade-in-down border-t border-dashed border-gray-200 pt-6">
+                                        
+                                        <div class="group">
+                                            <label class="block text-[11px] font-black text-gray-400 uppercase tracking-[0.2em] mb-3 ml-1 group-focus-within:text-indigo-600 transition-colors">
+                                                Nama Pemilik Kendaraan <span class="text-rose-500">*</span>
+                                            </label>
+                                            <input wire:model.defer="nama_pemilik" type="text" placeholder="Bapak Budi..."
+                                                class="w-full h-14 rounded-2xl px-6 font-bold transition-all focus:outline-none placeholder:text-gray-300
+                                                @error('nama_pemilik') border-rose-500 bg-rose-50 text-rose-900 focus:border-rose-500 focus:ring-4 focus:ring-rose-500/10 @else border border-gray-100 bg-gray-50/50 text-gray-800 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 @enderror">
+                                            @error('nama_pemilik') 
+                                                <span class="text-rose-500 text-[10px] font-black uppercase mt-2 ml-1 flex items-center gap-1 tracking-widest">{{ $message }}</span> 
+                                            @enderror
+                                        </div>
+
+                                        <div class="grid grid-cols-2 gap-4">
+                                            <!-- Persentase Rental -->
+                                            <div class="group">
+                                                <label class="block text-[11px] font-black text-gray-400 uppercase tracking-[0.2em] mb-3 ml-1 group-focus-within:text-cyan-600 transition-colors">
+                                                    Bagi Hasil Rental (%) <span class="text-rose-500">*</span>
+                                                </label>
+                                                <div class="relative">
+                                                    <input wire:model.live.debounce.100ms="persentase_bagi_hasil_rental" type="number" min="0" max="100" placeholder="10"
+                                                        class="w-full h-14 rounded-2xl px-6 pr-12 font-black text-xl transition-all focus:outline-none
+                                                        @error('persentase_bagi_hasil_rental') border-rose-500 bg-rose-50 text-rose-900 focus:ring-4 focus:ring-rose-500/10 @else border border-gray-100 bg-gray-50/50 text-cyan-700 focus:border-cyan-500 focus:ring-4 focus:ring-cyan-500/10 @enderror">
+                                                    <div class="absolute inset-y-0 right-0 pr-5 flex items-center pointer-events-none text-gray-400 font-bold">%</div>
+                                                </div>
+                                                @error('persentase_bagi_hasil_rental') 
+                                                    <span class="text-rose-500 text-[10px] font-black uppercase mt-2 ml-1 block tracking-widest">{{ $message }}</span> 
+                                                @enderror
+                                            </div>
+
+                                            <!-- Persentase Mitra (Auto Calculated) -->
+                                            <div class="group">
+                                                <label class="block text-[11px] font-black text-gray-400 uppercase tracking-[0.2em] mb-3 ml-1">
+                                                    Bagi Hasil Mitra (%)
+                                                </label>
+                                                <div class="relative">
+                                                    <input x-model="persenMitra" type="number" readonly disabled
+                                                        class="w-full h-14 rounded-2xl px-6 pr-12 font-black text-xl transition-all border border-gray-200 bg-gray-100 text-gray-500 cursor-not-allowed">
+                                                    <div class="absolute inset-y-0 right-0 pr-5 flex items-center pointer-events-none text-gray-400 font-bold">%</div>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <!-- UI SIMULASI REALTIME -->
+                                        <div class="bg-indigo-50 rounded-2xl p-6 border border-indigo-100">
+                                            <h4 class="text-[10px] font-black text-indigo-400 uppercase tracking-[0.2em] mb-4 text-center border-b border-indigo-100/50 pb-2">Simulasi Bagi Hasil (Per Hari)</h4>
+                                            
+                                            <div class="space-y-3">
+                                                <div class="flex justify-between items-center">
+                                                    <span class="text-xs font-bold text-gray-500">Harga Sewa (Input)</span>
+                                                    <span class="text-sm font-black text-gray-800">Rp <span x-text="(Number(hargaSewa) || 0).toLocaleString('id-ID')"></span></span>
+                                                </div>
+                                                <div class="flex justify-between items-center">
+                                                    <span class="text-xs font-bold text-red-400">Pajak PPN (11%)</span>
+                                                    <span class="text-sm font-black text-red-500">- Rp <span x-text="pajakPpn.toLocaleString('id-ID')"></span></span>
+                                                </div>
+                                                <div class="flex justify-between items-center pt-2 border-t border-dashed border-indigo-200">
+                                                    <span class="text-xs font-black text-indigo-700">Pendapatan Bersih (Net)</span>
+                                                    <span class="text-sm font-black text-indigo-700">Rp <span x-text="pendapatanBersih.toLocaleString('id-ID')"></span></span>
+                                                </div>
+                                            </div>
+
+                                            <div class="mt-4 pt-4 border-t border-indigo-200 grid grid-cols-2 gap-4">
+                                                <div class="bg-white p-3 rounded-xl shadow-sm text-center">
+                                                    <span class="block text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1">Hak Rental</span>
+                                                    <span class="text-sm font-black text-cyan-600">Rp <span x-text="nominalRental.toLocaleString('id-ID')"></span></span>
+                                                </div>
+                                                <div class="bg-white p-3 rounded-xl shadow-sm text-center">
+                                                    <span class="block text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1">Hak Mitra</span>
+                                                    <span class="text-sm font-black text-emerald-600">Rp <span x-text="nominalMitra.toLocaleString('id-ID')"></span></span>
+                                                </div>
+                                            </div>
+                                            <p class="text-[9px] text-center text-indigo-300 font-bold mt-4 italic">*Pajak PPN otomatis dipotong sebelum dilakukan pembagian hasil.</p>
+                                        </div>
+
+                                    </div>
+                                </div>
+
+
+                                <!-- 9. Status Ketersediaan -->
                                 <div class="sm:col-span-2 space-y-4">
                                     <label class="block text-[11px] font-black text-gray-400 uppercase tracking-[0.2em] mb-2 text-center">Status Ketersediaan Armada <span class="text-rose-500">*</span></label>
                                     <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
@@ -416,7 +548,7 @@
                                     @enderror
                                 </div>
 
-                                <!-- 9. Foto Upload -->
+                                <!-- 10. Foto Upload -->
                                 <div class="sm:col-span-2 group pt-4 border-t border-dashed border-gray-200">
                                     <label class="block text-[11px] font-black text-gray-400 uppercase tracking-[0.2em] mb-4 text-center">Foto Unit Kendaraan <span class="text-rose-500">*</span></label>
                                     <label class="relative flex flex-col items-center justify-center w-full h-56 border-2 border-dashed rounded-3xl cursor-pointer transition-all bg-gray-50/30 overflow-hidden

@@ -5,7 +5,7 @@ namespace App\Livewire\Menu\Transaksi;
 use Livewire\Component;
 use Livewire\WithPagination;
 use Livewire\Attributes\Layout;
-use App\Models\Denda; // 🔹 Diperbarui dari Fine
+use App\Models\Pengembalian; // Menggunakan Pengembalian karena denda sudah di-merge
 use Illuminate\Support\Facades\Gate;
 
 class DendaIndex extends Component
@@ -19,7 +19,7 @@ class DendaIndex extends Component
     // --- Modal Detail & Payment ---
     public $showDetailModal = false;
     public $showPaymentModal = false;
-    public $selectedDenda = null; // 🔹 Diperbarui dari selectedFine
+    public $selectedDenda = null; // Menyimpan instance Pengembalian
 
     // --- Form Payment (Update Status) ---
     public $metode_pembayaran = 'cash';
@@ -39,21 +39,20 @@ class DendaIndex extends Component
     #[Layout('layouts.admin')]
     public function render()
     {
-        // RBAC: Izin melihat denda (Diselaraskan dengan web.php: read-denda)
         abort_if(Gate::denies('read-denda'), 403, 'Akses ditolak.');
 
-        $dendaList = Denda::with(['peminjaman.user', 'peminjaman.mobil']) // 🔹 Diperbarui
+        // Hanya mengambil data pengembalian yang memiliki denda
+        $dendaList = Pengembalian::with(['peminjaman.user', 'peminjaman.mobil'])
+            ->where('status_denda', '!=', 'tidak ada denda')
             ->when($this->search, function ($q) {
-                $q->where('id', 'like', '%' . $this->search . '%')
+                $q->where('kode_pengembalian', 'like', '%' . $this->search . '%')
                     ->orWhereHas('peminjaman.user', fn($sq) => $sq->where('name', 'like', '%' . $this->search . '%'))
-                    // 🔹 Diperbarui: plat_nomor di database baru menggunakan kolom id di tabel mobils
                     ->orWhereHas('peminjaman.mobil', fn($sq) => $sq->where('id', 'like', '%' . $this->search . '%'));
             })
-            ->when($this->filterStatus, fn($q) => $q->where('status', $this->filterStatus))
+            ->when($this->filterStatus, fn($q) => $q->where('status_denda', $this->filterStatus))
             ->orderBy('created_at', 'desc')
             ->paginate(10)->withPath(url()->current());
 
-        // 🔹 Diperbarui nama view-nya menjadi denda-index
         return view('livewire.menu.transaksi.denda-index', [
             'dendaList' => $dendaList
         ]);
@@ -63,18 +62,22 @@ class DendaIndex extends Component
     // ACTION: DETAIL & PAYMENT
     // =========================================================================
 
-    public function showDetail($id)
+    public function showDetail($kode_pengembalian)
     {
-        $this->selectedDenda = Denda::with(['peminjaman.user', 'peminjaman.mobil'])->findOrFail($id);
+        $this->selectedDenda = Pengembalian::with(['peminjaman.user', 'peminjaman.mobil'])
+            ->where('kode_pengembalian', $kode_pengembalian)
+            ->firstOrFail();
         $this->showDetailModal = true;
     }
 
-    public function openPaymentModal($id)
+    public function openPaymentModal($kode_pengembalian)
     {
-        // RBAC: Hanya boleh update jika punya izin
         abort_if(Gate::denies('update-denda'), 403);
 
-        $this->selectedDenda = Denda::with(['peminjaman.user'])->findOrFail($id);
+        $this->selectedDenda = Pengembalian::with(['peminjaman.user'])
+            ->where('kode_pengembalian', $kode_pengembalian)
+            ->firstOrFail();
+            
         $this->metode_pembayaran = 'cash';
         $this->keterangan_bayar = '';
         $this->showPaymentModal = true;
@@ -89,11 +92,13 @@ class DendaIndex extends Component
             'keterangan_bayar' => 'nullable|string|max:255'
         ]);
 
+        $keteranganLama = $this->selectedDenda->keterangan_denda ? $this->selectedDenda->keterangan_denda . ' ' : '';
+
         $this->selectedDenda->update([
-            'status' => 'sudah dibayar',
-            'tanggal_pembayaran' => now(), // Pastikan migration Anda memiliki kolom ini
-            'metode_pembayaran' => $this->metode_pembayaran, // Pastikan migration Anda memiliki kolom ini
-            'keterangan' => $this->selectedDenda->keterangan . ' (LUNAS: ' . ($this->keterangan_bayar ?? '-') . ')'
+            'status_denda' => 'sudah dibayar',
+            'tanggal_pembayaran_denda' => now(), 
+            'metode_pembayaran_denda' => $this->metode_pembayaran, 
+            'keterangan_denda' => $keteranganLama . '(LUNAS: ' . ($this->keterangan_bayar ?? '-') . ')'
         ]);
 
         $this->closeModal();

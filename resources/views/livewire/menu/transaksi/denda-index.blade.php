@@ -170,18 +170,16 @@
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-gray-50">
-                    <!-- 🔹 Diperbarui: $fines -> $dendaList, $fine -> $denda -->
                     @forelse($dendaList as $denda)
                         <tr class="hover:bg-rose-50/10 transition-colors group">
                             <td class="px-8 py-6">
-                                <div class="font-black text-gray-900 text-sm tracking-tight">#{{ $denda->id }}</div>
+                                <div class="font-black text-gray-900 text-sm tracking-tight">#{{ $denda->kode_pengembalian }}</div>
                                 <div class="text-[9px] font-bold text-gray-400 mt-1 uppercase">
-                                    {{ \Carbon\Carbon::parse($denda->tanggal_terdeteksi)->format('d M Y') }}</div>
+                                    {{ \Carbon\Carbon::parse($denda->updated_at)->format('d M Y') }}</div>
                             </td>
                             <td class="px-8 py-6">
                                 <div class="font-bold text-gray-800 text-xs uppercase">
                                     {{ $denda->peminjaman->user->name ?? 'N/A' }}</div>
-                                <!-- 🔹 Diperbarui: plat_nomor direpresentasikan oleh id mobil -->
                                 <div class="text-[10px] mt-0.5 font-mono text-rose-400">
                                     {{ $denda->peminjaman->mobil->id ?? '-' }}</div>
                             </td>
@@ -189,7 +187,7 @@
                                 <div class="flex flex-col gap-1">
                                     @if ($denda->denda_keterlambatan > 0)
                                         <span class="text-[10px] font-bold text-gray-600 flex justify-between w-32">
-                                            <span>terlambat:</span> <span>Rp
+                                            <span>Terlambat:</span> <span>Rp
                                                 {{ number_format($denda->denda_keterlambatan) }}</span>
                                         </span>
                                     @endif
@@ -207,7 +205,7 @@
                             </td>
                             <td class="px-8 py-6 text-center">
                                 @php
-                                    $badge = match ($denda->status) {
+                                    $badge = match ($denda->status_denda) {
                                         'sudah dibayar' => 'bg-emerald-100 text-emerald-700 border-emerald-200',
                                         'belum dibayar' => 'bg-rose-100 text-rose-700 border-rose-200',
                                         default => 'bg-gray-100 text-gray-600 border-gray-200',
@@ -215,12 +213,12 @@
                                 @endphp
                                 <span
                                     class="inline-flex px-3 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest border {{ $badge }}">
-                                    {{ $denda->status }}
+                                    {{ $denda->status_denda }}
                                 </span>
                             </td>
                             <td class="px-8 py-6 text-right">
                                 <div class="flex justify-end gap-2">
-                                    <button wire:click="showDetail({{ $denda->id }})"
+                                    <button wire:click="showDetail('{{ $denda->kode_pengembalian }}')"
                                         class="p-2.5 text-rose-600 bg-rose-50 hover:bg-rose-600 hover:text-white rounded-xl transition-all border border-rose-100 shadow-sm"
                                         title="Detail">
                                         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -232,10 +230,9 @@
                                         </svg>
                                     </button>
 
-                                    @if ($denda->status == 'belum dibayar')
-                                        <!-- 🔹 Diperbarui: update-fine -> update-denda -->
+                                    @if ($denda->status_denda == 'belum dibayar')
                                         @can('update-denda')
-                                            <button wire:click="openPaymentModal({{ $denda->id }})"
+                                            <button wire:click="openPaymentModal('{{ $denda->kode_pengembalian }}')"
                                                 class="p-2.5 text-emerald-600 bg-emerald-50 hover:bg-emerald-600 hover:text-white rounded-xl transition-all border border-emerald-100 shadow-sm"
                                                 title="Bayar Denda">
                                                 <svg class="w-5 h-5" fill="none" stroke="currentColor"
@@ -262,7 +259,6 @@
             </table>
         </div>
         <div class="px-8 py-8 border-t border-gray-100 bg-gray-50/50">
-            <!-- 🔹 Diperbarui: $fines -> $dendaList -->
             {{ $dendaList->links('components.pagination-info') }}
         </div>
     </div>
@@ -279,9 +275,8 @@
                     class="inline-block align-bottom bg-white rounded-[2.5rem] text-left overflow-hidden shadow-2xl transform transition-all sm:my-8 sm:align-middle sm:max-w-xl w-full border border-gray-100">
                     <div class="px-10 py-6 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
                         <div>
-                            <!-- 🔹 Diperbarui: $selectedFine -> $selectedDenda -->
                             <h3 class="text-xl font-black text-gray-900 uppercase tracking-tight">Detail Denda
-                                #{{ $selectedDenda->id }}</h3>
+                                #{{ $selectedDenda->kode_pengembalian }}</h3>
                             <p class="text-[10px] text-rose-600 font-bold uppercase tracking-[0.25em] mt-1">Rincian
                                 Sanksi & Tagihan</p>
                         </div>
@@ -306,7 +301,7 @@
                                 <p class="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1">Tanggal
                                     Deteksi</p>
                                 <p class="font-black text-gray-800 text-xs uppercase">
-                                    {{ \Carbon\Carbon::parse($selectedDenda->tanggal_terdeteksi)->format('d M Y') }}
+                                    {{ \Carbon\Carbon::parse($selectedDenda->updated_at)->format('d M Y') }}
                                 </p>
                             </div>
                         </div>
@@ -330,10 +325,10 @@
                             </div>
                         </div>
 
-                        @if ($selectedDenda->keterangan)
+                        @if ($selectedDenda->keterangan_denda)
                             <div
                                 class="p-5 bg-rose-50 rounded-2xl border border-rose-100 text-rose-900 text-xs font-medium italic">
-                                "{{ $selectedDenda->keterangan }}"
+                                "{{ $selectedDenda->keterangan_denda }}"
                             </div>
                         @endif
                     </div>
@@ -379,7 +374,6 @@
                             <div class="bg-rose-50 border border-rose-100 p-6 rounded-2xl text-center">
                                 <p class="text-[10px] font-black text-rose-400 uppercase tracking-widest mb-1">Total
                                     Yang Harus Dibayar</p>
-                                <!-- 🔹 Diperbarui: $selectedFine -> $selectedDenda -->
                                 <p class="text-3xl font-black text-rose-600">Rp
                                     {{ number_format($selectedDenda->total_denda) }}</p>
                             </div>

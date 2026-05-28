@@ -15,10 +15,16 @@ class MobilIndex extends Component
     use WithPagination;
     use WithFileUploads;
 
-    // --- Properties ---
+    // --- Properties Dasar ---
     public $plat_nomor, $tipe, $merek, $warna, $transmisi, $kursi, $harga, $foto, $status = 'tersedia';
     public $id_asli;
     public $foto_lama;
+
+    // --- Properties Kepemilikan & Bagi Hasil ---
+    public $status_kepemilikan = 'milik_sendiri';
+    public $nama_pemilik;
+    public $persentase_bagi_hasil_rental;
+    public $persentase_bagi_hasil_mitra;
 
     public $isEditMode = false;
     public $showModal = false;
@@ -34,10 +40,21 @@ class MobilIndex extends Component
         }
     }
 
-    // --- Validasi Realtime ---
+    // --- Validasi & Kalkulasi Realtime ---
     public function updated($propertyName)
     {
         $this->validateOnly($propertyName);
+    }
+
+    // Fungsi otomatis menghitung persentase mitra ketika persentase rental diketik
+    public function updatedPersentaseBagiHasilRental($value)
+    {
+        $val = (float) $value;
+        if ($val > 100) $val = 100;
+        if ($val < 0) $val = 0;
+        
+        $this->persentase_bagi_hasil_rental = $val;
+        $this->persentase_bagi_hasil_mitra = 100 - $val;
     }
     
     // --- Validation Rules ---
@@ -58,6 +75,11 @@ class MobilIndex extends Component
             'harga' => 'required|numeric|min:10000',
             'status' => 'required|in:tersedia,disewa,pemeliharaan,dibersihkan',
             'foto' => $this->isEditMode ? 'nullable|mimes:jpg,jpeg,png|max:2048' : 'required|mimes:jpg,jpeg,png|max:2048',
+            
+            // Validasi Kepemilikan
+            'status_kepemilikan' => 'required|in:milik_sendiri,mitra',
+            'nama_pemilik' => 'required_if:status_kepemilikan,mitra|nullable|string|max:255',
+            'persentase_bagi_hasil_rental' => 'required_if:status_kepemilikan,mitra|nullable|numeric|min:0|max:100',
         ];
     }
 
@@ -67,25 +89,19 @@ class MobilIndex extends Component
         'plat_nomor.regex' => 'Format salah! Gunakan format baku. Contoh: B 1234 XYZ',
         'plat_nomor.unique' => 'Plat Nomor ini sudah terdaftar di sistem.',
         'tipe.required' => 'Tipe mobil wajib diisi.',
-        'tipe.max' => 'Tipe mobil maksimal 50 karakter.',
-        'tipe.regex' => 'Tipe hanya boleh berisi huruf, angka, dan spasi.',
         'merek.required' => 'Merek mobil wajib diisi.',
-        'merek.max' => 'Merek mobil maksimal 50 karakter.',
-        'merek.regex' => 'Merek hanya boleh berisi huruf dan spasi (tanpa angka/simbol).',
         'warna.required' => 'Warna mobil wajib diisi.',
-        'warna.max' => 'Warna mobil maksimal 30 karakter.',
-        'warna.regex' => 'Warna hanya boleh berisi huruf dan spasi.',
         'transmisi.required' => 'Silakan pilih jenis transmisi.',
-        'transmisi.in' => 'Pilihan transmisi tidak valid.',
         'kursi.required' => 'Silakan pilih jumlah kursi.',
-        'kursi.in' => 'Pilihan jumlah kursi tidak valid.',
         'harga.required' => 'Harga sewa per hari wajib diisi.',
-        'harga.numeric' => 'Harga sewa harus berupa angka.',
-        'harga.min' => 'Harga sewa minimal Rp 10.000.',
         'status.required' => 'Status ketersediaan wajib dipilih.',
         'foto.required' => 'Foto armada wajib diunggah.',
         'foto.mimes' => 'Format file ditolak! Hanya izinkan JPG atau PNG.',
         'foto.max' => 'Ukuran foto maksimal 2MB.',
+        
+        'nama_pemilik.required_if' => 'Nama pemilik wajib diisi jika status mobil adalah Mitra.',
+        'persentase_bagi_hasil_rental.required_if' => 'Persentase bagi hasil wajib ditentukan.',
+        'persentase_bagi_hasil_rental.max' => 'Persentase maksimal 100%.',
     ];
 
     #[Layout('layouts.admin')]
@@ -138,6 +154,10 @@ class MobilIndex extends Component
             'harga' => $this->harga,
             'foto' => $fotoPath,
             'status' => $this->status,
+            'status_kepemilikan' => $this->status_kepemilikan,
+            'nama_pemilik' => $this->status_kepemilikan === 'mitra' ? $this->nama_pemilik : null,
+            'persentase_bagi_hasil_rental' => $this->status_kepemilikan === 'mitra' ? $this->persentase_bagi_hasil_rental : null,
+            'persentase_bagi_hasil_mitra' => $this->status_kepemilikan === 'mitra' ? $this->persentase_bagi_hasil_mitra : null,
         ]);
 
         $this->closeModal();
@@ -158,6 +178,12 @@ class MobilIndex extends Component
         $this->harga = $mobil->harga;
         $this->status = $mobil->status;
         $this->foto_lama = $mobil->foto;
+        
+        // Populate data kepemilikan
+        $this->status_kepemilikan = $mobil->status_kepemilikan ?? 'milik_sendiri';
+        $this->nama_pemilik = $mobil->nama_pemilik;
+        $this->persentase_bagi_hasil_rental = $mobil->persentase_bagi_hasil_rental;
+        $this->persentase_bagi_hasil_mitra = $mobil->persentase_bagi_hasil_mitra;
         
         $this->isEditMode = true;
         $this->showModal = true;
@@ -190,6 +216,10 @@ class MobilIndex extends Component
             'harga' => $this->harga,
             'foto' => $fotoPath,
             'status' => $this->status,
+            'status_kepemilikan' => $this->status_kepemilikan,
+            'nama_pemilik' => $this->status_kepemilikan === 'mitra' ? $this->nama_pemilik : null,
+            'persentase_bagi_hasil_rental' => $this->status_kepemilikan === 'mitra' ? $this->persentase_bagi_hasil_rental : null,
+            'persentase_bagi_hasil_mitra' => $this->status_kepemilikan === 'mitra' ? $this->persentase_bagi_hasil_mitra : null,
         ]);
 
         $this->closeModal();
@@ -261,10 +291,12 @@ class MobilIndex extends Component
         $this->reset([
             'plat_nomor', 'tipe', 'merek', 'warna',
             'transmisi', 'kursi', 'harga', 'foto',
-            'id_asli', 'foto_lama', 'status_edit'
+            'id_asli', 'foto_lama', 'status_edit',
+            'nama_pemilik', 'persentase_bagi_hasil_rental', 'persentase_bagi_hasil_mitra'
         ]);
         
         $this->status = 'tersedia';
+        $this->status_kepemilikan = 'milik_sendiri';
         $this->resetErrorBag();
         $this->resetValidation();
     }

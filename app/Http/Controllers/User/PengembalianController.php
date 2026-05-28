@@ -6,7 +6,7 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use App\Models\Peminjaman;
 use App\Models\Pengembalian;
-use App\Models\TransaksiPembayaran; // 🔹 Diperbarui dari PaymentTransaction
+use App\Models\TransaksiPembayaran; 
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Auth;
 
@@ -45,6 +45,7 @@ class PengembalianController extends Controller
             'peminjaman_id'       => $peminjaman->id,
             'tanggal_pengembalian'=> Carbon::now(),
             'status'              => 'menunggu pengecekan',
+            'status_denda'        => 'tidak ada denda', // Default status denda baru
         ]);
 
         // Update status peminjaman menjadi selesai agar tidak muncul di daftar aktif user
@@ -92,12 +93,12 @@ class PengembalianController extends Controller
             ->where('kode_pengembalian', $kode_pengembalian)
             ->firstOrFail();
 
-        // Total denda diambil dari relasi denda
-        $totalDenda = $pengembalian->total_outstanding_fine ?? 0;
-
-        if ($totalDenda <= 0) {
-            return response()->json(['error' => 'Tidak ada denda yang perlu dibayar.'], 400);
+        // 🔹 PERUBAHAN: Memeriksa denda dari kolom utama tabel pengembalian
+        if ($pengembalian->status_denda !== 'belum dibayar' || $pengembalian->total_denda <= 0) {
+            return response()->json(['error' => 'Tidak ada tagihan denda yang perlu dibayar.'], 400);
         }
+
+        $totalDenda = $pengembalian->total_denda;
 
         if (Auth::id() !== $pengembalian->peminjaman->user_id) {
             return response()->json(['error' => 'Akses ditolak.'], 403);
@@ -212,9 +213,8 @@ class PengembalianController extends Controller
             return response()->json(['error' => 'Akses ditolak.'], 403);
         }
 
-        $totalDenda = $pengembalian->total_outstanding_fine ?? 0;
-
-        if ($totalDenda <= 0) {
+        // 🔹 PERUBAHAN: Memeriksa tagihan secara langsung dari kolom denda
+        if ($pengembalian->status_denda !== 'belum dibayar' || $pengembalian->total_denda <= 0) {
             return redirect()->back()->with('error', 'Tidak ada denda yang perlu dibayar.');
         }
 

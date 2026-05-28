@@ -8,7 +8,6 @@ use Livewire\WithFileUploads;
 use Livewire\Attributes\Layout;
 use App\Models\Pengembalian;
 use App\Models\Peminjaman;
-use App\Models\Denda;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
@@ -29,10 +28,10 @@ class PengembalianIndex extends Component
     
     // --- Data Properties ---
     public $selectedPengembalian = null;
-    public $selectedDenda = null; 
+    // selectedDenda dihapus karena datanya sudah ada di dalam selectedPengembalian
 
     // --- Form Fields ---
-    public $editingKode = null; // 🔹 Diubah dari editingId ke editingKode
+    public $editingKode = null; 
     public $peminjaman_id;
     public $tanggal_pengembalian;
     public $kondisi_mobil_kembali;
@@ -108,20 +107,14 @@ class PengembalianIndex extends Component
 
         $pengembalianData = $query->paginate(10)->withPath(url()->current());
 
-        // LOGIKA CEK DENDA
-        $peminjamanIds = $pengembalianData->pluck('peminjaman_id')->toArray();
-        $dendaList = Denda::whereIn('peminjaman_id', $peminjamanIds)
-            ->get()
-            ->keyBy('peminjaman_id');
-
         $activeRentals = Peminjaman::with(['user', 'mobil'])
             ->where('status', 'berlangsung')
             ->get();
 
         return view('livewire.menu.transaksi.pengembalian-index', [
             'pengembalian' => $pengembalianData,
-            'dendaList' => $dendaList, 
             'active_rentals' => $activeRentals
+            // dendaList dihapus karena sudah include di pengembalianData
         ]);
     }
 
@@ -154,10 +147,10 @@ class PengembalianIndex extends Component
                 'kode_pengembalian' => $kodePengembalian,
                 'peminjaman_id' => $this->peminjaman_id,
                 'tanggal_pengembalian' => $this->tanggal_pengembalian,
+                // Pastikan kolom ini diinisialisasi untuk dicatat awal sebelum inspeksi mendalam
                 'kondisi_mobil' => trim($this->kondisi_mobil_kembali),
-                'denda' => 0, 
-                'catatan' => trim($this->catatan_pengembalian),
-                'admin_id' => Auth::id()
+                'catatan_inspeksi' => trim($this->catatan_pengembalian),
+                'status_denda' => 'tidak ada denda', // Default
             ]);
 
             $peminjaman->update(['status' => 'selesai']);
@@ -177,19 +170,15 @@ class PengembalianIndex extends Component
     // CRUD: UPDATE & DETAIL
     // =========================================================================
 
-    // 🔹 Diperbarui: Pencarian menggunakan parameter $kode_pengembalian
     public function showDetail($kode_pengembalian)
     {
-        $this->selectedPengembalian = Pengembalian::with(['peminjaman.user', 'peminjaman.mobil'])
+        $this->selectedPengembalian = Pengembalian::with(['peminjaman.user', 'peminjaman.mobil', 'pemeriksa'])
             ->where('kode_pengembalian', $kode_pengembalian)
             ->firstOrFail();
-        
-        $this->selectedDenda = Denda::where('peminjaman_id', $this->selectedPengembalian->peminjaman_id)->first();
         
         $this->showDetailModal = true;
     }
 
-    // 🔹 Diperbarui: Pencarian menggunakan parameter $kode_pengembalian
     public function edit($kode_pengembalian)
     {
         abort_if(Gate::denies('update-pengembalian'), 403);
@@ -199,7 +188,7 @@ class PengembalianIndex extends Component
         $this->peminjaman_id = $p->peminjaman_id;
         $this->tanggal_pengembalian = $p->tanggal_pengembalian;
         $this->kondisi_mobil_kembali = $p->kondisi_mobil;
-        $this->catatan_pengembalian = $p->catatan;
+        $this->catatan_pengembalian = $p->catatan_inspeksi;
         
         $this->isEditMode = true;
         $this->showCreateModal = true;
@@ -215,14 +204,13 @@ class PengembalianIndex extends Component
         $p->update([
             'tanggal_pengembalian' => $this->tanggal_pengembalian,
             'kondisi_mobil' => trim($this->kondisi_mobil_kembali),
-            'catatan' => trim($this->catatan_pengembalian),
+            'catatan_inspeksi' => trim($this->catatan_pengembalian),
         ]);
 
         $this->closeModal();
         $this->dispatch('notify', message: 'Data pengembalian diperbarui.', type: 'success');
     }
 
-    // 🔹 Diperbarui: Pencarian menggunakan parameter $kode_pengembalian
     public function delete($kode_pengembalian)
     {
         abort_if(Gate::denies('delete-pengembalian'), 403);
@@ -255,7 +243,7 @@ class PengembalianIndex extends Component
         $this->reset([
             'peminjaman_id', 'tanggal_pengembalian', 'kondisi_mobil_kembali', 
             'catatan_pengembalian', 'bukti_foto', 'editingKode', 'isEditMode',
-            'selectedPengembalian', 'selectedDenda'
+            'selectedPengembalian' // selectedDenda dihapus
         ]);
         $this->resetErrorBag();
     }

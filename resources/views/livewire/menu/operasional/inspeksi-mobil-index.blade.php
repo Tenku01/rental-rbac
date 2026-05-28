@@ -228,7 +228,6 @@
                         </thead>
                         <tbody class="divide-y divide-gray-50">
                             @forelse($pendingReturns as $p)
-                                <!-- 🔹 PERBAIKAN: Gunakan $p->kode_pengembalian -->
                                 <tr wire:key="ret-{{ $p->kode_pengembalian }}"
                                     class="hover:bg-amber-50/10 transition-colors">
                                     <td class="px-6 py-5">
@@ -246,7 +245,6 @@
                                     </td>
                                     <td class="px-6 py-5 text-right">
                                         @can('create-inspeksi_mobil')
-                                            <!-- 🔹 PERBAIKAN: Lempar string kode_pengembalian diapit tanda kutip -->
                                             <button wire:click="createInspection('{{ $p->kode_pengembalian }}')"
                                                 class="px-5 py-2 bg-amber-500 hover:bg-amber-600 text-white text-[10px] font-black uppercase tracking-widest rounded-xl transition-all shadow-lg shadow-amber-100 active:scale-95 whitespace-nowrap">
                                                 Inspeksi Akhir
@@ -310,20 +308,20 @@
                     </thead>
                     <tbody class="divide-y divide-gray-50">
                         @forelse($inspections as $item)
-                            <tr wire:key="ins-{{ $item->id }}"
+                            <tr wire:key="ins-{{ $item->kode_pengembalian }}"
                                 class="hover:bg-cyan-50/20 transition-colors group">
                                 <td class="px-8 py-6 font-bold text-gray-800 text-xs">
                                     {{ $item->pemeriksa->name ?? 'Staff' }}</td>
                                 <td class="px-8 py-6 font-black text-gray-900 text-xs">
-                                    {{ $item->mobil->merek ?? '?' }}
+                                    {{ $item->peminjaman->mobil->merek ?? '?' }}
                                     <span
-                                        class="text-cyan-600 font-mono ml-1">[{{ $item->mobil->id ?? 'N/A' }}]</span>
+                                        class="text-cyan-600 font-mono ml-1">[{{ $item->peminjaman->mobil->id ?? 'N/A' }}]</span>
                                 </td>
                                 <td class="px-8 py-6 text-xs font-bold text-gray-500">
-                                    {{ \Carbon\Carbon::parse($item->created_at)->format('d M Y H:i') }}</td>
+                                    {{ \Carbon\Carbon::parse($item->updated_at)->format('d M Y H:i') }}</td>
                                 <td class="px-8 py-6 text-center">
                                     @php
-                                        $badge = match ($item->kondisi) {
+                                        $badge = match ($item->kondisi_mobil) {
                                             'Baik Sempurna' => 'bg-emerald-50 text-emerald-600 border-emerald-100',
                                             'Rusak Berat' => 'bg-rose-50 text-rose-600 border-rose-100',
                                             'Perlu Perbaikan Ringan' => 'bg-amber-50 text-amber-600 border-amber-100',
@@ -332,12 +330,12 @@
                                     @endphp
                                     <span
                                         class="inline-flex px-3 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest border {{ $badge }}">
-                                        {{ $item->kondisi }}
+                                        {{ $item->kondisi_mobil }}
                                     </span>
                                 </td>
                                 <td class="px-8 py-6 text-right">
                                     <div class="flex justify-end gap-3">
-                                        <button wire:click="showDetail({{ $item->id }})"
+                                        <button wire:click="showDetail('{{ $item->kode_pengembalian }}')"
                                             class="p-2.5 text-cyan-600 bg-cyan-50 hover:bg-cyan-600 hover:text-white rounded-xl transition-all border border-cyan-100 shadow-sm"
                                             title="Lihat Detail">
                                             <svg class="w-5 h-5" fill="none" stroke="currentColor"
@@ -353,7 +351,7 @@
                                         @can('delete-inspeksi_mobil')
                                             <button
                                                 onclick="confirm('Hapus data riwayat inspeksi ini secara permanen?') || event.stopImmediatePropagation()"
-                                                wire:click="delete({{ $item->id }})"
+                                                wire:click="delete('{{ $item->kode_pengembalian }}')"
                                                 class="p-2.5 text-rose-600 bg-rose-50 hover:bg-rose-600 hover:text-white rounded-xl transition-all border border-rose-100 shadow-sm"
                                                 title="Hapus Riwayat">
                                                 <svg class="w-5 h-5" fill="none" stroke="currentColor"
@@ -762,7 +760,7 @@
                     <div class="px-10 py-6 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
                         <div>
                             <h3 class="text-xl font-black text-gray-900 uppercase tracking-tight">Log Audit Armada
-                                #{{ $selectedInspection->id }}</h3>
+                                #{{ $selectedInspection->kode_pengembalian }}</h3>
                             <p class="text-[10px] text-cyan-600 font-bold uppercase tracking-[0.25em] mt-1">Laporan
                                 Hasil Pengecekan Fisik</p>
                         </div>
@@ -781,7 +779,7 @@
                                 <p class="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1">Status
                                     Akhir</p>
                                 <p class="font-black text-gray-800 text-xs uppercase">
-                                    {{ $selectedInspection->kondisi }}</p>
+                                    {{ $selectedInspection->kondisi_mobil }}</p>
                             </div>
                             <div class="bg-gray-50 p-5 rounded-2xl border border-gray-100 text-center">
                                 <p class="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1">Diaudit
@@ -796,7 +794,7 @@
                                 Catatan Temuan</h5>
                             <div
                                 class="p-6 bg-cyan-50/50 rounded-[2rem] border border-cyan-100 text-cyan-900 font-bold text-xs leading-relaxed italic">
-                                "{{ $selectedInspection->keterangan }}"
+                                "{{ $selectedInspection->catatan_inspeksi }}"
                             </div>
                         </div>
                     </div>

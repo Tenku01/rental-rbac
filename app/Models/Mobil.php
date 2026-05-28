@@ -29,17 +29,16 @@ class Mobil extends Model
         'kursi',
         'harga',
         'foto',
+        // --- Kolom Baru ---
+        'status_kepemilikan',
+        'nama_pemilik',
+        'persentase_bagi_hasil_rental',
+        'persentase_bagi_hasil_mitra',
     ];
 
     // ----------------------------------------------------------------------
     // RELASI
     // ----------------------------------------------------------------------
-
-    // Relasi ke User (Jika mobil dimiliki user tertentu/mitra)
-    public function user()
-    {
-        return $this->belongsTo(User::class);
-    }
     
     // Relasi ke Peminjaman (Digunakan di Admin Livewire untuk cek hapus)
     public function peminjaman()
@@ -53,13 +52,12 @@ class Mobil extends Model
         return $this->hasMany(Peminjaman::class, 'mobil_id');
     }
 
+    // Relasi ke Laporan Kerusakan Mobil
     public function damageReports()
     {
         return $this->hasMany(LaporanKerusakanMobil::class, 'mobil_id');
     }
 
-    public function inspections()
-    {
-        return $this->hasMany(InspeksiMobil::class, 'mobil_id');
-    }
+    // Catatan: Relasi user() dan inspections() telah dihapus sesuai dengan
+    // revisi penyederhanaan database dan pengubahan kepemilikan mitra.
 }

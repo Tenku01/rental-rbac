@@ -88,13 +88,16 @@
                                 <div class="p-5 flex flex-col flex-1">
                                     @php
                                         $pengembalian = $item->pengembalian;
-                                        // Pastikan menjadi float untuk mempermudah pengecekan lebih besar dari 0
-                                        $totalDenda = (float) ($pengembalian->total_outstanding_fine ?? 0); 
+                                        
+                                        // 🔹 MENGGUNAKAN ATRIBUT BARU DARI PENGGABUNGAN TABEL
+                                        $totalDenda = $pengembalian ? (float) $pengembalian->total_denda : 0; 
                                         $statusPengembalian = $pengembalian ? strtolower(trim($pengembalian->status)) : null; 
+                                        $statusDenda = $pengembalian ? strtolower(trim($pengembalian->status_denda)) : 'tidak ada denda';
+                                        
                                         $isAdaDenda = $totalDenda > 0;
                                         
-                                        // Pengecekan denda sudah dilunasi HANYA dari status ENUM
-                                        $isSudahDibayar = ($statusPengembalian === 'sudah di cek dan denda dibayarkan');
+                                        // 🔹 Pengecekan lunas tidaknya denda sekarang sangat mudah, cukup cek kolom status_denda
+                                        $isSudahDibayar = ($statusDenda === 'sudah dibayar');
                                     @endphp
 
                                     <h3 class="text-xl font-bold text-gray-900 mb-4 leading-tight">
@@ -118,16 +121,16 @@
                                             
                                             <div class="flex justify-between items-center mb-2 pb-2 border-b border-gray-200 border-dashed">
                                                 <span class="text-gray-500">Total Denda</span>
-                                                <span class="font-bold {{ $isAdaDenda ? 'text-red-600' : 'text-gray-900' }}">Rp {{ number_format($totalDenda, 0, ',', '.') }}</span>
+                                                <span class="font-bold {{ $isAdaDenda && !$isSudahDibayar ? 'text-red-600' : 'text-gray-900' }}">Rp {{ number_format($totalDenda, 0, ',', '.') }}</span>
                                             </div>
 
                                             <div class="flex justify-between items-center">
                                                 <span class="text-gray-500">Status</span>
                                                 
-                                                {{-- 🔹 Tampilan Status Berdasarkan Nilai ENUM Baru --}}
+                                                {{-- 🔹 Tampilan Status --}}
                                                 @if ($statusPengembalian === 'menunggu pengecekan')
                                                     <span class="text-yellow-600 font-medium">Dalam Pengecekan</span>
-                                                @elseif($statusPengembalian === 'selesai pengecekan' && $isAdaDenda)
+                                                @elseif($statusPengembalian === 'selesai pengecekan' && $isAdaDenda && !$isSudahDibayar)
                                                     <span class="text-red-600 font-bold">Dicek (Belum Bayar Denda)</span>
                                                 @elseif($statusPengembalian === 'selesai pengecekan' && !$isAdaDenda)
                                                     <span class="text-green-600 font-bold">Dicek (Aman)</span>
@@ -135,7 +138,7 @@
                                                     <span class="text-blue-600 font-medium">Menunggu Midtrans</span>
                                                 @elseif($statusPengembalian === 'menunggu_verifikasi_transfer' || $statusPengembalian === 'menunggu_pembayaran_tunai')
                                                     <span class="text-yellow-600 font-medium">Menunggu Verifikasi</span>
-                                                @elseif($statusPengembalian === 'sudah di cek dan denda dibayarkan')
+                                                @elseif($statusPengembalian === 'sudah di cek dan denda dibayarkan' || $isSudahDibayar)
                                                     <span class="text-green-600 font-medium">Selesai & Denda Lunas</span>
                                                 @elseif($statusPengembalian === 'selesai')
                                                     <span class="text-green-600 font-medium">Selesai & Lunas</span>

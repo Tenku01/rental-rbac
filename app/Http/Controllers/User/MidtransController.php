@@ -8,7 +8,6 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 use App\Models\Peminjaman;
 use App\Models\Pengembalian; 
-use App\Models\Denda; // 🔹 Ditambahkan untuk mengupdate langsung tabel denda
 use App\Models\TransaksiPembayaran; 
 use Midtrans\Config;
 use Midtrans\Snap;
@@ -59,7 +58,6 @@ class MidtransController extends Controller
             'qris' => [
                 'acquirer' => 'gopay', 
             ],
-            
         ];
 
         try {
@@ -162,27 +160,22 @@ class MidtransController extends Controller
                         'total_dibayarkan' => $payment->jumlah,    
                     ]);
                 } elseif ($tipeTransaksi === 'denda') {
-                    // 1. Update Tabel Pengembalian
+                    
+                    // 1. Update Tabel Pengembalian & Status Denda sekaligus (Optimasi Query)
                     $pengembalian = Pengembalian::where('peminjaman_id', $peminjaman->id)->first();
                     if ($pengembalian) {
-                        // Status disesuaikan persis seperti permintaan ENUM Anda
                         $pengembalian->status = 'sudah di cek dan denda dibayarkan';
+                        
+                        // Perbarui status denda karena digabung dalam satu tabel
+                        if ($pengembalian->status_denda === 'belum dibayar') {
+                            $pengembalian->status_denda = 'sudah dibayar';
+                            $pengembalian->tanggal_pembayaran_denda = now();
+                            $pengembalian->metode_pembayaran_denda = 'midtrans';
+                        }
                         $pengembalian->save(); 
                     }
 
-                    // 2. 🔹 Update Tabel Denda (Bypass $fillable dengan save())
-                    $denda = Denda::where('peminjaman_id', $peminjaman->id)
-                        ->where('status', 'belum dibayar')
-                        ->first();
-                    
-                    if ($denda) {
-                        $denda->status = 'sudah dibayar';
-                        $denda->tanggal_pembayaran = now();
-                        $denda->metode_pembayaran = 'midtrans';
-                        $denda->save();
-                    }
-
-                    // 3. Kunci status peminjaman agar TETAP "selesai" (mencegah bug berubah jadi lunas)
+                    // 2. Kunci status peminjaman agar TETAP "selesai" (mencegah bug berubah jadi lunas)
                     $peminjaman->update([
                         'status' => 'selesai'
                     ]);
@@ -275,24 +268,18 @@ class MidtransController extends Controller
                         'total_dibayarkan' => $payment->jumlah,     
                     ]);
                 } elseif ($tipeTransaksi === 'denda') {
-                    // Update Tabel Pengembalian
+                    
+                    // Update Tabel Pengembalian & Denda Sekaligus (Sama seperti notifikasi)
                     $pengembalian = Pengembalian::where('peminjaman_id', $peminjaman->id)->first();
                     if ($pengembalian) {
-                        // Status disesuaikan persis seperti permintaan ENUM Anda
                         $pengembalian->status = 'sudah di cek dan denda dibayarkan';
+                        
+                        if ($pengembalian->status_denda === 'belum dibayar') {
+                            $pengembalian->status_denda = 'sudah dibayar';
+                            $pengembalian->tanggal_pembayaran_denda = now();
+                            $pengembalian->metode_pembayaran_denda = 'midtrans';
+                        }
                         $pengembalian->save();
-                    }
-
-                    // Update Tabel Denda (Bypass $fillable)
-                    $denda = Denda::where('peminjaman_id', $peminjaman->id)
-                        ->where('status', 'belum dibayar')
-                        ->first();
-                    
-                    if ($denda) {
-                        $denda->status = 'sudah dibayar';
-                        $denda->tanggal_pembayaran = now();
-                        $denda->metode_pembayaran = 'midtrans';
-                        $denda->save();
                     }
 
                     // Kunci status peminjaman agar TETAP "selesai"
@@ -334,7 +321,8 @@ class MidtransController extends Controller
     }
 
     public function failed() { return view('user.pesanan.failed-payment'); }
-  public function unfinish(Request $request) 
+    
+    public function unfinish(Request $request) 
     { 
         // Midtrans mengirim order_id lewat URL: ?order_id=xxx
         $orderId = $request->query('order_id');
@@ -350,7 +338,6 @@ class MidtransController extends Controller
                     $peminjaman = $payment->peminjaman;
 
                     // 2. Pastikan hanya hapus jika statusnya masih 'menunggu pembayaran'
-                    // Ini untuk keamanan agar data yang sudah sukses tidak terhapus sengaja
                     if ($peminjaman->status === 'menunggu pembayaran') {
                         
                         // Kembalikan status mobil jadi tersedia
@@ -374,7 +361,6 @@ class MidtransController extends Controller
             }
         }
 
-        // Tampilkan view yang sudah Anda buat
         return view('user.pesanan.unfinish-payment');
     }
 }

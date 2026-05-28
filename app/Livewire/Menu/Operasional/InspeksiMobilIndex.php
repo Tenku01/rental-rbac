@@ -6,11 +6,9 @@ use Livewire\Component;
 use Livewire\WithPagination;
 use Livewire\WithFileUploads;
 use Livewire\Attributes\Layout;
-use App\Models\InspeksiMobil;
 use App\Models\Pengembalian;
 use App\Models\Peminjaman;
 use App\Models\LaporanKerusakanMobil;
-use App\Models\Denda;
 use App\Models\Mobil;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\DB;
@@ -31,7 +29,7 @@ class InspeksiMobilIndex extends Component
     public $selectedInspection = null;
 
     // Form Fields Inspeksi Akhir
-    public $kode_pengembalian; // Disesuaikan dengan DB
+    public $kode_pengembalian;
     public $inspection_date;
     public $kondisi = 'Baik Sempurna';
     public $notes;
@@ -73,16 +71,14 @@ class InspeksiMobilIndex extends Component
 
     protected function rules()
     {
-        // Jika sedang membuka modal Pre-Inspection (Inspeksi Awal)
         if ($this->showPreModal) {
             return [
                 'pre_kondisi' => 'required|string|min:5'
             ];
         }
 
-        // Rules untuk Inspeksi Akhir
         $rules = [
-            'kode_pengembalian' => 'required', // Diubah dari pengembalian_id
+            'kode_pengembalian' => 'required',
             'inspection_date' => 'required|date',
             'kondisi' => 'required|in:Baik Sempurna,Perlu Perbaikan Ringan,Rusak Berat',
             'notes' => 'required|string|min:5',
@@ -100,12 +96,9 @@ class InspeksiMobilIndex extends Component
     protected function messages()
     {
         return [
-            // Pesan Inspeksi Awal
             'pre_kondisi.required' => 'Catatan kondisi awal kendaraan wajib diisi.',
             'pre_kondisi.min' => 'Catatan terlalu singkat (minimal 5 karakter).',
-
-            // Pesan Inspeksi Akhir
-            'kode_pengembalian.required' => 'Sistem kehilangan referensi Kode Pengembalian.', // Diubah
+            'kode_pengembalian.required' => 'Sistem kehilangan referensi Kode Pengembalian.',
             'inspection_date.required' => 'Waktu audit wajib ditentukan.',
             'kondisi.required' => 'Kondisi umum kendaraan wajib dipilih.',
             'notes.required' => 'Catatan audit internal wajib diisi.',
@@ -122,25 +115,25 @@ class InspeksiMobilIndex extends Component
     #[Layout('layouts.admin')]
     public function render()
     {
-        // 1. Query: Antrean Inspeksi Awal (Penyerahan)
         $pendingDepartures = Peminjaman::with(['user', 'mobil'])
             ->where('status', 'sudah dibayar lunas')
             ->orderBy('tanggal_sewa', 'asc')
             ->get();
 
-        // 2. Query: Antrean Inspeksi Akhir (Pengembalian)
         $pendingReturns = Pengembalian::with(['peminjaman.user', 'peminjaman.mobil'])
             ->where('status', 'menunggu pengecekan')
             ->orderBy('tanggal_pengembalian', 'asc')
             ->get();
 
-        // 3. Query: Riwayat Inspeksi Akhir
-        $inspections = InspeksiMobil::with(['mobil', 'pemeriksa', 'pengembalian.peminjaman.user'])
+        // Mengambil data inspeksi dari tabel pengembalian (yang pemeriksanya sudah di-set)
+        $inspections = Pengembalian::with(['peminjaman.mobil', 'pemeriksa', 'peminjaman.user'])
+            ->whereNotNull('pemeriksa_id')
             ->when($this->search, function ($q) {
-                $q->whereHas('mobil', fn($sq) => $sq->where('id', 'like', '%' . $this->search . '%'));
+                $q->whereHas('peminjaman.mobil', fn($sq) => $sq->where('id', 'like', '%' . $this->search . '%'))
+                  ->orWhere('kode_pengembalian', 'like', '%' . $this->search . '%');
             })
-            ->when($this->filterKondisi, fn($q) => $q->where('kondisi', $this->filterKondisi))
-            ->orderBy('created_at', 'desc')
+            ->when($this->filterKondisi, fn($q) => $q->where('kondisi_mobil', $this->filterKondisi))
+            ->orderBy('updated_at', 'desc')
             ->paginate(10)->withPath(url()->current());
 
         return view('livewire.menu.operasional.inspeksi-mobil-index', [
@@ -165,13 +158,10 @@ class InspeksiMobilIndex extends Component
         $this->pre_infoPenyewa = $peminjaman->user->name ?? 'N/A';
         $this->pre_infoMobil = ($peminjaman->mobil->merek ?? 'Mobil') . ' [' . ($peminjaman->mobil->id ?? 'N/A') . ']';
 
-        // LOGIKA SPLIT CATATAN
         $fullKondisi = $peminjaman->kondisi_mobil ?? '';
         $parts = explode("\n\n[+] Tambahan Validasi Pelanggan", $fullKondisi);
 
-        // Tampilkan HANYA bagian Staff
         $this->pre_kondisi = trim($parts[0]);
-
         $this->showPreModal = true;
     }
 
@@ -185,7 +175,6 @@ class InspeksiMobilIndex extends Component
         try {
             $peminjaman = Peminjaman::findOrFail($this->pre_peminjaman_id);
 
-            // LOGIKA MERGE CATATAN
             $fullKondisi = $peminjaman->kondisi_mobil ?? '';
             $parts = explode("\n\n[+] Tambahan Validasi Pelanggan", $fullKondisi);
 
@@ -194,12 +183,10 @@ class InspeksiMobilIndex extends Component
                 $newKondisi .= "\n\n[+] Tambahan Validasi Pelanggan" . $parts[1];
             }
 
-            // 1. Catat kondisi mobil
             $peminjaman->update([
                 'kondisi_mobil' => $newKondisi
             ]);
 
-            // 2. Pastikan mobil statusnya Disewa
             if ($peminjaman->mobil) {
                 $peminjaman->mobil->update(['status' => 'disewa']);
             }
@@ -225,18 +212,15 @@ class InspeksiMobilIndex extends Component
         $this->resetErrorBag();
     }
 
-
     // =========================================================================
     // FITUR: INSPEKSI AKHIR (PENGEMBALIAN / POST-RENTAL)
     // =========================================================================
 
-    // Diubah parameter penangkapan dari $returnId ke $kodePengembalian string
     public function createInspection($kodePengembalian)
     {
         abort_if(Gate::denies('create-inspeksi_mobil'), 403);
         $this->resetForm();
 
-        // Cari berdasarkan kode_pengembalian, bukan ID
         $return = Pengembalian::with(['peminjaman.user', 'peminjaman.mobil'])
             ->where('kode_pengembalian', $kodePengembalian)
             ->firstOrFail();
@@ -247,9 +231,8 @@ class InspeksiMobilIndex extends Component
         $this->hargaPerHari = $return->peminjaman->mobil->harga ?? 0;
 
         $waktuSeharusnya = Carbon::parse($return->peminjaman->tanggal_kembali . ' ' . $return->peminjaman->jam_sewa);
-        $waktuPengembalian = Carbon::parse($return->tanggal_pengembalian); // Diperbarui: Menggunakan waktu aktual pengembalian
+        $waktuPengembalian = Carbon::parse($return->tanggal_pengembalian); 
 
-        // Perbandingan antara jadwal kembali dan waktu pengembalian aktual
         if ($waktuPengembalian->gt($waktuSeharusnya)) {
             $this->jamTerlambat = ceil($waktuSeharusnya->diffInHours($waktuPengembalian));
             $this->lateFine = ($this->hargaPerHari * 0.1) * $this->jamTerlambat;
@@ -270,26 +253,15 @@ class InspeksiMobilIndex extends Component
 
         DB::beginTransaction();
         try {
-            // Gunakan where kode_pengembalian
             $return = Pengembalian::with('peminjaman')
                 ->where('kode_pengembalian', $this->kode_pengembalian)
                 ->firstOrFail();
 
-            // 1. Simpan Log Inspeksi Akhir
-            InspeksiMobil::create([
-                'mobil_id' => $return->peminjaman->mobil_id,
-                'pemeriksa_id' => Auth::id(),
-                'pengembalian_kode' => $return->kode_pengembalian,
-                'kondisi' => $this->kondisi,
-                'keterangan' => $this->notes,
-            ]);
-
             $totalDendaKerusakan = 0;
 
-            // 2. Simpan Laporan Kerusakan (jika ada)
+            // 1. Simpan Laporan Kerusakan (jika ada)
             if ($this->isDamaged && $this->biaya_kerusakan > 0) {
                 $platNo = str_replace(' ', '', $return->peminjaman->mobil_id);
-                // Karena kita tidak punya ID, kita pakai timestamp yang lebih unik atau dari kode pengembalian
                 $kodeLaporan = 'DMG-' . strtoupper($platNo) . '-' . substr($return->kode_pengembalian, -4) . '-' . date('His');
 
                 LaporanKerusakanMobil::create([
@@ -303,25 +275,24 @@ class InspeksiMobilIndex extends Component
                 $totalDendaKerusakan = $this->biaya_kerusakan;
             }
 
-            // 3. Simpan ke Tabel Fines (Denda Terpadu)
-            if ($this->lateFine > 0 || $totalDendaKerusakan > 0) {
-                Denda::create([
-                    'peminjaman_id' => $return->peminjaman_id,
-                    'denda_keterlambatan' => $this->lateFine,
-                    'denda_kerusakan' => $totalDendaKerusakan,
-                    'total_denda' => $this->lateFine + $totalDendaKerusakan,
-                    'status' => 'belum dibayar',
-                    'tanggal_terdeteksi' => now()->toDateString(),
-                    'keterangan' => "Denda untuk pengembalian {$return->kode_pengembalian}. (Kerusakan: Rp" . number_format($totalDendaKerusakan) . ", Terlambat: {$this->jamTerlambat} Jam)"
-                ]);
+            // 2. Simpan Data Inspeksi & Denda Sekaligus ke Pengembalian
+            $totalDendaKeseluruhan = $this->lateFine + $totalDendaKerusakan;
+            $statusDenda = ($totalDendaKeseluruhan > 0) ? 'belum dibayar' : 'tidak ada denda';
+            $keteranganDenda = ($totalDendaKeseluruhan > 0) ? "Denda untuk pengembalian {$return->kode_pengembalian}. (Kerusakan: Rp" . number_format($totalDendaKerusakan) . ", Terlambat: {$this->jamTerlambat} Jam)" : null;
 
-                // pastikan kolom 'denda' ada di tabel pengembalian, jika tidak baris ini bisa di-comment
-                // $return->update(['denda' => $this->lateFine + $totalDendaKerusakan]); 
-            }
+            $return->update([
+                'pemeriksa_id' => Auth::id(),
+                'kondisi_mobil' => $this->kondisi,
+                'catatan_inspeksi' => $this->notes,
+                'status' => 'selesai pengecekan',
+                'denda_keterlambatan' => $this->lateFine,
+                'denda_kerusakan' => $totalDendaKerusakan,
+                'total_denda' => $totalDendaKeseluruhan,
+                'status_denda' => $statusDenda,
+                'keterangan_denda' => $keteranganDenda,
+            ]);
 
-            // 4. Update Status Pengembalian & Mobil
-            $return->update(['status' => 'selesai pengecekan']);
-
+            // 3. Update Status Mobil
             $mobilStatus = ($this->kondisi === 'Baik Sempurna') ? 'tersedia' : 'pemeliharaan';
             Mobil::where('id', $return->peminjaman->mobil_id)->update(['status' => $mobilStatus]);
 
@@ -334,19 +305,41 @@ class InspeksiMobilIndex extends Component
         }
     }
 
-    public function showDetail($id)
+    public function showDetail($kode_pengembalian)
     {
-        $this->selectedInspection = InspeksiMobil::with(['mobil', 'pemeriksa', 'pengembalian.peminjaman.user'])->findOrFail($id);
+        $this->selectedInspection = Pengembalian::with(['peminjaman.mobil', 'pemeriksa', 'peminjaman.user'])
+            ->where('kode_pengembalian', $kode_pengembalian)
+            ->firstOrFail();
+            
         $this->showDetailModal = true;
     }
 
-    public function delete($id)
+    public function delete($kode_pengembalian)
     {
         abort_if(Gate::denies('delete-inspeksi_mobil'), 403);
-        $inspection = InspeksiMobil::findOrFail($id);
+        
+        $inspection = Pengembalian::where('kode_pengembalian', $kode_pengembalian)->firstOrFail();
 
-        $inspection->delete();
-        $this->dispatch('notify', message: 'Riwayat inspeksi berhasil dihapus.', type: 'warning');
+        // Rollback data inspeksi tanpa menghapus keseluruhan data pengembalian
+        $inspection->update([
+            'pemeriksa_id' => null,
+            'kondisi_mobil' => null,
+            'catatan_inspeksi' => null,
+            'status' => 'menunggu pengecekan',
+            'denda_keterlambatan' => 0,
+            'denda_kerusakan' => 0,
+            'total_denda' => 0,
+            'status_denda' => 'tidak ada denda',
+            'keterangan_denda' => null,
+            'metode_pembayaran_denda' => null,
+            'tanggal_pembayaran_denda' => null,
+        ]);
+        
+        // Catatan: Jika ada LaporanKerusakanMobil, Laporan tersebut tidak otomatis terhapus dengan ini, 
+        // namun bisa Anda tambahkan fungsi LaporanKerusakanMobil::where('pengembalian_kode', $kode_pengembalian)->delete(); 
+        // jika ingin ikut menghapus laporannya.
+
+        $this->dispatch('notify', message: 'Riwayat inspeksi berhasil di-reset.', type: 'warning');
     }
 
     public function closeModal()
@@ -363,7 +356,7 @@ class InspeksiMobilIndex extends Component
             'kondisi',
             'notes',
             'photo',
-            'isDamaged', // Diubah dari pengembalian_id
+            'isDamaged',
             'deskripsi_kerusakan',
             'biaya_kerusakan',
             'jamTerlambat',
