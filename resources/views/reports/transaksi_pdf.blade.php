@@ -153,131 +153,228 @@
 
     {{-- TABEL DATA DINAMIS --}}
     <table class="data-table">
+        
+        {{-- ================================================================ --}}
+        {{-- 1. TABEL PEMINJAMAN --}}
+        {{-- ================================================================ --}}
+        @if($reportType === 'peminjaman')
         <thead>
             <tr>
                 <th width="5%">No</th>
-                
-                @if($reportType === 'peminjaman')
-                    <th width="20%">Periode Sewa</th>
-                    <th width="20%">Penyewa</th>
-                    <th width="20%">Armada</th>
-                    <th width="15%">Status</th>
-                    <th width="20%" class="text-right">Total Biaya</th>
-                
-                @elseif($reportType === 'pembayaran')
-                    <th width="15%">Tgl Bayar</th>
-                    <th width="20%">ID Transaksi</th>
-                    <th width="20%">Penyewa</th>
-                    <th width="10%">Tipe</th>
-                    <th width="15%">Status</th>
-                    <th width="15%" class="text-right">Nominal</th>
-                
-                @elseif($reportType === 'denda')
-                    <th width="15%">Tgl Terdeteksi</th>
-                    <th width="20%">Penyewa / Armada</th>
-                    <th width="25%">Keterangan</th>
-                    <th width="15%">Status Bayar</th>
-                    <th width="20%" class="text-right">Total Denda</th>
-                @endif
+                <th width="12%">Tgl Sewa</th>
+                <th width="15%">Penyewa</th>
+                <th width="15%">Armada</th>
+                <th width="15%">Sopir</th>
+                <th width="12%" class="text-right">Ttl Kotor</th>
+                <th width="12%" class="text-right">Pendptn. Sopir</th>
+                <th width="14%" class="text-right">Net Profit</th>
             </tr>
         </thead>
         <tbody>
-            @php
-                $grandTotal = 0;
+            @php 
+                $totalGross = 0; 
+                $totalSopir = 0; 
+                $totalNet = 0; 
             @endphp
-
             @forelse($data as $index => $row)
                 @php
-                    if ($reportType === 'pembayaran') {
-                        if (strtolower($row->tipe_transaksi) === 'refund') {
-                            $grandTotal -= $row->jumlah;
-                        } elseif (in_array(strtolower($row->status), ['success', 'settlement'])) {
-                            $grandTotal += $row->jumlah;
-                        }
-                    } elseif ($reportType === 'peminjaman') {
-                        $grandTotal += $row->total_harga;
-                    } elseif ($reportType === 'denda') {
-                        if (strtolower($row->status) === 'sudah dibayar') {
-                            $grandTotal += $row->total_denda;
-                        }
+                    $kotor = $row->total_harga ?? 0;
+                    
+                    // Estimasi biaya sopir: 150rb * Jumlah Hari
+                    $biayaSopir = 0;
+                    if($row->sopir_id) {
+                        $days = max(1, \Carbon\Carbon::parse($row->tanggal_sewa)->diffInDays(\Carbon\Carbon::parse($row->tanggal_kembali)));
+                        $biayaSopir = 150000 * $days;
                     }
+                    
+                    // Rumus Net Profit: (Kotor - Sopir) / 1.11 (Potong Pajak)
+                    $sewaMurni = max(0, $kotor - $biayaSopir);
+                    $pendapatanBersih = round($sewaMurni / 1.11);
+                    $netProfit = $pendapatanBersih;
+                    
+                    // Potong Bagi Hasil jika mobil punya Mitra
+                    if($row->mobil && $row->mobil->status_kepemilikan === 'mitra') {
+                        $persen = $row->mobil->persentase_bagi_hasil_rental ?? 100;
+                        $netProfit = round($pendapatanBersih * ($persen / 100));
+                    }
+                    
+                    $totalGross += $kotor;
+                    $totalSopir += $biayaSopir;
+                    $totalNet += $netProfit;
                 @endphp
-
                 <tr>
                     <td class="text-center">{{ $index + 1 }}</td>
-                    
-                    @if($reportType === 'peminjaman')
-                        <td>
-                            {{ \Carbon\Carbon::parse($row->tanggal_sewa)->format('d/m/Y') }}<br>
-                            <small>s/d {{ \Carbon\Carbon::parse($row->tanggal_kembali)->format('d/m/Y') }}</small>
-                        </td>
-                        <td>
-                            {{ $row->user->name ?? '-' }}<br>
-                            <small style="color: #666;">{{ $row->user->email ?? '' }}</small>
-                        </td>
-                        <td>
-                            {{ $row->mobil->merek ?? '-' }} {{ $row->mobil->tipe ?? '' }}<br>
-                            <small>({{ $row->mobil_id ?? '-' }})</small>
-                        </td>
-                        <td class="text-center">{{ ucfirst($row->status) }}</td>
-                        <td class="text-right">Rp {{ number_format($row->total_harga, 0, ',', '.') }}</td>
-                    
-                    @elseif($reportType === 'pembayaran')
-                        <td class="text-center">{{ \Carbon\Carbon::parse($row->created_at)->format('d/m/Y H:i') }}</td>
-                        <td><small>{{ $row->id_transaksi_midtrans }}</small></td>
-                        <td>{{ $row->peminjaman->user->name ?? '-' }}</td>
-                        <td class="text-center">{{ strtoupper($row->tipe_transaksi) }}</td>
-                        <td class="text-center">{{ ucfirst($row->status) }}</td>
-                        <td class="text-right">
-                            @if(strtolower($row->tipe_transaksi) === 'refund')
-                                <span style="color: red;">- Rp {{ number_format($row->jumlah, 0, ',', '.') }}</span>
-                            @else
-                                Rp {{ number_format($row->jumlah, 0, ',', '.') }}
-                            @endif
-                        </td>
-
-                    @elseif($reportType === 'denda')
-                        <td class="text-center">{{ \Carbon\Carbon::parse($row->tanggal_terdeteksi)->format('d/m/Y') }}</td>
-                        <td>
-                            {{ $row->peminjaman->user->name ?? '-' }}<br>
-                            <small style="color: #666;">{{ $row->peminjaman->mobil->merek ?? '-' }} ({{ $row->peminjaman->mobil_id ?? '-' }})</small>
-                        </td>
-                        <td><small>{{ $row->keterangan ?? '-' }}</small></td>
-                        <td class="text-center">{{ ucfirst($row->status) }}</td>
-                        <td class="text-right">Rp {{ number_format($row->total_denda, 0, ',', '.') }}</td>
-                    @endif
+                    <td>{{ \Carbon\Carbon::parse($row->tanggal_sewa)->format('d/m/Y') }}</td>
+                    <td>{{ $row->user->name ?? 'N/A' }}</td>
+                    <td>{{ $row->mobil->merek ?? 'N/A' }}<br><small>({{ $row->mobil->id ?? '-' }})</small></td>
+                    <td>{{ $row->sopir ? ($row->sopir->user->name ?? 'Terhapus') : 'Tanpa Sopir' }}</td>
+                    <td class="text-right">Rp {{ number_format($kotor, 0, ',', '.') }}</td>
+                    <td class="text-right" style="color: #059669;">Rp {{ number_format($biayaSopir, 0, ',', '.') }}</td>
+                    <td class="text-right" style="color: #0891b2; font-weight: bold;">Rp {{ number_format($netProfit, 0, ',', '.') }}</td>
                 </tr>
             @empty
                 <tr>
-                    <td colspan="{{ $reportType === 'pembayaran' ? 7 : 6 }}" class="text-center" style="padding: 20px;">Tidak ada data yang ditemukan pada rentang tanggal dan filter ini.</td>
+                    <td colspan="8" class="text-center" style="padding: 20px;">Tidak ada data yang ditemukan.</td>
                 </tr>
             @endforelse
         </tbody>
-        
-        {{-- FOOTER TABEL (TOTAL) --}}
         @if(count($data) > 0)
         <tfoot>
             <tr style="background-color: #f8fafc;">
+                <td colspan="5" class="text-right" style="font-weight: bold;">TOTAL KESELURUHAN</td>
+                <td class="text-right" style="font-weight: bold;">Rp {{ number_format($totalGross, 0, ',', '.') }}</td>
+                <td class="text-right" style="font-weight: bold; color: #059669;">Rp {{ number_format($totalSopir, 0, ',', '.') }}</td>
+                <td class="text-right" style="font-weight: bold; color: #0891b2;">Rp {{ number_format($totalNet, 0, ',', '.') }}</td>
+            </tr>
+        </tfoot>
+        @endif
+        
+        {{-- ================================================================ --}}
+        {{-- 2. TABEL PEMBAYARAN KEUANGAN --}}
+        {{-- ================================================================ --}}
+        @elseif($reportType === 'pembayaran')
+        <thead>
+            <tr>
+                <th width="5%">No</th>
+                <th width="15%">Waktu Transaksi</th>
+                <th width="20%">ID Transaksi</th>
+                <th width="20%">Penyewa / Armada</th>
+                <th width="12%">Tipe</th>
+                <th width="15%" class="text-right">Jml Kotor / Refund</th>
+                <th width="13%" class="text-right">Net Profit</th>
+            </tr>
+        </thead>
+        <tbody>
+            @php 
+                $totalGross = 0; 
+                $totalRefund = 0;
+                $totalNet = 0; 
+            @endphp
+            @forelse($data as $index => $row)
                 @php
-                    $colspanTotal = 5; 
-                    if ($reportType === 'pembayaran') {
-                        $colspanTotal = 6; 
-                    } elseif ($reportType === 'denda') {
-                        $colspanTotal = 5; 
+                    $jumlah = $row->jumlah ?? 0;
+                    $tipe = strtolower(trim($row->tipe_transaksi));
+                    $netProfit = 0;
+                    
+                    if($tipe === 'denda') {
+                        // Denda tidak dipotong pajak 11% / sopir / mitra
+                        $netProfit = $jumlah;
+                        $totalGross += $jumlah;
+                        
+                    } elseif ($tipe === 'refund') {
+                        // Refund mengurangi total pendapatan
+                        $netProfit = -$jumlah;
+                        $totalRefund += $jumlah;
+                        
+                    } else {
+                        // Normal payment (DP / Lunas / Sisa)
+                        $peminjaman = $row->peminjaman;
+                        if($peminjaman) {
+                            $totalHarga = $peminjaman->total_harga > 0 ? $peminjaman->total_harga : 1;
+                            $ratio = $jumlah / $totalHarga; 
+                            
+                            $biayaSopir = 0;
+                            if($peminjaman->sopir_id) {
+                                $days = max(1, \Carbon\Carbon::parse($peminjaman->tanggal_sewa)->diffInDays(\Carbon\Carbon::parse($peminjaman->tanggal_kembali)));
+                                $biayaSopir = (150000 * $days) * $ratio;
+                            }
+                            
+                            $sewaMurni = max(0, $jumlah - $biayaSopir);
+                            $pendapatanBersih = round($sewaMurni / 1.11);
+                            $netProfit = $pendapatanBersih;
+                            
+                            if($peminjaman->mobil && $peminjaman->mobil->status_kepemilikan === 'mitra') {
+                                $persen = $peminjaman->mobil->persentase_bagi_hasil_rental ?? 100;
+                                $netProfit = round($pendapatanBersih * ($persen / 100));
+                            }
+                        }
+                        $totalGross += $jumlah;
+                    }
+                    
+                    $totalNet += $netProfit;
+                @endphp
+                <tr>
+                    <td class="text-center">{{ $index + 1 }}</td>
+                    <td>{{ \Carbon\Carbon::parse($row->created_at)->format('d M Y, H:i') }}</td>
+                    <td><small>{{ $row->id_transaksi_midtrans }}</small></td>
+                    <td>
+                        {{ $row->peminjaman->user->name ?? 'N/A' }}<br>
+                        <small style="color: #666;">{{ $row->peminjaman->mobil->merek ?? '-' }} ({{ $row->peminjaman->mobil_id ?? '-' }})</small>
+                    </td>
+                    <td class="text-center">
+                        <span style="text-transform: uppercase; font-size: 9px; padding: 2px 6px; border: 1px solid #ccc; border-radius: 4px;">{{ $row->tipe_transaksi }}</span>
+                    </td>
+                    <td class="text-right">
+                        @if($tipe === 'refund')
+                            <span style="color: red;">- Rp {{ number_format($jumlah, 0, ',', '.') }}</span>
+                        @else
+                            Rp {{ number_format($jumlah, 0, ',', '.') }}
+                        @endif
+                    </td>
+                    <td class="text-right" style="color: {{ $netProfit < 0 ? 'red' : '#0891b2' }}; font-weight: bold;">
+                        {{ $netProfit < 0 ? '- ' : '' }}Rp {{ number_format(abs($netProfit), 0, ',', '.') }}
+                    </td>
+                </tr>
+            @empty
+                <tr>
+                    <td colspan="7" class="text-center" style="padding: 20px;">Tidak ada data yang ditemukan.</td>
+                </tr>
+            @endforelse
+        </tbody>
+        @if(count($data) > 0)
+        <tfoot>
+            <tr style="background-color: #f8fafc;">
+                <td colspan="5" class="text-right" style="font-weight: bold; padding-right: 15px;">TOTAL PENERIMAAN BERSIH</td>
+                <td class="text-right" style="font-weight: bold;">Rp {{ number_format($totalGross - $totalRefund, 0, ',', '.') }}</td>
+                <td class="text-right" style="font-weight: bold; color: #0891b2;">Rp {{ number_format($totalNet, 0, ',', '.') }}</td>
+            </tr>
+        </tfoot>
+        @endif
+        
+        {{-- ================================================================ --}}
+        {{-- 3. TABEL DENDA --}}
+        {{-- ================================================================ --}}
+        @elseif($reportType === 'denda')
+        <thead>
+            <tr>
+                <th width="5%">No</th>
+                <th width="15%">Tgl Bayar</th>
+                <th width="20%">Penyewa / Armada</th>
+                <th width="30%">Keterangan Denda</th>
+                <th width="15%">Status Bayar</th>
+                <th width="15%" class="text-right">Nominal</th>
+            </tr>
+        </thead>
+        <tbody>
+            @php $grandTotal = 0; @endphp
+            @forelse($data as $index => $row)
+                @php
+                    if (strtolower($row->status_denda) === 'sudah dibayar') {
+                        $grandTotal += $row->total_denda;
                     }
                 @endphp
-                
-                <td colspan="{{ $colspanTotal }}" class="text-right" style="font-weight: bold; padding-right: 15px;">
-                    TOTAL 
-                    @if($reportType === 'peminjaman') NILAI TRANSAKSI
-                    @elseif($reportType === 'pembayaran') PENERIMAAN BERSIH
-                    @elseif($reportType === 'denda') DENDA TERBAYARKAN
-                    @endif
-                </td>
-                
-                <td class="text-right" style="font-weight: bold; color: #0891b2;">
-                    Rp {{ number_format($grandTotal, 0, ',', '.') }}
-                </td>
+                <tr>
+                    <td class="text-center">{{ $index + 1 }}</td>
+                    <td class="text-center">{{ $row->tanggal_pembayaran_denda ? \Carbon\Carbon::parse($row->tanggal_pembayaran_denda)->format('d/m/Y') : '-' }}</td>
+                    <td>
+                        {{ $row->peminjaman->user->name ?? '-' }}<br>
+                        <small style="color: #666;">{{ $row->peminjaman->mobil->merek ?? '-' }} ({{ $row->peminjaman->mobil_id ?? '-' }})</small>
+                    </td>
+                    <td><small>{{ $row->keterangan_denda ?? '-' }}</small></td>
+                    <td class="text-center">{{ ucfirst(str_replace('_', ' ', $row->status_denda)) }}</td>
+                    <td class="text-right">Rp {{ number_format($row->total_denda, 0, ',', '.') }}</td>
+                </tr>
+            @empty
+                <tr>
+                    <td colspan="6" class="text-center" style="padding: 20px;">Tidak ada data yang ditemukan.</td>
+                </tr>
+            @endforelse
+        </tbody>
+        @if(count($data) > 0)
+        <tfoot>
+            <tr style="background-color: #f8fafc;">
+                <td colspan="5" class="text-right" style="font-weight: bold; padding-right: 15px;">TOTAL DENDA DIBAYARKAN</td>
+                <td class="text-right" style="font-weight: bold; color: #0891b2;">Rp {{ number_format($grandTotal, 0, ',', '.') }}</td>
             </tr>
         </tfoot>
         @endif

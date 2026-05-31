@@ -92,7 +92,7 @@
                 </div>
             </a>
 
-            {{-- Card Pendapatan --}}
+            {{-- Card Pendapatan Bersih (Net) --}}
             <a href="{{ route('pembayaran') }}" wire:navigate
                 class="block bg-white rounded-2xl shadow-sm border border-gray-100 p-5 border-l-4 border-l-emerald-500 hover:shadow-md transition cursor-pointer">
                 <div class="flex items-center">
@@ -104,7 +104,7 @@
                         </svg>
                     </div>
                     <div class="ml-4">
-                        <p class="text-sm font-medium text-gray-500">Total Omzet</p>
+                        <p class="text-sm font-medium text-gray-500">Pendapatan Bersih (Net)</p>
                         <p class="text-xl font-bold text-gray-900 mt-0.5">Rp
                             {{ number_format($totalPendapatan ?? 0, 0, ',', '.') }}</p>
                     </div>

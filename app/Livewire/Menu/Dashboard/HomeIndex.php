@@ -8,11 +8,11 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Gate;
 use Barryvdh\DomPDF\Facade\Pdf;
+use Carbon\Carbon;
 
-use App\Models\{User, Mobil, Peminjaman, Pengembalian, PembatalanPesanan, TransaksiPembayaran, Denda, Sopir, InspeksiMobil};
+use App\Models\{User, Mobil, Peminjaman, Pengembalian, PembatalanPesanan, TransaksiPembayaran, Sopir, InspeksiMobil};
 use Spatie\Permission\Models\Role;
 
-/* STREAMING_CHUNK:Initializing the Livewire Component class */
 class HomeIndex extends Component
 {
     // Property untuk Modal Export
@@ -34,7 +34,6 @@ class HomeIndex extends Component
         /** @var \App\Models\User $user */
         $user = Auth::user();
 
-        /* STREAMING_CHUNK:Setting up role-based access controls using Gates */
         if ($user) {
             $this->hasFinancialAccess = Gate::any([
                 'read-transaksi_pembayaran',
@@ -70,7 +69,6 @@ class HomeIndex extends Component
         $this->showExportModal = true;
     }
 
-    /* STREAMING_CHUNK:Processing the report download logic */
     // Fungsi Utama untuk Download Laporan
     public function downloadReport()
     {
@@ -82,68 +80,54 @@ class HomeIndex extends Component
         ]);
 
         $data = [];
-        $totalOmzet = 0;
         $title = '';
+
+        $start = Carbon::parse($this->exportStartDate)->startOfDay();
+        $end = Carbon::parse($this->exportEndDate)->endOfDay();
 
         // 1. Logika Laporan Peminjaman (Operasional)
         if ($this->exportType === 'peminjaman') {
             $title = 'LAPORAN OPERASIONAL PEMINJAMAN';
-            $query = Peminjaman::with(['user', 'mobil'])
-                ->whereBetween('tanggal_sewa', [$this->exportStartDate, $this->exportEndDate]);
+            $query = Peminjaman::with(['user', 'mobil', 'sopir.user', 'pengembalian'])
+                ->whereBetween('tanggal_sewa', [$start, $end]);
 
             if ($this->exportStatus !== 'all') {
                 $query->where('status', $this->exportStatus);
             }
 
             $data = $query->orderBy('tanggal_sewa', 'desc')->get();
-            $totalOmzet = $data->sum('total_harga'); 
         }
 
-        /* STREAMING_CHUNK:Calculating financial report data with refund deductions */
         // 2. Logika Laporan Pembayaran (Cashflow/Keuangan)
         elseif ($this->exportType === 'pembayaran') {
             $title = 'LAPORAN TRANSAKSI KEUANGAN';
-            $query = TransaksiPembayaran::with(['peminjaman.user', 'peminjaman.mobil'])
-                ->whereBetween('created_at', [$this->exportStartDate . ' 00:00:00', $this->exportEndDate . ' 23:59:59']);
+            $query = TransaksiPembayaran::with(['peminjaman.user', 'peminjaman.mobil', 'peminjaman.sopir.user'])
+                ->whereBetween('created_at', [$start, $end]);
 
             if ($this->exportStatus !== 'all') {
                 $query->where('status', $this->exportStatus);
             }
 
             $data = $query->orderBy('created_at', 'desc')->get();
-            
-            // Hitung Pendapatan (Hanya yang sukses)
-            $pendapatan = $data->whereIn('status', ['success', 'settlement'])
-                               ->whereIn('tipe_transaksi', ['dp', 'sisa', 'lunas', 'denda'])
-                               ->sum('jumlah');
-            
-            // Hitung Pengurangan (Refund) - MENGABAIKAN STATUS
-            // Semua transaksi bertipe 'refund', baik pending maupun success, akan mengurangi total
-            $refund = $data->where('tipe_transaksi', 'refund')
-                           ->sum('jumlah');
-
-            $totalOmzet = $pendapatan - $refund;
         }
 
-        /* STREAMING_CHUNK:Generating the PDF report */
-        // 3. Logika Laporan Denda
+        // 3. Logika Laporan Denda (Menggunakan tabel Pengembalian)
         elseif ($this->exportType === 'denda') {
             $title = 'LAPORAN PENERIMAAN DENDA';
-            $query = Denda::with(['peminjaman.user', 'peminjaman.mobil'])
-                ->whereBetween('tanggal_terdeteksi', [$this->exportStartDate, $this->exportEndDate]);
+            $query = Pengembalian::with(['peminjaman.user', 'peminjaman.mobil', 'pemeriksa'])
+                ->where('total_denda', '>', 0)
+                ->whereBetween('updated_at', [$start, $end]);
 
             if ($this->exportStatus !== 'all') {
-                $query->where('status', $this->exportStatus);
+                $query->where('status_denda', $this->exportStatus);
             }
 
-            $data = $query->orderBy('tanggal_terdeteksi', 'desc')->get();
-            $totalOmzet = $data->where('status', 'sudah dibayar')->sum('total_denda');
+            $data = $query->orderBy('updated_at', 'desc')->get();
         }
 
         // Generate PDF
-        $pdf = Pdf::loadView('reports.transaksi_pdf', [
+        $pdf = Pdf::loadView('transaksi_pdf', [
             'data' => $data,
-            'totalOmzet' => $totalOmzet,
             'startDate' => $this->exportStartDate,
             'endDate' => $this->exportEndDate,
             'reportType' => $this->exportType,
@@ -154,10 +138,9 @@ class HomeIndex extends Component
 
         return response()->streamDownload(function () use ($pdf) {
             echo $pdf->stream();
-        }, 'Laporan_' . ucfirst($this->exportType) . '_' . date('Ymd_Hi') . '.pdf');
+        }, strtolower(str_replace(' ', '_', $title)) . '_' . date('Ymd_Hi') . '.pdf');
     }
 
-    /* STREAMING_CHUNK:Rendering the dashboard view with calculated statistics */
     public function render()
     {
         /** @var \App\Models\User $user */
@@ -169,32 +152,9 @@ class HomeIndex extends Component
         // --- 1. SEKSI KEUANGAN & TRANSAKSI ---
         if ($this->hasFinancialAccess) {
             if (Gate::allows('read-transaksi_pembayaran')) {
-                // Mengambil Total Pendapatan HANYA dari transaksi yang sukses
-                $pendapatan = TransaksiPembayaran::whereIn('status', ['success', 'settlement'])
-                    ->whereIn('tipe_transaksi', ['dp', 'sisa', 'lunas', 'denda'])
-                    ->sum('jumlah');
-                
-                // Mengambil Total Refund (Status apapun)
-                $refund = TransaksiPembayaran::where('tipe_transaksi', 'refund')
-                    ->sum('jumlah');
-
-                $data['totalPendapatan'] = $pendapatan - $refund;
-                
-                // Konsistensi Penamaan Variabel untuk Grafik
-                $revenueData = $this->getMonthlyRevenue();
-                $fineData = $this->getMonthlyFines();
-                $combinedData = [];
-                
-                for($i = 0; $i < 12; $i++) {
-                    $combinedData[] = $revenueData[$i] + $fineData[$i];
-                }
-
-                $data['revenueData'] = $revenueData;
-                $data['fineData'] = $fineData;
-                $data['combinedData'] = $combinedData;
+                $this->calculateNetFinancials($data);
             }
 
-            /* STREAMING_CHUNK:Fetching operational and transaction data */
             if (Gate::allows('read-peminjaman')) {
                 $data['peminjamanBerlangsung'] = Peminjaman::where('status', 'berlangsung')->count();
                 $data['peminjamanBaru'] = Peminjaman::where('status', 'menunggu pembayaran')->count();
@@ -221,7 +181,6 @@ class HomeIndex extends Component
                 $data['pendingVerifikasi'] = User::where('status_verifikasi', 'menunggu')->count();
             }
 
-            /* STREAMING_CHUNK:Fetching inspection and driver data */
             if (Gate::allows('read-inspeksi_mobil')) {
                 $data['latestChecks'] = Pengembalian::with(['peminjaman.user', 'peminjaman.mobil'])
                     ->orderByDesc('tanggal_pengembalian')
@@ -229,7 +188,8 @@ class HomeIndex extends Component
 
                 $data['metrics'] = [
                     ['label' => 'Perlu Pengecekan', 'value' => Pengembalian::where('status', 'menunggu pengecekan')->count(), 'color' => 'yellow'],
-                    ['label' => 'Total Inspeksi', 'value' => InspeksiMobil::count(), 'color' => 'green']
+                    // Karena InspeksiMobil sudah digabung, kita hitung yang pemeriksa_id nya tidak null
+                    ['label' => 'Total Inspeksi', 'value' => Pengembalian::whereNotNull('pemeriksa_id')->count(), 'color' => 'green']
                 ];
             }
         }
@@ -248,7 +208,6 @@ class HomeIndex extends Component
             $data['tugasAktif'] = $queryTugas->get();
         }
 
-        /* STREAMING_CHUNK:Finalizing data compilation and returning view */
         // --- 4. SISTEM ---
         if ($this->hasSystemAccess && Gate::allows('read-users')) {
             $data['totalPelanggan'] = User::role('pelanggan')->count();
@@ -265,47 +224,93 @@ class HomeIndex extends Component
         return view('livewire.menu.dashboard.home-index', $data);
     }
 
-    private function userCan($permission)
+    private function calculateNetFinancials(&$data)
     {
-        return Gate::allows($permission);
-    }
-
-    /* STREAMING_CHUNK:Defining helper functions for monthly revenue calculations */
-    private function getMonthlyRevenue()
-    {
-        // Data Pendapatan Sewa (Masuk)
-        $rev = TransaksiPembayaran::whereIn('status', ['success', 'settlement'])
-            ->whereIn('tipe_transaksi', ['dp', 'sisa', 'lunas'])
-            ->whereYear('created_at', date('Y'))
-            ->select(DB::raw('SUM(jumlah) as total'), DB::raw('MONTH(created_at) as month'))
-            ->groupBy('month')->pluck('total', 'month')->toArray();
+        $currentYear = date('Y');
         
-        // Data Refund (Keluar) - Status apapun
-        $ref = TransaksiPembayaran::where('tipe_transaksi', 'refund')
-            ->whereYear('created_at', date('Y'))
-            ->select(DB::raw('SUM(jumlah) as total'), DB::raw('MONTH(created_at) as month'))
-            ->groupBy('month')->pluck('total', 'month')->toArray();
+        // 1. Ambil Transaksi Sewa yang sukses
+        $payments = TransaksiPembayaran::with(['peminjaman.mobil'])
+            ->whereYear('created_at', $currentYear)
+            ->whereIn('status', ['success', 'settlement'])
+            ->whereIn('tipe_transaksi', ['dp', 'sisa', 'lunas'])
+            ->get();
 
-        // Gabungkan dan kurangi per bulan
-        return array_map(function($m) use ($rev, $ref) {
-            $pendapatanBulanIni = $rev[$m] ?? 0;
-            $refundBulanIni = $ref[$m] ?? 0;
-            return $pendapatanBulanIni - $refundBulanIni;
-        }, range(1, 12));
+        $pendapatanBersihTotal = 0;
+        $monthlyNet = array_fill(1, 12, 0);
+
+        foreach ($payments as $pay) {
+            $jumlah = $pay->jumlah;
+            $peminjaman = $pay->peminjaman;
+            $net = 0;
+            
+            if ($peminjaman && $peminjaman->mobil) {
+                // Estimasi Biaya Sopir (Jika Ada Sopir) -> Misal: Rp 150.000 / Hari
+                $days = max(1, Carbon::parse($peminjaman->tanggal_sewa)->diffInDays(Carbon::parse($peminjaman->tanggal_kembali)));
+                $biayaSopir = $peminjaman->sopir_id ? (150000 * $days) : 0;
+                
+                // Proporsi Jika Bayar DP
+                $ratio = $peminjaman->total_harga > 0 ? ($jumlah / $peminjaman->total_harga) : 1;
+                $sopirProporsional = $biayaSopir * $ratio;
+                
+                // Pendapatan Murni Setelah Sopir
+                $sewaMurni = max(0, $jumlah - $sopirProporsional);
+                
+                // Potong PPN 11%
+                $net = round($sewaMurni / 1.11); 
+                
+                // Potong Bagi Hasil Mitra
+                if ($peminjaman->mobil->status_kepemilikan === 'mitra') {
+                    $persen = $peminjaman->mobil->persentase_bagi_hasil_rental ?? 100;
+                    $net = round($net * ($persen / 100));
+                }
+            } else {
+                // Fallback jika data peminjaman tidak lengkap
+                $net = round($jumlah / 1.11); 
+            }
+            
+            $pendapatanBersihTotal += $net;
+            $month = (int) Carbon::parse($pay->created_at)->format('n');
+            $monthlyNet[$month] += $net;
+        }
+
+        // 2. Ambil Transaksi Denda dari tabel Pengembalian
+        $dendas = Pengembalian::where('status_denda', 'sudah dibayar')
+            ->whereYear('tanggal_pembayaran_denda', $currentYear)
+            ->get();
+            
+        $monthlyDenda = array_fill(1, 12, 0);
+        $dendaTotal = 0;
+        
+        foreach ($dendas as $d) {
+            $jumlah = $d->total_denda;
+            $month = (int) Carbon::parse($d->tanggal_pembayaran_denda)->format('n');
+            $monthlyDenda[$month] += $jumlah;
+            $dendaTotal += $jumlah;
+        }
+
+        // 3. Kurangi dengan Refund
+        $refunds = TransaksiPembayaran::where('tipe_transaksi', 'refund')
+            ->whereYear('created_at', $currentYear)
+            ->get();
+            
+        foreach($refunds as $ref) {
+            $pendapatanBersihTotal -= $ref->jumlah;
+            $month = (int) Carbon::parse($ref->created_at)->format('n');
+            $monthlyNet[$month] -= $ref->jumlah;
+        }
+
+        // 4. Masukkan ke Array Data View
+        $data['totalPendapatan'] = max(0, $pendapatanBersihTotal + $dendaTotal);
+        $data['revenueData'] = array_values($monthlyNet);
+        $data['fineData'] = array_values($monthlyDenda);
+        
+        $combinedData = [];
+        for($i = 0; $i < 12; $i++){
+            $combinedData[] = $monthlyNet[$i + 1] + $monthlyDenda[$i + 1];
+        }
+        $data['combinedData'] = $combinedData;
     }
 
-    private function getMonthlyFines()
-    {
-        // Data Denda diambil langsung dari transaksi_pembayaran (berdasarkan tipe) untuk akurasi arus kas
-        $fines = TransaksiPembayaran::whereIn('status', ['success', 'settlement'])
-            ->where('tipe_transaksi', 'denda')
-            ->whereYear('created_at', date('Y'))
-            ->select(DB::raw('SUM(jumlah) as total'), DB::raw('MONTH(created_at) as month'))
-            ->groupBy('month')->pluck('total', 'month')->toArray();
-        return array_map(fn($m) => $fines[$m] ?? 0, range(1, 12));
-    }
-
-    /* STREAMING_CHUNK:Defining helper functions for top car data and defaults */
     private function getTopMobilData(&$data)
     {
         $top = Peminjaman::select('mobil_id', DB::raw('count(*) as total'))
