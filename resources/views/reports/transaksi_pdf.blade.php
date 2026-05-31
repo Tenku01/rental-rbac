@@ -5,7 +5,8 @@
     <style>
         body { 
             font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; 
-            font-size: 11px; 
+            /* Mengurangi hierarki font dasar agar kolom panjang bisa muat */
+            font-size: 10px; 
             color: #333;
         }
         
@@ -38,20 +39,20 @@
             width: 85%;
             text-align: center;
             vertical-align: middle;
-            font-family: 'Times New Roman', Times, serif; /* Font resmi untuk kop surat */
+            font-family: 'Times New Roman', Times, serif; 
         }
         .teks-kop h1 {
             margin: 0 0 8px 0;
-            font-size: 24px;
+            font-size: 22px;
             font-weight: bold;
-            color: #000; /* Hitam tegas sesuai gambar */
+            color: #000;
             letter-spacing: 0.5px;
         }
         .teks-kop p {
             margin: 5px 0;
-            font-size: 15px;
+            font-size: 13px;
             color: #000;
-            font-weight: bold; /* Teks di gambar terlihat tebal */
+            font-weight: bold;
         }
 
         /* Gaya Konten */
@@ -79,16 +80,35 @@
         }
         table.data-table th, table.data-table td { 
             border: 1px solid #777; 
-            padding: 8px 6px; 
+            padding: 6px 5px; /* Padding disesuaikan agar lebih ringkas */
             text-align: left; 
         }
         table.data-table th { 
             background-color: #f1f5f9; 
             font-weight: bold;
             text-align: center;
+            font-size: 10px;
         }
         .text-center { text-align: center !important; }
         .text-right { text-align: right !important; }
+        
+        /* Gaya Baris Rincian Total */
+        .summary-row td {
+            padding: 5px 6px;
+            border: 1px solid #777;
+        }
+        .summary-label {
+            text-align: right;
+            font-weight: bold;
+        }
+        .summary-value {
+            text-align: right;
+            font-weight: bold;
+        }
+        .summary-net td {
+            background-color: #f1f5f9;
+            font-size: 11px;
+        }
         
         .footer { 
             margin-top: 40px; 
@@ -119,7 +139,6 @@
             <tr>
                 <td class="logo-container">
                     <?php
-                        // Membaca gambar dari folder public dan mengubahnya ke base64 agar aman di-render oleh DOMPDF
                         $imagePath = public_path('logoakarentcar.png');
                         $logoData = '';
                         if(file_exists($imagePath)){
@@ -129,7 +148,6 @@
                     @if($logoData)
                         <img src="{{ $logoData }}" style="max-width: 90px; height: auto;">
                     @else
-                        <!-- Fallback jika gambar tidak ditemukan -->
                         <h2 style="margin:0;">AKA RENT</h2>
                     @endif
                 </td>
@@ -147,7 +165,6 @@
     {{-- JUDUL LAPORAN --}}
     <div class="header">
         <h2>{{ $title ?? 'LAPORAN TRANSAKSI RENTAL MOBIL' }}</h2>
-        {{-- MENGGUNAKAN locale('id')->isoFormat() AGAR PASTI BAHASA INDONESIA --}}
         <p>Periode: {{ \Carbon\Carbon::parse($startDate)->locale('id')->isoFormat('D MMMM Y') }} - {{ \Carbon\Carbon::parse($endDate)->locale('id')->isoFormat('D MMMM Y') }}</p>
     </div>
 
@@ -161,70 +178,91 @@
         <thead>
             <tr>
                 <th width="5%">No</th>
-                <th width="12%">Tgl Sewa</th>
-                <th width="15%">Penyewa</th>
-                <th width="15%">Armada</th>
-                <th width="15%">Sopir</th>
-                <th width="12%" class="text-right">Ttl Kotor</th>
-                <th width="12%" class="text-right">Pendptn. Sopir</th>
-                <th width="14%" class="text-right">Net Profit</th>
+                <th width="18%">Tanggal Sewa</th>
+                <th width="22%">Nama Penyewa</th>
+                <th width="20%">Unit Armada</th>
+                <th width="20%">Nama Sopir</th>
+                <th width="15%" class="text-right">Nominal Transaksi</th>
             </tr>
         </thead>
         <tbody>
             @php 
                 $totalGross = 0; 
                 $totalSopir = 0; 
+                $totalPajak = 0;
+                $totalMitra = 0;
                 $totalNet = 0; 
             @endphp
             @forelse($data as $index => $row)
                 @php
                     $kotor = $row->total_harga ?? 0;
                     
-                    // Estimasi biaya sopir: 150rb * Jumlah Hari
+                    // 1. Estimasi biaya sopir
                     $biayaSopir = 0;
                     if($row->sopir_id) {
                         $days = max(1, \Carbon\Carbon::parse($row->tanggal_sewa)->diffInDays(\Carbon\Carbon::parse($row->tanggal_kembali)));
                         $biayaSopir = 150000 * $days;
                     }
                     
-                    // Rumus Net Profit: (Kotor - Sopir) / 1.11 (Potong Pajak)
+                    // 2. Kalkulasi Pajak 11% dari harga sewa murni
                     $sewaMurni = max(0, $kotor - $biayaSopir);
                     $pendapatanBersih = round($sewaMurni / 1.11);
-                    $netProfit = $pendapatanBersih;
+                    $pajak = $sewaMurni - $pendapatanBersih;
                     
-                    // Potong Bagi Hasil jika mobil punya Mitra
+                    // 3. Kalkulasi Hak Mitra
+                    $hakRental = $pendapatanBersih;
+                    $hakMitra = 0;
+                    
                     if($row->mobil && $row->mobil->status_kepemilikan === 'mitra') {
-                        $persen = $row->mobil->persentase_bagi_hasil_rental ?? 100;
-                        $netProfit = round($pendapatanBersih * ($persen / 100));
+                        $persenRental = $row->mobil->persentase_bagi_hasil_rental ?? 100;
+                        $hakRental = round($pendapatanBersih * ($persenRental / 100));
+                        $hakMitra = $pendapatanBersih - $hakRental;
                     }
                     
                     $totalGross += $kotor;
                     $totalSopir += $biayaSopir;
-                    $totalNet += $netProfit;
+                    $totalPajak += $pajak;
+                    $totalMitra += $hakMitra;
+                    $totalNet += $hakRental;
                 @endphp
                 <tr>
                     <td class="text-center">{{ $index + 1 }}</td>
-                    <td>{{ \Carbon\Carbon::parse($row->tanggal_sewa)->format('d/m/Y') }}</td>
+                    <td class="text-center">
+                        {{ \Carbon\Carbon::parse($row->tanggal_sewa)->format('d/m/Y') }}<br>
+                        <small>s/d {{ \Carbon\Carbon::parse($row->tanggal_kembali)->format('d/m/Y') }}</small>
+                    </td>
                     <td>{{ $row->user->name ?? 'N/A' }}</td>
-                    <td>{{ $row->mobil->merek ?? 'N/A' }}<br><small>({{ $row->mobil->id ?? '-' }})</small></td>
+                    <td>{{ $row->mobil->merek ?? 'N/A' }} <small>({{ $row->mobil->id ?? '-' }})</small></td>
                     <td>{{ $row->sopir ? ($row->sopir->user->name ?? 'Terhapus') : 'Tanpa Sopir' }}</td>
                     <td class="text-right">Rp {{ number_format($kotor, 0, ',', '.') }}</td>
-                    <td class="text-right" style="color: #059669;">Rp {{ number_format($biayaSopir, 0, ',', '.') }}</td>
-                    <td class="text-right" style="color: #0891b2; font-weight: bold;">Rp {{ number_format($netProfit, 0, ',', '.') }}</td>
                 </tr>
             @empty
                 <tr>
-                    <td colspan="8" class="text-center" style="padding: 20px;">Tidak ada data yang ditemukan.</td>
+                    <td colspan="6" class="text-center" style="padding: 20px;">Tidak ada data yang ditemukan.</td>
                 </tr>
             @endforelse
         </tbody>
         @if(count($data) > 0)
         <tfoot>
-            <tr style="background-color: #f8fafc;">
-                <td colspan="5" class="text-right" style="font-weight: bold;">TOTAL KESELURUHAN</td>
-                <td class="text-right" style="font-weight: bold;">Rp {{ number_format($totalGross, 0, ',', '.') }}</td>
-                <td class="text-right" style="font-weight: bold; color: #059669;">Rp {{ number_format($totalSopir, 0, ',', '.') }}</td>
-                <td class="text-right" style="font-weight: bold; color: #0891b2;">Rp {{ number_format($totalNet, 0, ',', '.') }}</td>
+            <tr class="summary-row" style="background-color: #f8fafc;">
+                <td colspan="5" class="summary-label">TOTAL OMSET KESELURUHAN (KOTOR)</td>
+                <td class="summary-value">Rp {{ number_format($totalGross, 0, ',', '.') }}</td>
+            </tr>
+            <tr class="summary-row">
+                <td colspan="5" class="summary-label" style="color: #059669;">POTONGAN PENDAPATAN SOPIR</td>
+                <td class="summary-value" style="color: #059669;">- Rp {{ number_format($totalSopir, 0, ',', '.') }}</td>
+            </tr>
+            <tr class="summary-row">
+                <td colspan="5" class="summary-label" style="color: #dc2626;">POTONGAN PAJAK PPN (11%)</td>
+                <td class="summary-value" style="color: #dc2626;">- Rp {{ number_format($totalPajak, 0, ',', '.') }}</td>
+            </tr>
+            <tr class="summary-row">
+                <td colspan="5" class="summary-label" style="color: #d97706;">POTONGAN BAGI HASIL MITRA</td>
+                <td class="summary-value" style="color: #d97706;">- Rp {{ number_format($totalMitra, 0, ',', '.') }}</td>
+            </tr>
+            <tr class="summary-row summary-net">
+                <td colspan="5" class="summary-label">PENDAPATAN BERSIH (NET PROFIT)</td>
+                <td class="summary-value" style="color: #0891b2;">Rp {{ number_format($totalNet, 0, ',', '.') }}</td>
             </tr>
         </tfoot>
         @endif
@@ -237,34 +275,33 @@
             <tr>
                 <th width="5%">No</th>
                 <th width="15%">Waktu Transaksi</th>
-                <th width="20%">ID Transaksi</th>
-                <th width="20%">Penyewa / Armada</th>
-                <th width="12%">Tipe</th>
-                <th width="15%" class="text-right">Jml Kotor / Refund</th>
-                <th width="13%" class="text-right">Net Profit</th>
+                <th width="25%">Identitas Transaksi</th>
+                <th width="25%">Penyewa & Armada</th>
+                <th width="15%">Tipe Transaksi</th>
+                <th width="15%" class="text-right">Nominal Transaksi</th>
             </tr>
         </thead>
         <tbody>
             @php 
                 $totalGross = 0; 
                 $totalRefund = 0;
+                $totalSopir = 0; 
+                $totalPajak = 0;
+                $totalMitra = 0;
                 $totalNet = 0; 
             @endphp
             @forelse($data as $index => $row)
                 @php
                     $jumlah = $row->jumlah ?? 0;
                     $tipe = strtolower(trim($row->tipe_transaksi));
-                    $netProfit = 0;
                     
                     if($tipe === 'denda') {
-                        // Denda tidak dipotong pajak 11% / sopir / mitra
-                        $netProfit = $jumlah;
                         $totalGross += $jumlah;
+                        $totalNet += $jumlah; // Denda tidak kena pajak/bagi hasil
                         
                     } elseif ($tipe === 'refund') {
-                        // Refund mengurangi total pendapatan
-                        $netProfit = -$jumlah;
                         $totalRefund += $jumlah;
+                        $totalNet -= $jumlah; 
                         
                     } else {
                         // Normal payment (DP / Lunas / Sisa)
@@ -281,29 +318,34 @@
                             
                             $sewaMurni = max(0, $jumlah - $biayaSopir);
                             $pendapatanBersih = round($sewaMurni / 1.11);
-                            $netProfit = $pendapatanBersih;
+                            $pajak = $sewaMurni - $pendapatanBersih;
+                            
+                            $hakRental = $pendapatanBersih;
+                            $hakMitra = 0;
                             
                             if($peminjaman->mobil && $peminjaman->mobil->status_kepemilikan === 'mitra') {
-                                $persen = $peminjaman->mobil->persentase_bagi_hasil_rental ?? 100;
-                                $netProfit = round($pendapatanBersih * ($persen / 100));
+                                $persenRental = $peminjaman->mobil->persentase_bagi_hasil_rental ?? 100;
+                                $hakRental = round($pendapatanBersih * ($persenRental / 100));
+                                $hakMitra = $pendapatanBersih - $hakRental;
                             }
+                            
+                            $totalSopir += $biayaSopir;
+                            $totalPajak += $pajak;
+                            $totalMitra += $hakMitra;
+                            $totalNet += $hakRental;
                         }
                         $totalGross += $jumlah;
                     }
-                    
-                    $totalNet += $netProfit;
                 @endphp
                 <tr>
                     <td class="text-center">{{ $index + 1 }}</td>
-                    <td>{{ \Carbon\Carbon::parse($row->created_at)->format('d M Y, H:i') }}</td>
-                    <td><small>{{ $row->id_transaksi_midtrans }}</small></td>
+                    <td class="text-center">{{ \Carbon\Carbon::parse($row->created_at)->format('d M Y, H:i') }}</td>
+                    <td>{{ $row->id_transaksi_midtrans }}</td>
                     <td>
                         {{ $row->peminjaman->user->name ?? 'N/A' }}<br>
                         <small style="color: #666;">{{ $row->peminjaman->mobil->merek ?? '-' }} ({{ $row->peminjaman->mobil_id ?? '-' }})</small>
                     </td>
-                    <td class="text-center">
-                        <span style="text-transform: uppercase; font-size: 9px; padding: 2px 6px; border: 1px solid #ccc; border-radius: 4px;">{{ $row->tipe_transaksi }}</span>
-                    </td>
+                    <td class="text-center">{{ strtoupper($row->tipe_transaksi) }}</td>
                     <td class="text-right">
                         @if($tipe === 'refund')
                             <span style="color: red;">- Rp {{ number_format($jumlah, 0, ',', '.') }}</span>
@@ -311,22 +353,40 @@
                             Rp {{ number_format($jumlah, 0, ',', '.') }}
                         @endif
                     </td>
-                    <td class="text-right" style="color: {{ $netProfit < 0 ? 'red' : '#0891b2' }}; font-weight: bold;">
-                        {{ $netProfit < 0 ? '- ' : '' }}Rp {{ number_format(abs($netProfit), 0, ',', '.') }}
-                    </td>
                 </tr>
             @empty
                 <tr>
-                    <td colspan="7" class="text-center" style="padding: 20px;">Tidak ada data yang ditemukan.</td>
+                    <td colspan="6" class="text-center" style="padding: 20px;">Tidak ada data yang ditemukan.</td>
                 </tr>
             @endforelse
         </tbody>
         @if(count($data) > 0)
         <tfoot>
-            <tr style="background-color: #f8fafc;">
-                <td colspan="5" class="text-right" style="font-weight: bold; padding-right: 15px;">TOTAL PENERIMAAN BERSIH</td>
-                <td class="text-right" style="font-weight: bold;">Rp {{ number_format($totalGross - $totalRefund, 0, ',', '.') }}</td>
-                <td class="text-right" style="font-weight: bold; color: #0891b2;">Rp {{ number_format($totalNet, 0, ',', '.') }}</td>
+            <tr class="summary-row" style="background-color: #f8fafc;">
+                <td colspan="5" class="summary-label">TOTAL PENERIMAAN KESELURUHAN (KOTOR)</td>
+                <td class="summary-value">Rp {{ number_format($totalGross, 0, ',', '.') }}</td>
+            </tr>
+            @if($totalRefund > 0)
+            <tr class="summary-row">
+                <td colspan="5" class="summary-label" style="color: #dc2626;">PENGELUARAN PENGEMBALIAN DANA (REFUND)</td>
+                <td class="summary-value" style="color: #dc2626;">- Rp {{ number_format($totalRefund, 0, ',', '.') }}</td>
+            </tr>
+            @endif
+            <tr class="summary-row">
+                <td colspan="5" class="summary-label" style="color: #059669;">POTONGAN PENDAPATAN SOPIR</td>
+                <td class="summary-value" style="color: #059669;">- Rp {{ number_format($totalSopir, 0, ',', '.') }}</td>
+            </tr>
+            <tr class="summary-row">
+                <td colspan="5" class="summary-label" style="color: #dc2626;">POTONGAN PAJAK PPN (11%)</td>
+                <td class="summary-value" style="color: #dc2626;">- Rp {{ number_format($totalPajak, 0, ',', '.') }}</td>
+            </tr>
+            <tr class="summary-row">
+                <td colspan="5" class="summary-label" style="color: #d97706;">POTONGAN BAGI HASIL MITRA</td>
+                <td class="summary-value" style="color: #d97706;">- Rp {{ number_format($totalMitra, 0, ',', '.') }}</td>
+            </tr>
+            <tr class="summary-row summary-net">
+                <td colspan="5" class="summary-label">PENDAPATAN BERSIH (NET PROFIT)</td>
+                <td class="summary-value" style="color: #0891b2;">Rp {{ number_format($totalNet, 0, ',', '.') }}</td>
             </tr>
         </tfoot>
         @endif
@@ -338,11 +398,11 @@
         <thead>
             <tr>
                 <th width="5%">No</th>
-                <th width="15%">Tgl Bayar</th>
-                <th width="20%">Penyewa / Armada</th>
+                <th width="15%">Tanggal Pembayaran</th>
+                <th width="20%">Penyewa & Armada</th>
                 <th width="30%">Keterangan Denda</th>
-                <th width="15%">Status Bayar</th>
-                <th width="15%" class="text-right">Nominal</th>
+                <th width="15%">Status Pembayaran</th>
+                <th width="15%" class="text-right">Nominal Denda</th>
             </tr>
         </thead>
         <tbody>
@@ -372,14 +432,13 @@
         </tbody>
         @if(count($data) > 0)
         <tfoot>
-            <tr style="background-color: #f8fafc;">
-                <td colspan="5" class="text-right" style="font-weight: bold; padding-right: 15px;">TOTAL DENDA DIBAYARKAN</td>
-                <td class="text-right" style="font-weight: bold; color: #0891b2;">Rp {{ number_format($grandTotal, 0, ',', '.') }}</td>
+            <tr class="summary-row summary-net">
+                <td colspan="5" class="summary-label">TOTAL DENDA DIBAYARKAN (NET)</td>
+                <td class="summary-value" style="color: #0891b2;">Rp {{ number_format($grandTotal, 0, ',', '.') }}</td>
             </tr>
         </tfoot>
         @endif
         
-        {{-- INI ADALAH TAG PENUTUP @endif UTAMA YANG KETINGGALAN --}}
         @endif 
     </table>
 
@@ -387,13 +446,11 @@
     <div class="footer">
         <table class="footer-table">
             <tr>
-                {{-- INFO TANGGAL DICETAK --}}
                 <td width="70%" style="vertical-align: bottom; font-size: 10px; color: #666;">
                     * Dicetak oleh sistem pada {{ \Carbon\Carbon::now()->locale('id')->isoFormat('D MMMM Y, HH:mm') }}
                 </td>
                 
                 <td class="signature-box">
-                    {{-- MENGGUNAKAN locale('id')->isoFormat() AGAR PASTI BAHASA INDONESIA --}}
                     <p>Sleman, {{ \Carbon\Carbon::now()->locale('id')->isoFormat('D MMMM Y') }}</p>
                     <p>Mengetahui,</p>
                     <div class="signature-space"></div>
