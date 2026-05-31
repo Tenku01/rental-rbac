@@ -201,7 +201,7 @@
                     $biayaSopir = 0;
                     if($row->sopir_id) {
                         $days = max(1, \Carbon\Carbon::parse($row->tanggal_sewa)->diffInDays(\Carbon\Carbon::parse($row->tanggal_kembali)));
-                        $biayaSopir = 150000 * $days;
+                        $biayaSopir = 1500 * $days;
                     }
                     
                     // 2. Kalkulasi Pajak 11% dari harga sewa murni
