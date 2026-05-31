@@ -126,7 +126,7 @@ class HomeIndex extends Component
         }
 
         // Generate PDF
-        $pdf = Pdf::loadView('transaksi_pdf', [
+       $pdf = Pdf::loadView('reports.transaksi_pdf', [
             'data' => $data,
             'startDate' => $this->exportStartDate,
             'endDate' => $this->exportEndDate,
