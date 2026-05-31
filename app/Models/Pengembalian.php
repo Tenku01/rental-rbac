@@ -82,22 +82,17 @@ class Pengembalian extends Model
 
     /**
      * ACCESSOR: Menghitung total denda yang BELUM DIBAYAR.
-     * Karena data denda sudah tergabung, kita cukup membaca kolomnya sendiri.
+     * Karena data denda sudah tergabung, kita cukup membaca kolomnya sendiri secara aman.
      */
     public function getTotalOutstandingFineAttribute()
     {
-        if ($this->status_denda === 'belum dibayar') {
-            return $this->total_denda;
+        // Gunakan $this->attributes untuk menghindari konflik magic property Laravel
+        $status = $this->attributes['status_denda'] ?? 'tidak ada denda';
+        
+        if ($status === 'belum dibayar') {
+            return (float) ($this->attributes['total_denda'] ?? 0);
         }
         
         return 0; // Jika tidak ada denda atau sudah dibayar
-    }
-    
-    /**
-     * Helper untuk mendapatkan total denda keseluruhan
-     */
-    public function getTotalDendaAttribute()
-    {
-        return $this->total_denda;
     }
 }
