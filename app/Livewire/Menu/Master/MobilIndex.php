@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\Storage;
 use Livewire\Attributes\Layout;
 use Illuminate\Validation\Rule;
 use Illuminate\Support\Facades\Gate;
+use Carbon\Carbon; // 🔹 Ditambahkan untuk tanggal
 
 class MobilIndex extends Component
 {
@@ -29,6 +30,9 @@ class MobilIndex extends Component
     public $isEditMode = false;
     public $showModal = false;
     public $search = '';
+    
+    // --- 🔹 Properti Filter Ketersediaan Tanggal ---
+    public $filterTanggal;
 
     public $showStatusModal = false;
     public $status_edit = '';
@@ -38,12 +42,26 @@ class MobilIndex extends Component
         if (Gate::denies('read-mobil')) {
             return redirect()->route('unauthorized');
         }
+
+        // 🔹 Set nilai default filter ke hari ini (Today)
+        $this->filterTanggal = Carbon::today()->toDateString();
     }
 
     // --- Validasi & Kalkulasi Realtime ---
     public function updated($propertyName)
     {
         $this->validateOnly($propertyName);
+    }
+
+    // 🔹 Reset ke halaman pertama jika filter tanggal berubah
+    public function updatedFilterTanggal()
+    {
+        $this->resetPage();
+    }
+
+    public function updatedSearch()
+    {
+        $this->resetPage();
     }
 
     // Fungsi otomatis menghitung persentase mitra ketika persentase rental diketik
@@ -109,12 +127,29 @@ class MobilIndex extends Component
     {
         abort_if(Gate::denies('read-mobil'), 403);
 
-        $mobils = Mobil::query()
-            ->where('id', 'like', '%' . $this->search . '%')
-            ->orWhere('merek', 'like', '%' . $this->search . '%')
-            ->orWhere('tipe', 'like', '%' . $this->search . '%')
-            ->orderBy('created_at', 'desc')
-            ->paginate(10)->withPath(url()->current());
+        $query = Mobil::query();
+
+        // 🔹 LOGIKA FILTER TANGGAL: 
+        // Hanya tampilkan mobil yang TIDAK ADA (doesntHave) di tabel peminjaman pada tanggal yang dipilih
+        // (Selesai dan Dibatalkan diabaikan karena mobil dianggap kosong lagi)
+        if ($this->filterTanggal) {
+            $query->whereDoesntHave('peminjaman', function ($q) {
+                $q->where('tanggal_sewa', '<=', $this->filterTanggal)
+                  ->where('tanggal_kembali', '>=', $this->filterTanggal)
+                  ->whereNotIn('status', ['selesai', 'dibatalkan']);
+            });
+        }
+
+        // Pencarian teks biasa
+        $query->where(function ($q) {
+            $q->where('id', 'like', '%' . $this->search . '%')
+              ->orWhere('merek', 'like', '%' . $this->search . '%')
+              ->orWhere('tipe', 'like', '%' . $this->search . '%');
+        });
+
+        $mobils = $query->orderBy('created_at', 'desc')
+                        ->paginate(10)
+                        ->withPath(url()->current());
 
         return view('livewire.menu.master.mobil-index', [
             'mobils' => $mobils

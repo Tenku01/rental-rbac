@@ -75,9 +75,29 @@
         @endcan
     </div>
 
-    {{-- 2. CONTROL BAR (SEARCH) --}}
-    <div class="bg-white p-5 rounded-3xl shadow-sm border border-gray-100 flex flex-col lg:flex-row gap-5 items-center">
-        <div class="relative flex-1 w-full group">
+    {{-- 2. CONTROL BAR (FILTER KETERSEDIAAN TANGGAL & SEARCH) --}}
+    <div class="bg-white p-5 rounded-3xl shadow-sm border border-gray-100 flex flex-col lg:flex-row gap-5 items-center justify-between">
+        
+        <!-- Filter Tanggal (Kiri) -->
+        <div class="flex items-center gap-3 w-full lg:w-auto bg-gray-50/50 p-2 rounded-2xl border border-gray-100">
+            <div class="flex items-center justify-center w-10 h-10 bg-white rounded-xl shadow-sm text-cyan-600">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+            </div>
+            <div>
+                <label class="block text-[9px] font-black text-gray-400 uppercase tracking-widest mb-0.5">Cek Unit Kosong</label>
+                <div class="flex items-center gap-2">
+                    <input type="date" wire:model.live="filterTanggal" 
+                        class="bg-transparent border-none p-0 text-sm font-bold text-gray-800 focus:ring-0 cursor-pointer">
+                    
+                    @if($filterTanggal)
+                        <button wire:click="$set('filterTanggal', null)" class="bg-rose-100 text-rose-600 hover:bg-rose-200 px-2 py-1 rounded text-[10px] font-bold uppercase tracking-wider transition-colors" title="Hapus Filter">Reset</button>
+                    @endif
+                </div>
+            </div>
+        </div>
+
+        <!-- Kolom Pencarian (Kanan) -->
+        <div class="relative w-full lg:w-96 group">
             <span class="absolute inset-y-0 left-0 flex items-center pl-5 group-focus-within:text-cyan-600 transition-colors">
                 <svg class="w-5 h-5 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
             </span>
@@ -89,6 +109,15 @@
 
     {{-- 3. DATA TABLE --}}
     <div class="bg-white rounded-[2rem] shadow-sm border border-gray-100 overflow-hidden mt-6">
+        
+        <!-- Notifikasi Banner Jika Filter Aktif -->
+        @if($filterTanggal)
+            <div class="bg-cyan-50/80 px-8 py-3 border-b border-cyan-100 flex items-center gap-2">
+                <svg class="w-4 h-4 text-cyan-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                <p class="text-xs font-bold text-cyan-800">Menampilkan armada yang <span class="uppercase font-black text-cyan-900">TIDAK DISEWA</span> pada tanggal <span class="bg-white px-2 py-0.5 rounded border border-cyan-200">{{ \Carbon\Carbon::parse($filterTanggal)->translatedFormat('d F Y') }}</span></p>
+            </div>
+        @endif
+
         <div class="overflow-x-auto custom-scrollbar">
             <table class="w-full text-left">
                 <thead class="bg-gray-50/80 border-b border-gray-100">
@@ -97,7 +126,7 @@
                         <th class="px-8 py-5 text-[11px] font-extrabold text-gray-600 uppercase tracking-[0.15em] ">Mobil & Plat</th>
                         <th class="px-8 py-5 text-center text-[11px] font-extrabold text-gray-600 uppercase tracking-[0.15em] ">Spesifikasi</th>
                         <th class="px-8 py-5 text-center text-[11px] font-extrabold text-gray-600 uppercase tracking-[0.15em] ">Harga/Hari</th>
-                        <th class="px-8 py-5 text-center text-[11px] font-extrabold text-gray-600 uppercase tracking-[0.15em] ">Status</th>
+                        <th class="px-8 py-5 text-center text-[11px] font-extrabold text-gray-600 uppercase tracking-[0.15em] ">Status FIsik</th>
                         <th class="px-8 py-5 text-right text-[11px] font-extrabold text-gray-600 uppercase tracking-[0.15em] ">Aksi</th>
                     </tr>
                 </thead>
@@ -198,7 +227,7 @@
                     @empty
                     <tr>
                         <td colspan="6" class="px-8 py-24 text-center text-gray-400 text-sm font-medium italic">
-                            Belum ada data armada terdaftar di dalam sistem.
+                            Belum ada data armada yang tersedia pada tanggal ini.
                         </td>
                     </tr>
                     @endforelse
@@ -339,7 +368,7 @@
                                 <!-- 5. Harga -->
                                 <div class="group">
                                     <label class="block text-[11px] font-black text-gray-400 uppercase tracking-[0.2em] mb-3 ml-1 group-focus-within:text-cyan-600 transition-colors">
-                                        Harga Sewa / Hari (Termasuk PPN) <span class="text-rose-500">*</span>
+                                        Harga Sewa / Hari (Rp) <span class="text-rose-500">*</span>
                                     </label>
                                     <div class="relative">
                                         <div class="absolute inset-y-0 left-0 pl-5 flex items-center pointer-events-none text-gray-400 font-bold">Rp</div>
