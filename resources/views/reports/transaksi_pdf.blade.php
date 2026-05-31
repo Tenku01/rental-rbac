@@ -378,6 +378,9 @@
             </tr>
         </tfoot>
         @endif
+        
+        {{-- INI ADALAH TAG PENUTUP @endif UTAMA YANG KETINGGALAN --}}
+        @endif 
     </table>
 
     {{-- BAGIAN TANDA TANGAN --}}
